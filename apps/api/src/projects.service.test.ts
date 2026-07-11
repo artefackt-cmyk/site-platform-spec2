@@ -293,7 +293,7 @@ describe("GET /api/projects/:projectId/pages/:pageId/document", () => {
       service.getProjectPageDocument("project-a", "page-a")
     ).resolves.toMatchObject({
       pageId: "page-a",
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: 1,
       document: {
         root: {
@@ -318,7 +318,7 @@ describe("PUT /api/projects/:projectId/pages/:pageId/document", () => {
 
     await expect(
       service.saveProjectPageDocument("project-a", "page-a", {
-        schemaVersion: 1,
+        schemaVersion: 2,
         revision: 1,
         document
       })
@@ -327,13 +327,18 @@ describe("PUT /api/projects/:projectId/pages/:pageId/document", () => {
       revision: 2,
       document: {
         root: {
-          children: [expect.objectContaining({ type: "heading" })]
+          children: [
+            expect.objectContaining({
+              type: "section",
+              children: [expect.objectContaining({ type: "heading" })]
+            })
+          ]
         }
       }
     });
   });
 
-  it("rejects invalid documents", async () => {
+  it("rejects V1 document saves", async () => {
     const { service } = createProjectsService({
       projects: [createProject({ id: "project-a" })],
       pages: [createPage({ id: "page-a", projectId: "project-a" })],
@@ -345,8 +350,47 @@ describe("PUT /api/projects/:projectId/pages/:pageId/document", () => {
         schemaVersion: 1,
         revision: 1,
         document: {
+          schemaVersion: 1,
+          root: {
+            id: "root",
+            type: "page",
+            children: []
+          }
+        }
+      }),
+      400,
+      API_ERROR_CODES.pageDocumentInvalid
+    );
+  });
+
+  it("rejects invalid documents", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })],
+      pages: [createPage({ id: "page-a", projectId: "project-a" })],
+      documents: [createPageDocument({ pageId: "page-a", revision: 1 })]
+    });
+
+    await expectHttpError(
+      service.saveProjectPageDocument("project-a", "page-a", {
+        schemaVersion: 2,
+        revision: 1,
+        document: {
           ...createEmptyPageDocument(),
-          schemaVersion: 2
+          root: {
+            id: "root",
+            type: "page",
+            children: [
+              {
+                id: "not-a-section",
+                type: "heading",
+                props: {
+                  text: "Bad",
+                  level: 1,
+                  align: "left"
+                }
+              }
+            ]
+          }
         }
       }),
       400,
@@ -363,7 +407,7 @@ describe("PUT /api/projects/:projectId/pages/:pageId/document", () => {
 
     await expectHttpError(
       service.saveProjectPageDocument("project-a", "page-a", {
-        schemaVersion: 1,
+        schemaVersion: 2,
         revision: 1,
         document: createEmptyPageDocument()
       }),
@@ -382,7 +426,7 @@ describe("PUT /api/projects/:projectId/pages/:pageId/document", () => {
 
     await expectHttpError(
       service.saveProjectPageDocument("project-a", "page-a", {
-        schemaVersion: 1,
+        schemaVersion: 2,
         revision: 1,
         document: createEmptyPageDocument()
       }),
@@ -750,7 +794,7 @@ function createPageDocument(input: {
     organizationId: input.organizationId ?? "org-a",
     projectId: input.projectId ?? "project-a",
     pageId: input.pageId ?? "page-a",
-    schemaVersion: 1,
+    schemaVersion: 2,
     document: input.document ?? createEmptyPageDocument(),
     revision: input.revision ?? 1,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),

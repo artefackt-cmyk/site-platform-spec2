@@ -1,7 +1,7 @@
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { insertBlock } from "@site-platform/editor-core";
+import { createEmptyPageDocument, insertBlock } from "@site-platform/editor-core";
 import { PageEditorView, type PageEditorLoadState } from "./page-editor-view";
 import { createEditorState } from "./page-editor-state";
 
@@ -10,10 +10,18 @@ describe("PageEditorView", () => {
     const html = renderEditor();
 
     expect(html).toContain("Добро пожаловать");
-    expect(html).toContain("Блоки страницы");
+    expect(html).toContain("Структура");
+    expect(html).toContain("Добавить секцию");
     expect(html).toContain("Добавить блок");
     expect(html).toContain("Заголовок");
     expect(html).toContain("Инспектор");
+  });
+
+  it("renders section presets and image controls", () => {
+    const html = renderEditor();
+
+    expect(html).toContain("Hero");
+    expect(html).toContain("Изображение");
   });
 
   it("renders dirty state", () => {
@@ -47,13 +55,20 @@ function renderEditor(input: {
   return renderToStaticMarkup(
     React.createElement(PageEditorView, {
       state: input.state ?? createReadyState("saved"),
+      onAddSection: () => undefined,
+      onAddHeroSection: () => undefined,
+      onAddTextSection: () => undefined,
       onAddBlock: () => undefined,
-      onSelectBlock: () => undefined,
-      onMoveBlock: () => undefined,
-      onRemoveBlock: () => undefined,
+      onSelectNode: () => undefined,
+      onMoveNode: () => undefined,
+      onRemoveNode: () => undefined,
+      onConvertSection: () => undefined,
+      onUpdateSection: () => undefined,
+      onUpdateColumn: () => undefined,
       onUpdateHeading: () => undefined,
       onUpdateText: () => undefined,
       onUpdateButton: () => undefined,
+      onUpdateImage: () => undefined,
       onUpdateSpacer: () => undefined,
       onSave: () => undefined,
       onPreview: () => undefined,
@@ -69,14 +84,7 @@ function createReadyState(
   saveStatus: "saved" | "dirty"
 ): PageEditorLoadState {
   const document = insertBlock(
-    {
-      schemaVersion: 1,
-      root: {
-        id: "root",
-        type: "page",
-        children: []
-      }
-    },
+    createEmptyPageDocument(),
     {
       id: "heading-1",
       type: "heading",
@@ -90,7 +98,7 @@ function createReadyState(
   const editor = {
     ...createEditorState({
       pageId: "page-1",
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: 1,
       document
     }),

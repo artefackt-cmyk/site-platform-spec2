@@ -2,19 +2,56 @@ import { z } from "zod";
 
 export const packageName = "@site-platform/editor-core" as const;
 
-export const PAGE_DOCUMENT_SCHEMA_VERSION = 1 as const;
+export const PAGE_DOCUMENT_V1_SCHEMA_VERSION = 1 as const;
+export const PAGE_DOCUMENT_SCHEMA_VERSION = 2 as const;
+export const PAGE_DOCUMENT_LATEST_SCHEMA_VERSION = PAGE_DOCUMENT_SCHEMA_VERSION;
+export const PAGE_DOCUMENT_MAX_DEPTH = 4 as const;
 
-export const BLOCK_TYPES = ["heading", "text", "button", "spacer"] as const;
+export const LEAF_BLOCK_TYPES = [
+  "heading",
+  "text",
+  "button",
+  "spacer",
+  "image"
+] as const;
+export const BLOCK_TYPES = LEAF_BLOCK_TYPES;
 export const TEXT_ALIGNMENTS = ["left", "center", "right"] as const;
 export const HEADING_LEVELS = [1, 2, 3] as const;
 export const BUTTON_VARIANTS = ["primary", "secondary"] as const;
 export const SPACER_SIZES = ["small", "medium", "large"] as const;
+export const SECTION_BACKGROUNDS = ["white", "muted", "dark", "accent"] as const;
+export const SECTION_PADDING_Y = ["small", "medium", "large"] as const;
+export const SECTION_CONTENT_WIDTHS = ["narrow", "standard", "wide"] as const;
+export const SECTION_LAYOUTS = ["single", "two-columns"] as const;
+export const SECTION_COLUMN_RATIOS = ["50-50", "40-60", "60-40"] as const;
+export const SECTION_VERTICAL_ALIGNS = ["start", "center", "end"] as const;
+export const IMAGE_ASPECT_RATIOS = [
+  "auto",
+  "square",
+  "portrait",
+  "landscape",
+  "wide"
+] as const;
+export const IMAGE_OBJECT_FITS = ["cover", "contain"] as const;
+export const IMAGE_BORDER_RADII = ["none", "small", "medium", "large"] as const;
+export const IMAGE_WIDTHS = ["small", "medium", "full"] as const;
 
-export type BlockType = (typeof BLOCK_TYPES)[number];
+export type LeafBlockType = (typeof LEAF_BLOCK_TYPES)[number];
+export type BlockType = LeafBlockType;
 export type TextAlignment = (typeof TEXT_ALIGNMENTS)[number];
 export type HeadingLevel = (typeof HEADING_LEVELS)[number];
 export type ButtonVariant = (typeof BUTTON_VARIANTS)[number];
 export type SpacerSize = (typeof SPACER_SIZES)[number];
+export type SectionBackground = (typeof SECTION_BACKGROUNDS)[number];
+export type SectionPaddingY = (typeof SECTION_PADDING_Y)[number];
+export type SectionContentWidth = (typeof SECTION_CONTENT_WIDTHS)[number];
+export type SectionLayout = (typeof SECTION_LAYOUTS)[number];
+export type SectionColumnRatio = (typeof SECTION_COLUMN_RATIOS)[number];
+export type SectionVerticalAlign = (typeof SECTION_VERTICAL_ALIGNS)[number];
+export type ImageAspectRatio = (typeof IMAGE_ASPECT_RATIOS)[number];
+export type ImageObjectFit = (typeof IMAGE_OBJECT_FITS)[number];
+export type ImageBorderRadius = (typeof IMAGE_BORDER_RADII)[number];
+export type ImageWidth = (typeof IMAGE_WIDTHS)[number];
 
 const NodeIdSchema = z.string().trim().min(1);
 const TextAlignmentSchema = z.enum(TEXT_ALIGNMENTS);
@@ -46,6 +83,57 @@ export const ButtonBlockPropsSchema = z
 export const SpacerBlockPropsSchema = z
   .object({
     size: z.enum(SPACER_SIZES)
+  })
+  .strict();
+
+export const ImageBlockPropsSchema = z
+  .object({
+    src: z.string(),
+    alt: z.string(),
+    caption: z.string().optional(),
+    aspectRatio: z.enum(IMAGE_ASPECT_RATIOS),
+    objectFit: z.enum(IMAGE_OBJECT_FITS),
+    borderRadius: z.enum(IMAGE_BORDER_RADII),
+    align: TextAlignmentSchema,
+    width: z.enum(IMAGE_WIDTHS)
+  })
+  .strict()
+  .superRefine((props, context) => {
+    if (props.src.trim() === "") {
+      return;
+    }
+
+    if (!isAllowedImageUrl(props.src)) {
+      context.addIssue({
+        code: "custom",
+        path: ["src"],
+        message: "Image src must be an http or https URL."
+      });
+    }
+
+    if (props.alt.trim() === "") {
+      context.addIssue({
+        code: "custom",
+        path: ["alt"],
+        message: "Image alt is required when src is set."
+      });
+    }
+  });
+
+export const SectionNodePropsSchema = z
+  .object({
+    background: z.enum(SECTION_BACKGROUNDS),
+    paddingY: z.enum(SECTION_PADDING_Y),
+    contentWidth: z.enum(SECTION_CONTENT_WIDTHS),
+    layout: z.enum(SECTION_LAYOUTS),
+    columnRatio: z.enum(SECTION_COLUMN_RATIOS),
+    verticalAlign: z.enum(SECTION_VERTICAL_ALIGNS)
+  })
+  .strict();
+
+export const ColumnNodePropsSchema = z
+  .object({
+    align: TextAlignmentSchema
   })
   .strict();
 
@@ -81,59 +169,148 @@ export const SpacerBlockSchema = z
   })
   .strict();
 
-export const BlockNodeSchema = z.discriminatedUnion("type", [
+export const ImageBlockSchema = z
+  .object({
+    id: NodeIdSchema,
+    type: z.literal("image"),
+    props: ImageBlockPropsSchema
+  })
+  .strict();
+
+export const LeafBlockNodeSchema = z.discriminatedUnion("type", [
+  HeadingBlockSchema,
+  TextBlockSchema,
+  ButtonBlockSchema,
+  SpacerBlockSchema,
+  ImageBlockSchema
+]);
+
+export const LegacyBlockNodeSchema = z.discriminatedUnion("type", [
   HeadingBlockSchema,
   TextBlockSchema,
   ButtonBlockSchema,
   SpacerBlockSchema
 ]);
 
+export const ColumnNodeSchema = z
+  .object({
+    id: NodeIdSchema,
+    type: z.literal("column"),
+    props: ColumnNodePropsSchema,
+    children: z.array(LeafBlockNodeSchema)
+  })
+  .strict();
+
+export const SectionNodeSchema = z
+  .object({
+    id: NodeIdSchema,
+    type: z.literal("section"),
+    props: SectionNodePropsSchema,
+    children: z.array(z.union([LeafBlockNodeSchema, ColumnNodeSchema]))
+  })
+  .strict()
+  .superRefine((section, context) => {
+    if (section.props.layout === "single") {
+      for (const [index, child] of section.children.entries()) {
+        if (child.type === "column") {
+          context.addIssue({
+            code: "custom",
+            path: ["children", index],
+            message: "Single section cannot contain columns."
+          });
+        }
+      }
+      return;
+    }
+
+    if (section.children.length !== 2) {
+      context.addIssue({
+        code: "custom",
+        path: ["children"],
+        message: "Two-column section must contain exactly two columns."
+      });
+      return;
+    }
+
+    for (const [index, child] of section.children.entries()) {
+      if (child.type !== "column") {
+        context.addIssue({
+          code: "custom",
+          path: ["children", index],
+          message: "Two-column section children must be columns."
+        });
+      }
+    }
+  });
+
 export const PageDocumentV1Schema = z
+  .object({
+    schemaVersion: z.literal(PAGE_DOCUMENT_V1_SCHEMA_VERSION),
+    root: z
+      .object({
+        id: NodeIdSchema,
+        type: z.literal("page"),
+        children: z.array(LegacyBlockNodeSchema)
+      })
+      .strict()
+  })
+  .strict()
+  .superRefine((document, context) => {
+    addDuplicateIdIssues(collectV1Nodes(document), context);
+  });
+
+export const PageDocumentV2Schema = z
   .object({
     schemaVersion: z.literal(PAGE_DOCUMENT_SCHEMA_VERSION),
     root: z
       .object({
         id: NodeIdSchema,
         type: z.literal("page"),
-        children: z.array(BlockNodeSchema)
+        children: z.array(SectionNodeSchema)
       })
       .strict()
   })
   .strict()
   .superRefine((document, context) => {
-    const ids = new Set<string>();
-    const allIds = [document.root.id, ...document.root.children.map((node) => node.id)];
-
-    for (const id of allIds) {
-      if (ids.has(id)) {
-        context.addIssue({
-          code: "custom",
-          message: `Duplicate node id: ${id}`,
-          path: ["root", "children"]
-        });
-        return;
-      }
-
-      ids.add(id);
-    }
+    addDuplicateIdIssues(collectV2Nodes(document), context);
+    addDepthIssues(document, context);
   });
 
 export type HeadingBlockProps = z.infer<typeof HeadingBlockPropsSchema>;
 export type TextBlockProps = z.infer<typeof TextBlockPropsSchema>;
 export type ButtonBlockProps = z.infer<typeof ButtonBlockPropsSchema>;
 export type SpacerBlockProps = z.infer<typeof SpacerBlockPropsSchema>;
+export type ImageBlockProps = z.infer<typeof ImageBlockPropsSchema>;
+export type SectionNodeProps = z.infer<typeof SectionNodePropsSchema>;
+export type ColumnNodeProps = z.infer<typeof ColumnNodePropsSchema>;
 export type HeadingBlock = z.infer<typeof HeadingBlockSchema>;
 export type TextBlock = z.infer<typeof TextBlockSchema>;
 export type ButtonBlock = z.infer<typeof ButtonBlockSchema>;
 export type SpacerBlock = z.infer<typeof SpacerBlockSchema>;
-export type BlockNode = z.infer<typeof BlockNodeSchema>;
+export type ImageBlock = z.infer<typeof ImageBlockSchema>;
+export type LeafBlockNode = z.infer<typeof LeafBlockNodeSchema>;
+export type LegacyBlockNode = z.infer<typeof LegacyBlockNodeSchema>;
+export type BlockNode = LeafBlockNode;
+export type ColumnNode = z.infer<typeof ColumnNodeSchema>;
+export type SectionNode = z.infer<typeof SectionNodeSchema>;
 export type PageDocumentV1 = z.infer<typeof PageDocumentV1Schema>;
+export type PageDocumentV2 = z.infer<typeof PageDocumentV2Schema>;
+export type PageDocument = PageDocumentV2;
+export type PageNode = PageDocumentV2["root"];
+export type EditorNode = PageNode | SectionNode | ColumnNode | LeafBlockNode;
+export type ChildNode = SectionNode | ColumnNode | LeafBlockNode;
 
 export type BlockPropsByType = {
   readonly heading: HeadingBlockProps;
   readonly text: TextBlockProps;
   readonly button: ButtonBlockProps;
   readonly spacer: SpacerBlockProps;
+  readonly image: ImageBlockProps;
+};
+
+export type NodePropsByType = BlockPropsByType & {
+  readonly section: SectionNodeProps;
+  readonly column: ColumnNodeProps;
 };
 
 export type PageDocumentValidationError = {
@@ -144,14 +321,25 @@ export type PageDocumentValidationError = {
 export type PageDocumentValidationResult =
   | {
       readonly ok: true;
-      readonly document: PageDocumentV1;
+      readonly document: PageDocumentV2;
     }
   | {
       readonly ok: false;
       readonly errors: readonly PageDocumentValidationError[];
     };
 
-export function createEmptyPageDocument(): PageDocumentV1 {
+export type PageDocumentMigrationResult =
+  | {
+      readonly ok: true;
+      readonly document: PageDocumentV2;
+      readonly migrated: boolean;
+    }
+  | {
+      readonly ok: false;
+      readonly errors: readonly PageDocumentValidationError[];
+    };
+
+export function createEmptyPageDocument(): PageDocumentV2 {
   return {
     schemaVersion: PAGE_DOCUMENT_SCHEMA_VERSION,
     root: {
@@ -162,11 +350,32 @@ export function createEmptyPageDocument(): PageDocumentV1 {
   };
 }
 
+export function createDefaultSection(): SectionNode {
+  return {
+    id: createNodeId("section"),
+    type: "section",
+    props: createDefaultSectionProps("single"),
+    children: []
+  };
+}
+
+export function createDefaultColumn(): ColumnNode {
+  return {
+    id: createNodeId("column"),
+    type: "column",
+    props: {
+      align: "left"
+    },
+    children: []
+  };
+}
+
 export function createDefaultBlock(type: "heading"): HeadingBlock;
 export function createDefaultBlock(type: "text"): TextBlock;
 export function createDefaultBlock(type: "button"): ButtonBlock;
 export function createDefaultBlock(type: "spacer"): SpacerBlock;
-export function createDefaultBlock(type: BlockType): BlockNode {
+export function createDefaultBlock(type: "image"): ImageBlock;
+export function createDefaultBlock(type: LeafBlockType): LeafBlockNode {
   const id = createNodeId(type);
 
   switch (type) {
@@ -208,13 +417,130 @@ export function createDefaultBlock(type: BlockType): BlockNode {
           size: "medium"
         }
       };
+    case "image":
+      return {
+        id,
+        type,
+        props: {
+          src: "",
+          alt: "",
+          caption: "",
+          aspectRatio: "landscape",
+          objectFit: "cover",
+          borderRadius: "medium",
+          align: "center",
+          width: "full"
+        }
+      };
+  }
+}
+
+export function detectPageDocumentVersion(document: unknown): 1 | 2 {
+  if (!isRecord(document)) {
+    throw new PageDocumentMigrationError([
+      {
+        path: [],
+        message: "Page document must be an object."
+      }
+    ]);
+  }
+
+  if (document.schemaVersion === PAGE_DOCUMENT_V1_SCHEMA_VERSION) {
+    return 1;
+  }
+
+  if (document.schemaVersion === PAGE_DOCUMENT_SCHEMA_VERSION) {
+    return 2;
+  }
+
+  throw new PageDocumentMigrationError([
+    {
+      path: ["schemaVersion"],
+      message: "Unsupported page document schemaVersion."
+    }
+  ]);
+}
+
+export class PageDocumentMigrationError extends Error {
+  readonly errors: readonly PageDocumentValidationError[];
+
+  constructor(errors: readonly PageDocumentValidationError[]) {
+    super("Page document cannot be migrated.");
+    this.name = "PageDocumentMigrationError";
+    this.errors = errors;
+  }
+}
+
+export function migratePageDocumentV1ToV2(document: unknown): PageDocumentV2 {
+  const result = PageDocumentV1Schema.safeParse(document);
+
+  if (!result.success) {
+    throw new PageDocumentMigrationError(toValidationErrors(result.error));
+  }
+
+  const migrated: PageDocumentV2 = {
+    schemaVersion: PAGE_DOCUMENT_SCHEMA_VERSION,
+    root: {
+      id: result.data.root.id,
+      type: "page",
+      children: [
+        {
+          id: `${result.data.root.id}-section-v2`,
+          type: "section",
+          props: createDefaultSectionProps("single"),
+          children: result.data.root.children.map((block) => ({ ...block }))
+        }
+      ]
+    }
+  };
+
+  return PageDocumentV2Schema.parse(migrated);
+}
+
+export function migratePageDocumentToLatest(
+  document: unknown
+): PageDocumentMigrationResult {
+  try {
+    const version = detectPageDocumentVersion(document);
+
+    if (version === 1) {
+      return {
+        ok: true,
+        document: migratePageDocumentV1ToV2(document),
+        migrated: true
+      };
+    }
+
+    const result = PageDocumentV2Schema.safeParse(document);
+
+    if (!result.success) {
+      return {
+        ok: false,
+        errors: toValidationErrors(result.error)
+      };
+    }
+
+    return {
+      ok: true,
+      document: result.data,
+      migrated: false
+    };
+  } catch (error) {
+    if (error instanceof PageDocumentMigrationError) {
+      return {
+        ok: false,
+        errors: error.errors
+      };
+    }
+
+    throw error;
   }
 }
 
 export function validatePageDocument(
   document: unknown
 ): PageDocumentValidationResult {
-  const result = PageDocumentV1Schema.safeParse(document);
+  const result = PageDocumentV2Schema.safeParse(document);
 
   if (result.success) {
     return {
@@ -225,159 +551,658 @@ export function validatePageDocument(
 
   return {
     ok: false,
-    errors: result.error.issues.map((issue) => ({
-      path: issue.path.map((pathPart) =>
-        typeof pathPart === "symbol" ? pathPart.toString() : pathPart
-      ),
-      message: issue.message
-    }))
+    errors: toValidationErrors(result.error)
   };
 }
 
-export function findBlockById(
-  document: PageDocumentV1,
-  blockId: string
-): BlockNode | null {
-  return document.root.children.find((block) => block.id === blockId) ?? null;
+export function findNodeById(
+  document: PageDocumentV2,
+  nodeId: string
+): EditorNode | null {
+  return collectV2Nodes(document).find((node) => node.id === nodeId) ?? null;
 }
 
-export function updateBlockProps<TType extends BlockType>(
-  document: PageDocumentV1,
-  blockId: string,
-  props: Partial<BlockPropsByType[TType]>
-): PageDocumentV1 {
-  return updateBlock(document, blockId, (block) => {
-    switch (block.type) {
-      case "heading":
-        return {
-          ...block,
-          props: HeadingBlockPropsSchema.parse({
-            ...block.props,
+export function findBlockById(
+  document: PageDocumentV2,
+  blockId: string
+): LeafBlockNode | null {
+  const node = findNodeById(document, blockId);
+
+  return node !== null && isLeafBlockNode(node) ? node : null;
+}
+
+export function findParentNode(
+  document: PageDocumentV2,
+  nodeId: string
+): PageNode | SectionNode | ColumnNode | null {
+  if (document.root.id === nodeId) {
+    return null;
+  }
+
+  for (const section of document.root.children) {
+    if (section.id === nodeId) {
+      return document.root;
+    }
+
+    for (const child of section.children) {
+      if (child.id === nodeId) {
+        return section;
+      }
+
+      if (child.type === "column") {
+        for (const block of child.children) {
+          if (block.id === nodeId) {
+            return child;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+export function insertSection(
+  document: PageDocumentV2,
+  section: SectionNode = createDefaultSection(),
+  index?: number
+): PageDocumentV2 {
+  const children = [...document.root.children];
+  const safeIndex = clampIndex(index, children.length);
+
+  children.splice(safeIndex, 0, section);
+
+  return withSections(document, children);
+}
+
+export function removeSection(
+  document: PageDocumentV2,
+  sectionId: string
+): PageDocumentV2 {
+  return withSections(
+    document,
+    document.root.children.filter((section) => section.id !== sectionId)
+  );
+}
+
+export function moveSectionUp(
+  document: PageDocumentV2,
+  sectionId: string
+): PageDocumentV2 {
+  return moveSection(document, sectionId, -1);
+}
+
+export function moveSectionDown(
+  document: PageDocumentV2,
+  sectionId: string
+): PageDocumentV2 {
+  return moveSection(document, sectionId, 1);
+}
+
+export function updateSectionProps(
+  document: PageDocumentV2,
+  sectionId: string,
+  props: Partial<SectionNodeProps>
+): PageDocumentV2 {
+  return updateNode(document, sectionId, (node) =>
+    node.type === "section"
+      ? {
+          ...node,
+          props: SectionNodePropsSchema.parse({
+            ...node.props,
             ...props
           })
+        }
+      : node
+  );
+}
+
+export function convertSectionLayout(
+  document: PageDocumentV2,
+  sectionId: string,
+  layout: SectionLayout
+): PageDocumentV2 {
+  return updateNode(document, sectionId, (node) => {
+    if (node.type !== "section" || node.props.layout === layout) {
+      return node;
+    }
+
+    if (layout === "two-columns") {
+      return {
+        ...node,
+        props: {
+          ...node.props,
+          layout
+        },
+        children: [
+          {
+            ...createDefaultColumn(),
+            id: `${node.id}-column-1`,
+            children: node.children.filter(isLeafBlockNode)
+          },
+          {
+            ...createDefaultColumn(),
+            id: `${node.id}-column-2`
+          }
+        ]
+      };
+    }
+
+    return {
+      ...node,
+      props: {
+        ...node.props,
+        layout
+      },
+      children: node.children.flatMap((child) =>
+        child.type === "column" ? child.children : [child]
+      )
+    };
+  });
+}
+
+export function insertBlockIntoSection(
+  document: PageDocumentV2,
+  sectionId: string,
+  block: LeafBlockNode,
+  index?: number
+): PageDocumentV2 {
+  return updateNode(document, sectionId, (node) => {
+    if (node.type !== "section" || node.props.layout !== "single") {
+      return node;
+    }
+
+    const children = [...node.children.filter(isLeafBlockNode)];
+    children.splice(clampIndex(index, children.length), 0, block);
+
+    return {
+      ...node,
+      children
+    };
+  });
+}
+
+export function insertBlockIntoColumn(
+  document: PageDocumentV2,
+  columnId: string,
+  block: LeafBlockNode,
+  index?: number
+): PageDocumentV2 {
+  return updateNode(document, columnId, (node) => {
+    if (node.type !== "column") {
+      return node;
+    }
+
+    const children = [...node.children];
+    children.splice(clampIndex(index, children.length), 0, block);
+
+    return {
+      ...node,
+      children
+    };
+  });
+}
+
+export function moveBlockWithinParent(
+  document: PageDocumentV2,
+  blockId: string,
+  direction: "up" | "down"
+): PageDocumentV2 {
+  const parent = findParentNode(document, blockId);
+
+  if (parent === null || parent.type === "page") {
+    return document;
+  }
+
+  const delta = direction === "up" ? -1 : 1;
+
+  return updateNode(document, parent.id, (node) => {
+    if (node.type !== "section" && node.type !== "column") {
+      return node;
+    }
+
+    const children = node.type === "section" ? node.children.filter(isLeafBlockNode) : node.children;
+    const index = children.findIndex((child) => child.id === blockId);
+    const targetIndex = index + delta;
+
+    if (index < 0 || targetIndex < 0 || targetIndex >= children.length) {
+      return node;
+    }
+
+    return {
+      ...node,
+      children: moveArrayItem(children, index, targetIndex)
+    };
+  });
+}
+
+export function moveBlockToColumn(
+  document: PageDocumentV2,
+  blockId: string,
+  columnId: string,
+  index?: number
+): PageDocumentV2 {
+  const block = findBlockById(document, blockId);
+
+  if (block === null || findNodeById(document, columnId)?.type !== "column") {
+    return document;
+  }
+
+  return insertBlockIntoColumn(removeNode(document, blockId), columnId, block, index);
+}
+
+export function removeNode(
+  document: PageDocumentV2,
+  nodeId: string
+): PageDocumentV2 {
+  if (document.root.id === nodeId) {
+    return document;
+  }
+
+  return {
+    ...document,
+    root: {
+      ...document.root,
+      children: document.root.children
+        .filter((section) => section.id !== nodeId)
+        .map((section) => removeFromSection(section, nodeId))
+    }
+  };
+}
+
+export function updateNodeProps<TType extends keyof NodePropsByType>(
+  document: PageDocumentV2,
+  nodeId: string,
+  props: Partial<NodePropsByType[TType]>
+): PageDocumentV2 {
+  return updateNode(document, nodeId, (node) => {
+    switch (node.type) {
+      case "section":
+        return {
+          ...node,
+          props: SectionNodePropsSchema.parse({
+            ...node.props,
+            ...props
+          })
+        };
+      case "column":
+        return {
+          ...node,
+          props: ColumnNodePropsSchema.parse({
+            ...node.props,
+            ...props
+          })
+        };
+      case "heading":
+        return {
+          ...node,
+          props: HeadingBlockPropsSchema.parse({ ...node.props, ...props })
         };
       case "text":
         return {
-          ...block,
-          props: TextBlockPropsSchema.parse({
-            ...block.props,
-            ...props
-          })
+          ...node,
+          props: TextBlockPropsSchema.parse({ ...node.props, ...props })
         };
       case "button":
         return {
-          ...block,
-          props: ButtonBlockPropsSchema.parse({
-            ...block.props,
-            ...props
-          })
+          ...node,
+          props: ButtonBlockPropsSchema.parse({ ...node.props, ...props })
         };
       case "spacer":
         return {
-          ...block,
-          props: SpacerBlockPropsSchema.parse({
-            ...block.props,
-            ...props
-          })
+          ...node,
+          props: SpacerBlockPropsSchema.parse({ ...node.props, ...props })
         };
+      case "image":
+        return {
+          ...node,
+          props: ImageBlockPropsSchema.parse({ ...node.props, ...props })
+        };
+      case "page":
+        return node;
+    }
+  });
+}
+
+export function updateBlockProps<TType extends LeafBlockType>(
+  document: PageDocumentV2,
+  blockId: string,
+  props: Partial<BlockPropsByType[TType]>
+): PageDocumentV2 {
+  return updateNode(document, blockId, (node) => {
+    switch (node.type) {
+      case "heading":
+        return {
+          ...node,
+          props: HeadingBlockPropsSchema.parse({ ...node.props, ...props })
+        };
+      case "text":
+        return {
+          ...node,
+          props: TextBlockPropsSchema.parse({ ...node.props, ...props })
+        };
+      case "button":
+        return {
+          ...node,
+          props: ButtonBlockPropsSchema.parse({ ...node.props, ...props })
+        };
+      case "spacer":
+        return {
+          ...node,
+          props: SpacerBlockPropsSchema.parse({ ...node.props, ...props })
+        };
+      case "image":
+        return {
+          ...node,
+          props: ImageBlockPropsSchema.parse({ ...node.props, ...props })
+        };
+      case "page":
+      case "section":
+      case "column":
+        return node;
     }
   });
 }
 
 export function insertBlock(
-  document: PageDocumentV1,
-  block: BlockNode,
+  document: PageDocumentV2,
+  block: LeafBlockNode,
   index?: number
-): PageDocumentV1 {
-  const children = [...document.root.children];
-  const safeIndex =
-    index === undefined ? children.length : Math.max(0, Math.min(index, children.length));
+): PageDocumentV2 {
+  const firstSection =
+    document.root.children[0] ??
+    ({
+      ...createDefaultSection(),
+      id: `${document.root.id}-section-v2`
+    } satisfies SectionNode);
+  const nextDocument =
+    document.root.children.length === 0
+      ? insertSection(document, firstSection)
+      : document;
 
-  children.splice(safeIndex, 0, block);
-
-  return withChildren(document, children);
+  return firstSection.props.layout === "single"
+    ? insertBlockIntoSection(nextDocument, firstSection.id, block, index)
+    : insertBlockIntoColumn(
+        nextDocument,
+        firstSection.children[0]?.id ?? "",
+        block,
+        index
+      );
 }
 
 export function removeBlock(
-  document: PageDocumentV1,
+  document: PageDocumentV2,
   blockId: string
-): PageDocumentV1 {
-  return withChildren(
-    document,
-    document.root.children.filter((block) => block.id !== blockId)
-  );
+): PageDocumentV2 {
+  return removeNode(document, blockId);
 }
 
 export function moveBlockUp(
-  document: PageDocumentV1,
+  document: PageDocumentV2,
   blockId: string
-): PageDocumentV1 {
-  const index = document.root.children.findIndex((block) => block.id === blockId);
-
-  if (index <= 0) {
-    return document;
-  }
-
-  return moveBlock(document, index, index - 1);
+): PageDocumentV2 {
+  return moveBlockWithinParent(document, blockId, "up");
 }
 
 export function moveBlockDown(
-  document: PageDocumentV1,
+  document: PageDocumentV2,
   blockId: string
-): PageDocumentV1 {
-  const index = document.root.children.findIndex((block) => block.id === blockId);
-
-  if (index < 0 || index >= document.root.children.length - 1) {
-    return document;
-  }
-
-  return moveBlock(document, index, index + 1);
+): PageDocumentV2 {
+  return moveBlockWithinParent(document, blockId, "down");
 }
 
-function updateBlock(
-  document: PageDocumentV1,
-  blockId: string,
-  updater: (block: BlockNode) => BlockNode
-): PageDocumentV1 {
-  return withChildren(
+function createDefaultSectionProps(layout: SectionLayout): SectionNodeProps {
+  return {
+    background: "white",
+    paddingY: "medium",
+    contentWidth: "standard",
+    layout,
+    columnRatio: "50-50",
+    verticalAlign: "start"
+  };
+}
+
+function isAllowedImageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function collectV1Nodes(document: PageDocumentV1): readonly { readonly id: string }[] {
+  return [document.root, ...document.root.children];
+}
+
+function collectV2Nodes(document: PageDocumentV2): EditorNode[] {
+  const nodes: EditorNode[] = [document.root];
+
+  for (const section of document.root.children) {
+    nodes.push(section);
+
+    for (const child of section.children) {
+      nodes.push(child);
+
+      if (child.type === "column") {
+        nodes.push(...child.children);
+      }
+    }
+  }
+
+  return nodes;
+}
+
+function addDuplicateIdIssues(
+  nodes: readonly { readonly id: string }[],
+  context: z.RefinementCtx
+): void {
+  const ids = new Set<string>();
+
+  for (const node of nodes) {
+    if (ids.has(node.id)) {
+      context.addIssue({
+        code: "custom",
+        message: `Duplicate node id: ${node.id}`,
+        path: ["root", "children"]
+      });
+      return;
+    }
+
+    ids.add(node.id);
+  }
+}
+
+function addDepthIssues(
+  document: PageDocumentV2,
+  context: z.RefinementCtx
+): void {
+  for (const section of document.root.children) {
+    if (nodeDepth(section) > PAGE_DOCUMENT_MAX_DEPTH) {
+      context.addIssue({
+        code: "custom",
+        message: "Page document tree is too deep.",
+        path: ["root", "children"]
+      });
+      return;
+    }
+  }
+}
+
+function nodeDepth(node: SectionNode | ColumnNode | LeafBlockNode): number {
+  if (isLeafBlockNode(node)) {
+    return 2;
+  }
+
+  if (node.type === "column") {
+    return 3;
+  }
+
+  const childDepths = node.children.map((child) =>
+    child.type === "column" ? 1 + nodeDepth(child) : nodeDepth(child)
+  );
+
+  return childDepths.length === 0 ? 2 : Math.max(...childDepths);
+}
+
+function isLeafBlockNode(node: ChildNode | EditorNode): node is LeafBlockNode {
+  return LEAF_BLOCK_TYPES.includes(node.type as LeafBlockType);
+}
+
+function updateNode(
+  document: PageDocumentV2,
+  nodeId: string,
+  updater: (node: EditorNode) => EditorNode
+): PageDocumentV2 {
+  if (document.root.id === nodeId) {
+    const updated = updater(document.root);
+
+    return updated.type === "page" ? { ...document, root: updated } : document;
+  }
+
+  return withSections(
     document,
-    document.root.children.map((block) =>
-      block.id === blockId ? updater(block) : block
-    )
+    document.root.children.map((section) => updateSection(section, nodeId, updater))
   );
 }
 
-function moveBlock(
-  document: PageDocumentV1,
-  fromIndex: number,
-  toIndex: number
-): PageDocumentV1 {
-  const children = [...document.root.children];
-  const [block] = children.splice(fromIndex, 1);
+function updateSection(
+  section: SectionNode,
+  nodeId: string,
+  updater: (node: EditorNode) => EditorNode
+): SectionNode {
+  if (section.id === nodeId) {
+    const updated = updater(section);
 
-  if (block === undefined) {
+    return updated.type === "section" ? updated : section;
+  }
+
+  return {
+    ...section,
+    children: section.children.map((child) => {
+      if (child.id === nodeId) {
+        const updated = updater(child);
+
+        return updated.type === child.type ? (updated as typeof child) : child;
+      }
+
+      if (child.type === "column") {
+        return updateColumn(child, nodeId, updater);
+      }
+
+      return child;
+    })
+  };
+}
+
+function updateColumn(
+  column: ColumnNode,
+  nodeId: string,
+  updater: (node: EditorNode) => EditorNode
+): ColumnNode {
+  if (column.id === nodeId) {
+    const updated = updater(column);
+
+    return updated.type === "column" ? updated : column;
+  }
+
+  return {
+    ...column,
+    children: column.children.map((block) => {
+      if (block.id !== nodeId) {
+        return block;
+      }
+
+      const updated = updater(block);
+
+      return isLeafBlockNode(updated) ? updated : block;
+    })
+  };
+}
+
+function removeFromSection(section: SectionNode, nodeId: string): SectionNode {
+  return {
+    ...section,
+    children: section.children
+      .filter((child) => child.id !== nodeId)
+      .map((child) =>
+        child.type === "column"
+          ? {
+              ...child,
+              children: child.children.filter((block) => block.id !== nodeId)
+            }
+          : child
+      )
+  };
+}
+
+function moveSection(
+  document: PageDocumentV2,
+  sectionId: string,
+  delta: -1 | 1
+): PageDocumentV2 {
+  const index = document.root.children.findIndex((section) => section.id === sectionId);
+  const targetIndex = index + delta;
+
+  if (index < 0 || targetIndex < 0 || targetIndex >= document.root.children.length) {
     return document;
   }
 
-  children.splice(toIndex, 0, block);
-
-  return withChildren(document, children);
+  return withSections(
+    document,
+    moveArrayItem(document.root.children, index, targetIndex)
+  );
 }
 
-function withChildren(
-  document: PageDocumentV1,
-  children: readonly BlockNode[]
-): PageDocumentV1 {
+function withSections(
+  document: PageDocumentV2,
+  sections: readonly SectionNode[]
+): PageDocumentV2 {
   return {
     ...document,
     root: {
       ...document.root,
-      children: [...children]
+      children: [...sections]
     }
   };
 }
 
-function createNodeId(prefix: BlockType): string {
+function clampIndex(index: number | undefined, length: number): number {
+  return index === undefined ? length : Math.max(0, Math.min(index, length));
+}
+
+function moveArrayItem<TItem>(
+  items: readonly TItem[],
+  fromIndex: number,
+  toIndex: number
+): TItem[] {
+  const nextItems = [...items];
+  const [item] = nextItems.splice(fromIndex, 1);
+
+  if (item === undefined) {
+    return [...items];
+  }
+
+  nextItems.splice(toIndex, 0, item);
+
+  return nextItems;
+}
+
+function toValidationErrors(error: z.ZodError): readonly PageDocumentValidationError[] {
+  return error.issues.map((issue) => ({
+    path: issue.path.map((pathPart) =>
+      typeof pathPart === "symbol" ? pathPart.toString() : pathPart
+    ),
+    message: issue.message
+  }));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function createNodeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random()
     .toString(36)
     .slice(2, 10)}`;

@@ -9,7 +9,7 @@ import {
 import {
   PAGE_DOCUMENT_SCHEMA_VERSION,
   validatePageDocument,
-  type PageDocumentV1
+  type PageDocumentV2
 } from "@site-platform/editor-core";
 import {
   DOMAIN_ERROR_CODES,
@@ -77,9 +77,9 @@ export type CreateProjectPageResponse = {
 
 export type PageDocumentResponse = {
   readonly pageId: string;
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly revision: number;
-  readonly document: PageDocumentV1;
+  readonly document: PageDocumentV2;
 };
 
 @Injectable()
@@ -570,7 +570,7 @@ function parseCreatePagePayload(body: unknown): {
 
 function parseSavePageDocumentPayload(body: unknown): {
   readonly revision: number;
-  readonly document: PageDocumentV1;
+  readonly document: PageDocumentV2;
 } {
   if (!isRecord(body)) {
     throw badRequest(API_ERROR_CODES.validationFailed, "Request body is invalid.", [
@@ -604,7 +604,7 @@ function parseSavePageDocumentPayload(body: unknown): {
     issues.push({
       field: "schemaVersion",
       code: "FIELD_INVALID_VALUE",
-      message: "schemaVersion must be 1."
+      message: "schemaVersion must be 2."
     });
   }
 

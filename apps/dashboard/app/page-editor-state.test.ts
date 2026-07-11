@@ -2,60 +2,104 @@ import { describe, expect, it } from "vitest";
 import { createEmptyPageDocument } from "@site-platform/editor-core";
 import {
   addBlock,
+  addHeroSection,
+  addSection,
+  addTextSection,
+  convertSelectedSection,
   createEditorState,
   markSaveError,
   markSaved,
-  removeSelectedBlock,
-  selectBlock,
-  updateSelectedBlockProps
+  removeSelectedNode,
+  selectNode,
+  updateSelectedNodeProps
 } from "./page-editor-state";
 
 describe("page editor state", () => {
-  it("tracks dirty state after adding a heading", () => {
-    const state = addBlock(createState(), "heading");
+  it("adds a section before adding blocks", () => {
+    const state = addSection(createState());
 
-    expect(state.document.root.children[0]?.type).toBe("heading");
+    expect(state.document.root.children[0]?.type).toBe("section");
     expect(state.saveStatus).toBe("dirty");
-    expect(state.selectedBlockId).toBe(state.document.root.children[0]?.id);
+    expect(state.selectedNodeId).toBe(state.document.root.children[0]?.id);
+  });
+
+  it("adds hero and text section presets", () => {
+    const heroState = addHeroSection(createState());
+    const textState = addTextSection(heroState);
+
+    expect(heroState.document.root.children[0]).toMatchObject({
+      type: "section",
+      props: {
+        layout: "two-columns"
+      }
+    });
+    expect(textState.document.root.children).toHaveLength(2);
+  });
+
+  it("adds a heading to the selected section", () => {
+    const state = addBlock(addSection(createState()), "heading");
+    const section = state.document.root.children[0];
+
+    expect(section?.children[0]).toMatchObject({
+      type: "heading"
+    });
+    expect(state.selectedNodeId).toBe(section?.children[0]?.id);
   });
 
   it("updates selected block text", () => {
-    const state = addBlock(createState(), "heading");
-    const nextState = updateSelectedBlockProps(state, {
+    const state = addBlock(addSection(createState()), "heading");
+    const nextState = updateSelectedNodeProps(state, {
       text: "Updated heading"
     });
 
-    expect(nextState.document.root.children[0]).toMatchObject({
+    expect(nextState.document.root.children[0]?.children[0]).toMatchObject({
       props: {
         text: "Updated heading"
       }
     });
   });
 
-  it("selects a block", () => {
-    const state = addBlock(createState(), "heading");
-    const blockId = state.document.root.children[0]?.id;
+  it("converts selected section and can add into a selected column", () => {
+    const sectionState = addSection(createState());
+    const twoColumnState = convertSelectedSection(sectionState, "two-columns");
+    const columnId = twoColumnState.document.root.children[0]?.children[0]?.id;
 
-    if (blockId === undefined) {
-      throw new Error("Expected block.");
+    if (columnId === undefined) {
+      throw new Error("Expected column.");
     }
 
-    expect(selectBlock(state, blockId).selectedBlockId).toBe(blockId);
+    const blockState = addBlock(selectNode(twoColumnState, columnId), "image");
+
+    expect(blockState.document.root.children[0]?.children[0]).toMatchObject({
+      type: "column",
+      children: [expect.objectContaining({ type: "image" })]
+    });
   });
 
-  it("clears selection when removing the selected block", () => {
-    const state = addBlock(createState(), "text");
-    const nextState = removeSelectedBlock(state);
+  it("selects a node", () => {
+    const state = addSection(createState());
+    const sectionId = state.document.root.children[0]?.id;
 
-    expect(nextState.document.root.children).toHaveLength(0);
-    expect(nextState.selectedBlockId).toBeNull();
+    if (sectionId === undefined) {
+      throw new Error("Expected section.");
+    }
+
+    expect(selectNode(state, sectionId).selectedNodeId).toBe(sectionId);
+  });
+
+  it("clears selection when removing the selected node", () => {
+    const state = addBlock(addSection(createState()), "text");
+    const nextState = removeSelectedNode(state);
+
+    expect(nextState.document.root.children[0]?.children).toHaveLength(0);
+    expect(nextState.selectedNodeId).toBeNull();
   });
 
   it("resets dirty state after save success", () => {
-    const dirtyState = addBlock(createState(), "spacer");
+    const dirtyState = addBlock(addSection(createState()), "spacer");
     const savedState = markSaved(dirtyState, {
       pageId: "page-1",
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: 2,
       document: dirtyState.document
     });
@@ -66,7 +110,7 @@ describe("page editor state", () => {
 
   it("stores conflict error state", () => {
     const state = markSaveError(
-      addBlock(createState(), "heading"),
+      addBlock(addSection(createState()), "heading"),
       "Документ изменился в другой вкладке."
     );
 
@@ -78,7 +122,7 @@ describe("page editor state", () => {
 function createState() {
   return createEditorState({
     pageId: "page-1",
-    schemaVersion: 1,
+    schemaVersion: 2,
     revision: 1,
     document: createEmptyPageDocument()
   });

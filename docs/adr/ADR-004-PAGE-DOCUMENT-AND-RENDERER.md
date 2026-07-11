@@ -6,7 +6,9 @@ Accepted
 
 ## Context
 
-The project workspace now has page metadata and a placeholder editor route. The next MVP step needs a first editable page document while keeping the platform inside the modular monolith and avoiding premature publication, storefront rendering or complex editor features.
+The project workspace now has page metadata, a saved draft page document, a dashboard editor and preview route. The first flat document schema was enough for a smoke editor, but it cannot represent real site structure such as sections, columns or images.
+
+The next MVP step needs nested page content while keeping the platform inside the modular monolith and avoiding uploads, drag-and-drop, publication, storefront rendering or complex editor features.
 
 ## Decision
 
@@ -18,7 +20,19 @@ Page content is stored in a separate `PageDocument` model. `PageDocument` contai
 
 `PageNode` is not a separate database table. Nodes and blocks are embedded inside the JSON document.
 
-`schemaVersion` is required and is currently fixed to `1`.
+`schemaVersion` is required. The current write schema is `2`.
+
+PageDocument V2 supports nested nodes:
+
+- `root` contains only `SectionNode`;
+- `SectionNode` can contain leaf `BlockNode` children for `layout="single"`;
+- `SectionNode` can contain exactly two `ColumnNode` children for `layout="two-columns"`;
+- `ColumnNode` can contain only leaf blocks;
+- leaf blocks are `heading`, `text`, `button`, `spacer` and `image`;
+- maximum tree depth is fixed and validated by `packages/editor-core`;
+- duplicate ids are rejected across the whole tree.
+
+`ImageBlock` stores an external `http` or `https` URL. Empty `src` is valid for a draft placeholder. Non-empty `src` must not use `data:` or `javascript:` and must have non-empty `alt`. File upload, S3 and server-side fetching are deferred.
 
 The current document is the draft document. A published snapshot is intentionally not implemented in this step.
 
@@ -26,7 +40,9 @@ Editor, preview and the future storefront will use one shared renderer from `pac
 
 The editor saves the whole JSON document on explicit save. Autosave, partial document patches and collaborative editing are deferred.
 
-JSON schema migrations will be added later when a new schema version is introduced.
+Existing V1 documents remain readable. Reads migrate V1 to V2 in memory through explicit JSON schema migration helpers. The migration wraps the flat V1 blocks in one deterministic single-column section and preserves existing block ids. Repository reads do not rewrite old rows automatically; the next explicit save stores the document as V2.
+
+Database migrations and JSON schema migrations are separate concerns. No Prisma migration is required for V1 to V2 because the `PageDocument.document` JSON column and `schemaVersion` integer already exist.
 
 The implementation remains part of the modular monolith. Do not introduce microservices.
 
@@ -38,6 +54,7 @@ Zustand is not introduced in this step. Editor state is kept in a small local re
 - Tenant isolation remains explicit through `organizationId`, `projectId` and `pageId`.
 - Optimistic concurrency can be implemented with `revision` on `PageDocument`.
 - The renderer can be reused by editor preview and future storefront paths without depending on database or API code.
+- Old V1 draft documents can still be opened safely and then saved as V2.
 - Future schema migrations need explicit migration helpers for JSON documents.
 
 ## Non-Goals
@@ -45,6 +62,8 @@ Zustand is not introduced in this step. Editor state is kept in a small local re
 - Published page snapshots.
 - Storefront rendering.
 - Drag-and-drop editing.
+- File uploads and S3.
+- Absolute positioning.
 - Autosave.
 - Undo/redo.
 - Collaborative editing.

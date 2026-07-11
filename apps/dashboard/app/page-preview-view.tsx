@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { PageDocumentV1 } from "@site-platform/editor-core";
+import type { PageDocumentV2 } from "@site-platform/editor-core";
 import { PageRenderer } from "@site-platform/renderer";
 import type { ProjectSummary, SitePageSummary } from "./dashboard-types";
 import {
@@ -23,7 +23,7 @@ export type PagePreviewLoadState =
       readonly status: "ready";
       readonly project: ProjectSummary;
       readonly page: SitePageSummary;
-      readonly document: PageDocumentV1;
+      readonly document: PageDocumentV2;
     };
 
 export type PagePreviewViewProps = {

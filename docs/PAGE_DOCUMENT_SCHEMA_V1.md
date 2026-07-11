@@ -4,6 +4,8 @@
 
 `PageDocument` stores the editable draft content for one `SitePage`.
 
+Version 1 is legacy. It is still accepted by read-side migration helpers so existing draft documents can be opened safely, but new saves use PageDocument Schema V2.
+
 `SitePage` remains page metadata. It owns title, slug, status, home-page flag and tenant fields. `PageDocument` owns only the structured page content.
 
 ## Database Record
@@ -26,7 +28,7 @@ There is one current draft document per page through unique `pageId`.
 
 ## JSON Structure
 
-The current document schema is:
+The legacy document schema is:
 
 ```ts
 type PageDocumentV1 = {
@@ -103,9 +105,13 @@ type SpacerBlock = {
 
 `schemaVersion` is required and must be exactly `1`.
 
+API writes no longer accept V1. Repository reads migrate V1 to V2 in memory and do not rewrite the database row until an explicit save.
+
 Unknown block types, unknown props and wrong prop values are rejected by `packages/editor-core`.
 
 Future schema changes must introduce a new schema version and explicit migration helpers. In-place silent mutation of stored JSON is not part of this version.
+
+The V1 to V2 migration wraps all flat `root.children` blocks in one deterministic single-column section and preserves existing block ids.
 
 ## Revision
 

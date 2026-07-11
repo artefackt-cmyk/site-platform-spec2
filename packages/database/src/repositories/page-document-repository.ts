@@ -1,7 +1,8 @@
 import {
   createEmptyPageDocument,
+  migratePageDocumentToLatest,
   validatePageDocument,
-  type PageDocumentV1,
+  type PageDocumentV2,
   type PageDocumentValidationError
 } from "@site-platform/editor-core";
 import type { TenantContext } from "@site-platform/domain";
@@ -38,7 +39,7 @@ export class PageDocumentInvalidError extends Error {
 }
 
 export type PageDocumentRecord = Omit<PageDocument, "document"> & {
-  readonly document: PageDocumentV1;
+  readonly document: PageDocumentV2;
 };
 
 export class PageDocumentRepository {
@@ -160,19 +161,20 @@ function activePageDocumentScope(
   };
 }
 
-export function toPrismaJson(document: PageDocumentV1): PrismaJsonInput {
+export function toPrismaJson(document: PageDocumentV2): PrismaJsonInput {
   return document as unknown as PrismaJsonInput;
 }
 
 function toPageDocumentRecord(pageDocument: PageDocument): PageDocumentRecord {
-  const validation = validatePageDocument(pageDocument.document);
+  const migration = migratePageDocumentToLatest(pageDocument.document);
 
-  if (!validation.ok) {
-    throw new PageDocumentInvalidError(validation.errors);
+  if (!migration.ok) {
+    throw new PageDocumentInvalidError(migration.errors);
   }
 
   return {
     ...pageDocument,
-    document: validation.document
+    schemaVersion: migration.document.schemaVersion,
+    document: migration.document
   };
 }

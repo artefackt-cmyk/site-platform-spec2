@@ -34,25 +34,39 @@ The editor route is `/projects/[projectId]/pages/[pageId]`.
 The editor has:
 
 - a sticky top bar with breadcrumb, page title, page status, save state, `Сохранить`, `Предпросмотр` and `Назад к страницам`;
-- a left panel with the current block list and add-block buttons;
+- a left panel with the current section tree, section presets and add-block buttons;
 - a central canvas rendered through `packages/renderer`;
-- a right inspector for the selected block;
+- a right inspector for the selected section, column or block;
 - explicit save to PostgreSQL.
 
-Supported blocks in the first version:
+Supported document structure:
+
+- sections;
+- single-column sections;
+- two-column sections;
+- columns inside two-column sections;
+- leaf blocks.
+
+Supported leaf blocks:
 
 - `heading`;
 - `text`;
 - `button`;
+- `image`;
 - `spacer`.
 
 The user can:
 
-- add a block to the end of the page;
-- select a block;
-- update block props in the inspector;
-- move a block up or down;
-- delete a block;
+- add an empty section;
+- add a Hero preset section;
+- add a text section preset;
+- select a section, column or leaf block;
+- switch a section between single and two-column layouts;
+- change column ratio for two-column sections;
+- add text, button, image and spacer blocks to the selected section or column;
+- update selected node props in the inspector;
+- move sections and leaf blocks up or down inside their parent;
+- delete sections and leaf blocks;
 - save the whole draft document.
 
 Inspector changes update the canvas immediately in local editor state. They are persisted only after clicking `Сохранить`.
@@ -157,7 +171,7 @@ It stores:
 
 - current document;
 - last saved document;
-- selected block id;
+- selected node id;
 - current revision;
 - save status;
 - error message.
@@ -176,12 +190,13 @@ Document operations come from `packages/editor-core` and are immutable. Zustand,
 - No storefront rendering.
 - No public preview URL.
 - No custom domains.
-- No responsive block settings.
-- No image, form, product, section, column or nested container blocks.
+- No responsive block settings beyond renderer column stacking.
+- No file uploads or S3.
+- No form, product or custom code blocks.
 - No collaborative editing.
 
 ## Next Steps
 
 1. Add publication and published snapshots after draft preview is stable.
 2. Extend the block library inside the MVP boundaries.
-3. Add JSON schema migration helpers when `schemaVersion` changes.
+3. Add future JSON schema migration helpers when `schemaVersion` changes again.

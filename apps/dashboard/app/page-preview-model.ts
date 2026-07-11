@@ -1,4 +1,4 @@
-import { validatePageDocument, type PageDocumentV1 } from "@site-platform/editor-core";
+import { validatePageDocument, type PageDocumentV2 } from "@site-platform/editor-core";
 import type { PageDocumentResponse } from "./dashboard-types";
 
 export const PREVIEW_VIEWPORT_MODES = ["desktop", "tablet", "mobile"] as const;
@@ -8,7 +8,7 @@ export type PreviewViewportMode = (typeof PREVIEW_VIEWPORT_MODES)[number];
 export type PreviewDocumentValidationResult =
   | {
       readonly ok: true;
-      readonly document: PageDocumentV1;
+      readonly document: PageDocumentV2;
     }
   | {
       readonly ok: false;

@@ -373,7 +373,7 @@ describe.skipIf(integrationConfig === undefined)(
         pageId: page.id,
         revision: 1,
         document: {
-          schemaVersion: 1
+          schemaVersion: 2
         }
       });
     });
@@ -445,7 +445,63 @@ describe.skipIf(integrationConfig === undefined)(
         revision: 2,
         document: {
           root: {
-            children: [expect.objectContaining({ type: "heading" })]
+            children: [
+              expect.objectContaining({
+                type: "section",
+                children: [expect.objectContaining({ type: "heading" })]
+              })
+            ]
+          }
+        }
+      });
+    });
+
+    it("migrates stored V1 page documents in memory when reading", async () => {
+      const currentClient = getClient(client);
+      const { context, project, page } = await createPageFixture(currentClient);
+      const pageDocumentRepository = new PageDocumentRepository(currentClient);
+
+      await currentClient.pageDocument.create({
+        data: {
+          organizationId: context.organizationId,
+          projectId: project.id,
+          pageId: page.id,
+          schemaVersion: 1,
+          revision: 1,
+          document: {
+            schemaVersion: 1,
+            root: {
+              id: "root",
+              type: "page",
+              children: [
+                {
+                  id: "legacy-heading",
+                  type: "heading",
+                  props: {
+                    text: "Legacy",
+                    level: 1,
+                    align: "left"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      });
+
+      await expect(
+        pageDocumentRepository.findByPage(context, project.id, page.id)
+      ).resolves.toMatchObject({
+        schemaVersion: 2,
+        document: {
+          schemaVersion: 2,
+          root: {
+            children: [
+              expect.objectContaining({
+                id: "root-section-v2",
+                children: [expect.objectContaining({ id: "legacy-heading" })]
+              })
+            ]
           }
         }
       });
@@ -505,7 +561,21 @@ describe.skipIf(integrationConfig === undefined)(
           page.id,
           {
             ...createEmptyPageDocument(),
-            schemaVersion: 2
+            root: {
+              id: "root",
+              type: "page",
+              children: [
+                {
+                  id: "bad-root-child",
+                  type: "heading",
+                  props: {
+                    text: "Bad",
+                    level: 1,
+                    align: "left"
+                  }
+                }
+              ]
+            }
           },
           initialDocument.revision
         )

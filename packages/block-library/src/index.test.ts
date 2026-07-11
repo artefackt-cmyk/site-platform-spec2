@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { BLOCK_DEFINITIONS, getBlockDefinition } from "./index";
+import {
+  BLOCK_DEFINITIONS,
+  SECTION_DEFINITION,
+  SECTION_PRESETS,
+  getBlockDefinition
+} from "./index";
 
 describe("@site-platform/block-library", () => {
   it("exposes the first block definitions", () => {
@@ -7,6 +12,7 @@ describe("@site-platform/block-library", () => {
       "heading",
       "text",
       "button",
+      "image",
       "spacer"
     ]);
   });
@@ -22,6 +28,22 @@ describe("@site-platform/block-library", () => {
   it("finds a definition by type", () => {
     expect(getBlockDefinition("heading")).toMatchObject({
       label: "Заголовок"
+    });
+  });
+
+  it("exposes section metadata and presets", () => {
+    expect(SECTION_DEFINITION.propsSchema.safeParse(SECTION_DEFINITION.defaultProps).success).toBe(
+      true
+    );
+    expect(SECTION_PRESETS.map((preset) => preset.id)).toEqual([
+      "hero",
+      "text-section"
+    ]);
+    expect(SECTION_PRESETS[0]?.createSection()).toMatchObject({
+      type: "section",
+      props: {
+        layout: "two-columns"
+      }
     });
   });
 });

@@ -2,8 +2,12 @@ import * as React from "react";
 import type {
   BlockNode,
   ButtonBlock,
+  ColumnNode,
   HeadingBlock,
-  PageDocumentV1,
+  ImageBlock,
+  PageDocument,
+  PageDocumentV2,
+  SectionNode,
   SpacerBlock,
   TextBlock
 } from "@site-platform/editor-core";
@@ -13,40 +17,188 @@ export const packageName = "@site-platform/renderer" as const;
 export type PageRendererMode = "editor" | "preview";
 
 export type PageRendererProps = {
-  readonly document: PageDocumentV1;
+  readonly document: PageDocument;
   readonly mode: PageRendererMode;
+  readonly selectedNodeId?: string | null | undefined;
   readonly selectedBlockId?: string | null | undefined;
+  readonly onNodeSelect?: ((nodeId: string) => void) | undefined;
   readonly onBlockSelect?: ((blockId: string) => void) | undefined;
 };
 
 export function PageRenderer({
   document,
   mode,
+  selectedNodeId,
   selectedBlockId,
+  onNodeSelect,
   onBlockSelect
 }: PageRendererProps): React.ReactElement {
+  const selectedId = selectedNodeId ?? selectedBlockId ?? null;
+  const handleNodeSelect =
+    onNodeSelect ??
+    (onBlockSelect === undefined
+      ? undefined
+      : (nodeId: string) => {
+          onBlockSelect(nodeId);
+        });
+
   return React.createElement(
     "div",
     {
       className: `sp-renderer sp-renderer-${mode}`,
       style: rendererStyle
     },
-    document.root.children.map((block) =>
-      renderBlock({
-        block,
+    React.createElement("style", {
+      dangerouslySetInnerHTML: {
+        __html:
+          "@media (max-width: 768px) {.sp-section-columns{grid-template-columns:1fr!important;}}"
+      }
+    }),
+    document.root.children.map((section) =>
+      renderSection({
+        section,
         mode,
-        selected: selectedBlockId === block.id,
-        onBlockSelect
+        selectedId,
+        onNodeSelect: handleNodeSelect
       })
     )
   );
 }
 
-function renderBlock(input: {
+function renderSection(input: {
+  readonly section: SectionNode;
+  readonly mode: PageRendererMode;
+  readonly selectedId: string | null;
+  readonly onNodeSelect?: ((nodeId: string) => void) | undefined;
+}): React.ReactElement {
+  const content = React.createElement(
+    "div",
+    {
+      className:
+        input.section.props.layout === "two-columns"
+          ? "sp-section-inner sp-section-columns"
+          : "sp-section-inner",
+      style: createSectionInnerStyle(input.section)
+    },
+    input.section.children.map((child) =>
+      child.type === "column"
+        ? renderColumn({
+            column: child,
+            mode: input.mode,
+            selectedId: input.selectedId,
+            onNodeSelect: input.onNodeSelect
+          })
+        : renderLeafBlock({
+            block: child,
+            mode: input.mode,
+            selectedId: input.selectedId,
+            onNodeSelect: input.onNodeSelect
+          })
+    )
+  );
+
+  if (input.mode === "preview") {
+    return React.createElement(
+      "section",
+      {
+        key: input.section.id,
+        className: `sp-section sp-section-${input.section.props.background}`,
+        style: createSectionStyle(input.section)
+      },
+      content
+    );
+  }
+
+  const selected = input.selectedId === input.section.id;
+
+  return React.createElement(
+    "section",
+    {
+      key: input.section.id,
+      className: selected
+        ? "sp-editor-section sp-editor-section-selected"
+        : "sp-editor-section",
+      "data-editor-chrome": "section",
+      "data-selected": selected ? "true" : "false",
+      onClick: (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        input.onNodeSelect?.(input.section.id);
+      },
+      style: {
+        ...createSectionStyle(input.section),
+        ...editorSectionStyle,
+        ...(selected ? selectedChromeStyle : {})
+      }
+    },
+    content
+  );
+}
+
+function renderColumn(input: {
+  readonly column: ColumnNode;
+  readonly mode: PageRendererMode;
+  readonly selectedId: string | null;
+  readonly onNodeSelect?: ((nodeId: string) => void) | undefined;
+}): React.ReactElement {
+  const content = input.column.children.map((block) =>
+    renderLeafBlock({
+      block,
+      mode: input.mode,
+      selectedId: input.selectedId,
+      onNodeSelect: input.onNodeSelect
+    })
+  );
+
+  if (input.mode === "preview") {
+    return React.createElement(
+      "div",
+      {
+        key: input.column.id,
+        className: "sp-column",
+        style: createColumnStyle(input.column)
+      },
+      content
+    );
+  }
+
+  const selected = input.selectedId === input.column.id;
+
+  return React.createElement(
+    "div",
+    {
+      key: input.column.id,
+      className: selected ? "sp-editor-column sp-editor-column-selected" : "sp-editor-column",
+      "data-editor-chrome": "column",
+      "data-selected": selected ? "true" : "false",
+      onClick: (event: React.MouseEvent<HTMLDivElement>) => {
+        event.stopPropagation();
+        input.onNodeSelect?.(input.column.id);
+      },
+      style: {
+        ...createColumnStyle(input.column),
+        ...editorBlockStyle,
+        minHeight: 64,
+        ...(selected ? selectedChromeStyle : {})
+      }
+    },
+    content.length === 0
+      ? React.createElement(
+          "div",
+          {
+            className: "sp-empty-column",
+            style: emptyStateStyle
+          },
+          "Пустая колонка"
+        )
+      : content
+  );
+}
+
+function renderLeafBlock(input: {
   readonly block: BlockNode;
   readonly mode: PageRendererMode;
-  readonly selected: boolean;
-  readonly onBlockSelect?: ((blockId: string) => void) | undefined;
+  readonly selectedId: string | null;
+  readonly onNodeSelect?: ((nodeId: string) => void) | undefined;
 }): React.ReactElement {
   const content = renderBlockContent(input.block, input.mode);
 
@@ -61,22 +213,24 @@ function renderBlock(input: {
     );
   }
 
+  const selected = input.selectedId === input.block.id;
+
   return React.createElement(
     "div",
     {
       key: input.block.id,
-      className: input.selected
+      className: selected
         ? "sp-editor-block sp-editor-block-selected"
         : "sp-editor-block",
       "data-editor-chrome": "block",
-      "data-selected": input.selected ? "true" : "false",
+      "data-selected": selected ? "true" : "false",
       onClick: (event: React.MouseEvent<HTMLDivElement>) => {
         event.stopPropagation();
-        input.onBlockSelect?.(input.block.id);
+        input.onNodeSelect?.(input.block.id);
       },
       style: {
         ...editorBlockStyle,
-        ...(input.selected ? selectedBlockStyle : {})
+        ...(selected ? selectedChromeStyle : {})
       }
     },
     content
@@ -105,8 +259,10 @@ function renderBlockContent(
       return React.createElement(SpacerRenderer, {
         block
       });
-    default:
-      throw new Error("Unknown block type.");
+    case "image":
+      return React.createElement(ImageRenderer, {
+        block
+      });
   }
 }
 
@@ -123,7 +279,7 @@ function HeadingRenderer({
       className: "sp-heading",
       style: {
         margin: "0 0 16px",
-        color: "#152033",
+        color: "inherit",
         fontSize: block.props.level === 1 ? 42 : block.props.level === 2 ? 32 : 24,
         lineHeight: 1.12,
         textAlign: block.props.align
@@ -144,9 +300,10 @@ function TextRenderer({
       className: "sp-text",
       style: {
         margin: "0 0 18px",
-        color: "#475467",
+        color: "inherit",
         fontSize: 18,
         lineHeight: 1.7,
+        opacity: 0.82,
         whiteSpace: "pre-wrap",
         textAlign: block.props.align
       }
@@ -183,10 +340,9 @@ function ButtonRenderer({
           minHeight: 42,
           alignItems: "center",
           borderRadius: 6,
-          border:
-            block.props.variant === "primary"
-              ? "1px solid #2563eb"
-              : "1px solid #c8d2e0",
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: block.props.variant === "primary" ? "#2563eb" : "#c8d2e0",
           background: block.props.variant === "primary" ? "#2563eb" : "#ffffff",
           padding: "0 18px",
           color: block.props.variant === "primary" ? "#ffffff" : "#1d4ed8",
@@ -196,6 +352,76 @@ function ButtonRenderer({
       },
       block.props.label
     )
+  );
+}
+
+function ImageRenderer({
+  block
+}: {
+  readonly block: ImageBlock;
+}): React.ReactElement {
+  const src = block.props.src.trim();
+  const canRenderImage = src !== "" && isAllowedImageUrl(src);
+  const placeholder = React.createElement(
+    "div",
+    {
+      className: "sp-image-placeholder",
+      style: {
+        ...createImageBoxStyle(block),
+        display: canRenderImage ? "none" : "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        borderStyle: "dashed",
+        borderColor: "#b8c4d5",
+        background: "#f3f6fa",
+        color: "#667085",
+        fontSize: 14
+      }
+    },
+    "Изображение"
+  );
+
+  return React.createElement(
+    "figure",
+    {
+      className: "sp-image",
+      style: {
+        margin: "0 0 20px",
+        textAlign: block.props.align
+      }
+    },
+    canRenderImage
+      ? React.createElement("img", {
+          src,
+          alt: block.props.alt,
+          style: createImageBoxStyle(block),
+          onError: (event: React.SyntheticEvent<HTMLImageElement>) => {
+            event.currentTarget.style.display = "none";
+            const nextElement = event.currentTarget
+              .nextElementSibling as HTMLElement | null;
+
+            if (nextElement !== null) {
+              nextElement.style.display = "flex";
+            }
+          }
+        })
+      : null,
+    placeholder,
+    block.props.caption === undefined || block.props.caption.trim() === ""
+      ? null
+      : React.createElement(
+          "figcaption",
+          {
+            className: "sp-image-caption",
+            style: {
+              marginTop: 8,
+              color: "#667085",
+              fontSize: 14
+            }
+          },
+          block.props.caption
+        )
   );
 }
 
@@ -245,6 +471,16 @@ function isExternalHref(href: string): boolean {
   return /^https?:\/\//i.test(href);
 }
 
+function isAllowedImageUrl(src: string): boolean {
+  try {
+    const url = new URL(src);
+
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function SpacerRenderer({
   block
 }: {
@@ -265,10 +501,62 @@ function SpacerRenderer({
   });
 }
 
+function createSectionStyle(section: SectionNode): React.CSSProperties {
+  return {
+    ...backgroundStyleByName[section.props.background],
+    paddingTop: paddingYByName[section.props.paddingY],
+    paddingBottom: paddingYByName[section.props.paddingY]
+  };
+}
+
+function createSectionInnerStyle(section: SectionNode): React.CSSProperties {
+  return {
+    display: section.props.layout === "two-columns" ? "grid" : "block",
+    gridTemplateColumns:
+      section.props.layout === "two-columns"
+        ? columnRatioByName[section.props.columnRatio]
+        : undefined,
+    gap: section.props.layout === "two-columns" ? 32 : undefined,
+    alignItems: section.props.verticalAlign,
+    width: "100%",
+    maxWidth: contentWidthByName[section.props.contentWidth],
+    margin: "0 auto"
+  };
+}
+
+function createColumnStyle(column: ColumnNode): React.CSSProperties {
+  return {
+    textAlign: column.props.align
+  };
+}
+
+function createImageBoxStyle(block: ImageBlock): React.CSSProperties {
+  return {
+    width: imageWidthByName[block.props.width],
+    maxWidth: "100%",
+    aspectRatio:
+      block.props.aspectRatio === "auto"
+        ? undefined
+        : imageAspectRatioByName[block.props.aspectRatio],
+    objectFit: block.props.objectFit,
+    borderRadius: imageBorderRadiusByName[block.props.borderRadius],
+    display: "inline-flex"
+  };
+}
+
 const rendererStyle: React.CSSProperties = {
   color: "#152033",
   fontFamily:
     'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+};
+
+const editorSectionStyle: React.CSSProperties = {
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "transparent",
+  borderRadius: 8,
+  marginBottom: 12,
+  transition: "border-color 120ms ease, background 120ms ease"
 };
 
 const editorBlockStyle: React.CSSProperties = {
@@ -280,7 +568,73 @@ const editorBlockStyle: React.CSSProperties = {
   transition: "border-color 120ms ease, background 120ms ease"
 };
 
-const selectedBlockStyle: React.CSSProperties = {
+const selectedChromeStyle: React.CSSProperties = {
   borderColor: "#93b4f8",
   background: "#f8fbff"
 };
+
+const emptyStateStyle: React.CSSProperties = {
+  padding: 16,
+  color: "#667085",
+  fontSize: 14,
+  textAlign: "center"
+};
+
+const paddingYByName = {
+  small: 24,
+  medium: 48,
+  large: 80
+} as const;
+
+const contentWidthByName = {
+  narrow: 720,
+  standard: 1040,
+  wide: 1240
+} as const;
+
+const columnRatioByName = {
+  "50-50": "1fr 1fr",
+  "40-60": "2fr 3fr",
+  "60-40": "3fr 2fr"
+} as const;
+
+const backgroundStyleByName = {
+  white: {
+    background: "#ffffff",
+    color: "#152033"
+  },
+  muted: {
+    background: "#f3f6fa",
+    color: "#152033"
+  },
+  dark: {
+    background: "#101828",
+    color: "#ffffff"
+  },
+  accent: {
+    background: "#eff6ff",
+    color: "#102a56"
+  }
+} as const satisfies Record<SectionNode["props"]["background"], React.CSSProperties>;
+
+const imageAspectRatioByName = {
+  square: "1 / 1",
+  portrait: "4 / 5",
+  landscape: "4 / 3",
+  wide: "16 / 9"
+} as const;
+
+const imageBorderRadiusByName = {
+  none: 0,
+  small: 4,
+  medium: 8,
+  large: 16
+} as const;
+
+const imageWidthByName = {
+  small: 280,
+  medium: 520,
+  full: "100%"
+} as const;
+
+export type { PageDocumentV2 };

@@ -1,25 +1,38 @@
 import {
+  createHeroSectionPreset,
+  createTextSectionPreset
+} from "@site-platform/block-library";
+import {
+  convertSectionLayout,
   createDefaultBlock,
-  findBlockById,
-  insertBlock,
-  moveBlockDown,
-  moveBlockUp,
-  removeBlock,
-  updateBlockProps,
+  createDefaultSection,
+  findNodeById,
+  findParentNode,
+  insertBlockIntoColumn,
+  insertBlockIntoSection,
+  insertSection,
+  moveBlockWithinParent,
+  moveSectionDown,
+  moveSectionUp,
+  removeNode,
+  updateNodeProps,
   validatePageDocument,
   type BlockNode,
   type BlockPropsByType,
   type BlockType,
-  type PageDocumentV1
+  type EditorNode,
+  type NodePropsByType,
+  type PageDocumentV2,
+  type SectionLayout
 } from "@site-platform/editor-core";
 import type { PageDocumentResponse } from "./dashboard-types";
 
 export type SaveStatus = "saved" | "dirty" | "saving" | "error";
 
 export type EditorState = {
-  readonly document: PageDocumentV1;
-  readonly savedDocument: PageDocumentV1;
-  readonly selectedBlockId: string | null;
+  readonly document: PageDocumentV2;
+  readonly savedDocument: PageDocumentV2;
+  readonly selectedNodeId: string | null;
   readonly revision: number;
   readonly saveStatus: SaveStatus;
   readonly errorMessage: string | null;
@@ -29,30 +42,89 @@ export function createEditorState(response: PageDocumentResponse): EditorState {
   return {
     document: response.document,
     savedDocument: response.document,
-    selectedBlockId: response.document.root.children[0]?.id ?? null,
+    selectedNodeId: response.document.root.children[0]?.id ?? null,
     revision: response.revision,
     saveStatus: "saved",
     errorMessage: null
   };
 }
 
-export function selectBlock(
+export function selectNode(
   state: EditorState,
-  blockId: string | null
+  nodeId: string | null
 ): EditorState {
   return {
     ...state,
-    selectedBlockId: blockId
+    selectedNodeId: nodeId
   };
+}
+
+export const selectBlock = selectNode;
+
+export function addSection(state: EditorState): EditorState {
+  const section = createDefaultSection();
+
+  return markDirty({
+    ...state,
+    document: insertSection(state.document, section),
+    selectedNodeId: section.id
+  });
+}
+
+export function addHeroSection(state: EditorState): EditorState {
+  const section = createHeroSectionPreset();
+
+  return markDirty({
+    ...state,
+    document: insertSection(state.document, section),
+    selectedNodeId: section.id
+  });
+}
+
+export function addTextSection(state: EditorState): EditorState {
+  const section = createTextSectionPreset();
+
+  return markDirty({
+    ...state,
+    document: insertSection(state.document, section),
+    selectedNodeId: section.id
+  });
 }
 
 export function addBlock(state: EditorState, type: BlockType): EditorState {
   const block = createBlockForType(type);
+  const target = findInsertionTarget(state);
+
+  if (target === null) {
+    return {
+      ...state,
+      errorMessage: "Выберите секцию или колонку, чтобы добавить блок."
+    };
+  }
+
+  const document =
+    target.type === "section"
+      ? insertBlockIntoSection(state.document, target.id, block)
+      : insertBlockIntoColumn(state.document, target.id, block);
 
   return markDirty({
     ...state,
-    document: insertBlock(state.document, block),
-    selectedBlockId: block.id
+    document,
+    selectedNodeId: block.id
+  });
+}
+
+export function updateSelectedNodeProps<TType extends keyof NodePropsByType>(
+  state: EditorState,
+  props: Partial<NodePropsByType[TType]>
+): EditorState {
+  if (state.selectedNodeId === null) {
+    return state;
+  }
+
+  return markDirty({
+    ...state,
+    document: updateNodeProps(state.document, state.selectedNodeId, props)
   });
 }
 
@@ -60,55 +132,95 @@ export function updateSelectedBlockProps<TType extends BlockType>(
   state: EditorState,
   props: Partial<BlockPropsByType[TType]>
 ): EditorState {
-  if (state.selectedBlockId === null) {
-    return state;
-  }
-
-  return markDirty({
-    ...state,
-    document: updateBlockProps(state.document, state.selectedBlockId, props)
-  });
+  return updateSelectedNodeProps(
+    state,
+    props as Partial<NodePropsByType[TType]>
+  );
 }
 
-export function removeSelectedBlock(state: EditorState): EditorState {
-  if (state.selectedBlockId === null) {
-    return state;
-  }
-
-  return markDirty({
-    ...state,
-    document: removeBlock(state.document, state.selectedBlockId),
-    selectedBlockId: null
-  });
-}
-
-export function removeBlockById(state: EditorState, blockId: string): EditorState {
-  return markDirty({
-    ...state,
-    document: removeBlock(state.document, blockId),
-    selectedBlockId: state.selectedBlockId === blockId ? null : state.selectedBlockId
-  });
-}
-
-export function moveBlock(
+export function convertSelectedSection(
   state: EditorState,
-  blockId: string,
+  layout: SectionLayout
+): EditorState {
+  const selected = getSelectedNode(state);
+  const sectionId =
+    selected?.type === "section"
+      ? selected.id
+      : selected === null
+        ? null
+        : findParentSectionId(state, selected.id);
+
+  if (sectionId === null) {
+    return state;
+  }
+
+  return markDirty({
+    ...state,
+    document: convertSectionLayout(state.document, sectionId, layout),
+    selectedNodeId: sectionId
+  });
+}
+
+export function removeSelectedNode(state: EditorState): EditorState {
+  if (state.selectedNodeId === null) {
+    return state;
+  }
+
+  return removeNodeById(state, state.selectedNodeId);
+}
+
+export const removeSelectedBlock = removeSelectedNode;
+
+export function removeNodeById(state: EditorState, nodeId: string): EditorState {
+  return markDirty({
+    ...state,
+    document: removeNode(state.document, nodeId),
+    selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId
+  });
+}
+
+export const removeBlockById = removeNodeById;
+
+export function moveNode(
+  state: EditorState,
+  nodeId: string,
   direction: "up" | "down"
 ): EditorState {
+  const node = findNodeById(state.document, nodeId);
+
+  if (node === null || node.type === "page" || node.type === "column") {
+    return state;
+  }
+
   return markDirty({
     ...state,
     document:
-      direction === "up"
-        ? moveBlockUp(state.document, blockId)
-        : moveBlockDown(state.document, blockId),
-    selectedBlockId: blockId
+      node.type === "section"
+        ? direction === "up"
+          ? moveSectionUp(state.document, nodeId)
+          : moveSectionDown(state.document, nodeId)
+        : moveBlockWithinParent(state.document, nodeId, direction),
+    selectedNodeId: nodeId
   });
 }
 
-export function getSelectedBlock(state: EditorState): BlockNode | null {
-  return state.selectedBlockId === null
+export const moveBlock = moveNode;
+
+export function getSelectedNode(state: EditorState): EditorNode | null {
+  return state.selectedNodeId === null
     ? null
-    : findBlockById(state.document, state.selectedBlockId);
+    : findNodeById(state.document, state.selectedNodeId);
+}
+
+export function getSelectedBlock(state: EditorState): BlockNode | null {
+  const node = getSelectedNode(state);
+
+  return node !== null &&
+    node.type !== "page" &&
+    node.type !== "section" &&
+    node.type !== "column"
+    ? node
+    : null;
 }
 
 export function markSaving(state: EditorState): EditorState {
@@ -148,6 +260,62 @@ export function canSaveEditorState(state: EditorState): boolean {
   return state.saveStatus !== "saving" && validatePageDocument(state.document).ok;
 }
 
+function findInsertionTarget(
+  state: EditorState
+): { readonly type: "section" | "column"; readonly id: string } | null {
+  if (state.selectedNodeId === null) {
+    return null;
+  }
+
+  const selected = findNodeById(state.document, state.selectedNodeId);
+
+  if (selected?.type === "section" && selected.props.layout === "single") {
+    return {
+      type: "section",
+      id: selected.id
+    };
+  }
+
+  if (selected?.type === "column") {
+    return {
+      type: "column",
+      id: selected.id
+    };
+  }
+
+  const parent = findParentNode(state.document, state.selectedNodeId);
+
+  if (parent?.type === "section" && parent.props.layout === "single") {
+    return {
+      type: "section",
+      id: parent.id
+    };
+  }
+
+  if (parent?.type === "column") {
+    return {
+      type: "column",
+      id: parent.id
+    };
+  }
+
+  return null;
+}
+
+function findParentSectionId(state: EditorState, nodeId: string): string | null {
+  let parent = findParentNode(state.document, nodeId);
+
+  while (parent !== null) {
+    if (parent.type === "section") {
+      return parent.id;
+    }
+
+    parent = findParentNode(state.document, parent.id);
+  }
+
+  return null;
+}
+
 function markDirty(state: EditorState): EditorState {
   return {
     ...state,
@@ -166,5 +334,7 @@ function createBlockForType(type: BlockType): BlockNode {
       return createDefaultBlock("button");
     case "spacer":
       return createDefaultBlock("spacer");
+    case "image":
+      return createDefaultBlock("image");
   }
 }

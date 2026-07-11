@@ -1,9 +1,5 @@
 import { loadConfig } from "@site-platform/config";
-import {
-  createEmptyPageDocument,
-  insertBlock,
-  type PageDocumentV1
-} from "@site-platform/editor-core";
+import { type PageDocumentV2 } from "@site-platform/editor-core";
 import { normalizeEmail } from "@site-platform/domain";
 import {
   createPrismaClient,
@@ -236,86 +232,166 @@ async function seedDemoPages(
   });
 }
 
-function createSeedPageDocument(slug: string): PageDocumentV1 {
+function createSeedPageDocument(slug: string): PageDocumentV2 {
   switch (slug) {
     case "home":
-      return insertBlock(
-        insertBlock(
-          insertBlock(
-            createEmptyPageDocument(),
+      return {
+        schemaVersion: 2,
+        root: {
+          id: "root",
+          type: "page",
+          children: [
             {
-              id: "seed-home-heading",
+              id: "seed-home-hero",
+              type: "section",
+              props: {
+                background: "accent",
+                paddingY: "large",
+                contentWidth: "wide",
+                layout: "two-columns",
+                columnRatio: "60-40",
+                verticalAlign: "center"
+              },
+              children: [
+                {
+                  id: "seed-home-hero-copy",
+                  type: "column",
+                  props: {
+                    align: "left"
+                  },
+                  children: [
+                    {
+                      id: "seed-home-heading",
+                      type: "heading",
+                      props: {
+                        text: "Добро пожаловать",
+                        level: 1,
+                        align: "left"
+                      }
+                    },
+                    {
+                      id: "seed-home-text",
+                      type: "text",
+                      props: {
+                        text: "Это первая страница вашего сайта",
+                        align: "left"
+                      }
+                    },
+                    {
+                      id: "seed-home-button",
+                      type: "button",
+                      props: {
+                        label: "Перейти в каталог",
+                        href: "/catalog",
+                        align: "left",
+                        variant: "primary"
+                      }
+                    }
+                  ]
+                },
+                {
+                  id: "seed-home-hero-media",
+                  type: "column",
+                  props: {
+                    align: "center"
+                  },
+                  children: [
+                    {
+                      id: "seed-home-image",
+                      type: "image",
+                      props: {
+                        src: "",
+                        alt: "",
+                        caption: "",
+                        aspectRatio: "wide",
+                        objectFit: "cover",
+                        borderRadius: "large",
+                        align: "center",
+                        width: "full"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      };
+    case "catalog":
+      return createTextSeedDocument({
+        sectionId: "seed-catalog-section",
+        headingId: "seed-catalog-heading",
+        textId: "seed-catalog-text",
+        heading: "Каталог",
+        text: "Здесь появятся товары"
+      });
+    case "about":
+      return createTextSeedDocument({
+        sectionId: "seed-about-section",
+        headingId: "seed-about-heading",
+        textId: "seed-about-text",
+        heading: "О бренде",
+        text: "Расскажите историю вашего бренда"
+      });
+    default:
+      return {
+        schemaVersion: 2,
+        root: {
+          id: "root",
+          type: "page",
+          children: []
+        }
+      };
+  }
+}
+
+function createTextSeedDocument(input: {
+  readonly sectionId: string;
+  readonly headingId: string;
+  readonly textId: string;
+  readonly heading: string;
+  readonly text: string;
+}): PageDocumentV2 {
+  return {
+    schemaVersion: 2,
+    root: {
+      id: "root",
+      type: "page",
+      children: [
+        {
+          id: input.sectionId,
+          type: "section",
+          props: {
+            background: "white",
+            paddingY: "medium",
+            contentWidth: "standard",
+            layout: "single",
+            columnRatio: "50-50",
+            verticalAlign: "start"
+          },
+          children: [
+            {
+              id: input.headingId,
               type: "heading",
               props: {
-                text: "Добро пожаловать",
+                text: input.heading,
                 level: 1,
-                align: "center"
+                align: "left"
+              }
+            },
+            {
+              id: input.textId,
+              type: "text",
+              props: {
+                text: input.text,
+                align: "left"
               }
             }
-          ),
-          {
-            id: "seed-home-text",
-            type: "text",
-            props: {
-              text: "Это первая страница вашего сайта",
-              align: "center"
-            }
-          }
-        ),
-        {
-          id: "seed-home-button",
-          type: "button",
-          props: {
-            label: "Перейти в каталог",
-            href: "/catalog",
-            align: "center",
-            variant: "primary"
-          }
+          ]
         }
-      );
-    case "catalog":
-      return insertBlock(
-        insertBlock(createEmptyPageDocument(), {
-          id: "seed-catalog-heading",
-          type: "heading",
-          props: {
-            text: "Каталог",
-            level: 1,
-            align: "left"
-          }
-        }),
-        {
-          id: "seed-catalog-text",
-          type: "text",
-          props: {
-            text: "Здесь появятся товары",
-            align: "left"
-          }
-        }
-      );
-    case "about":
-      return insertBlock(
-        insertBlock(createEmptyPageDocument(), {
-          id: "seed-about-heading",
-          type: "heading",
-          props: {
-            text: "О бренде",
-            level: 1,
-            align: "left"
-          }
-        }),
-        {
-          id: "seed-about-text",
-          type: "text",
-          props: {
-            text: "Расскажите историю вашего бренда",
-            align: "left"
-          }
-        }
-      );
-    default:
-      return createEmptyPageDocument();
-  }
+      ]
+    }
+  };
 }
 
 async function main(): Promise<void> {

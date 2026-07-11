@@ -1,7 +1,7 @@
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { PageDocumentV1 } from "@site-platform/editor-core";
+import type { PageDocumentV2 } from "@site-platform/editor-core";
 import { PagePreviewView, type PagePreviewLoadState } from "./page-preview-view";
 
 describe("PagePreviewView", () => {
@@ -76,7 +76,7 @@ function renderPreview(input: {
   );
 }
 
-function createReadyState(document: PageDocumentV1): PagePreviewLoadState {
+function createReadyState(document: PageDocumentV2): PagePreviewLoadState {
   return {
     status: "ready",
     project: {
@@ -100,9 +100,9 @@ function createReadyState(document: PageDocumentV1): PagePreviewLoadState {
   };
 }
 
-function createEmptyDocument(): PageDocumentV1 {
+function createEmptyDocument(): PageDocumentV2 {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     root: {
       id: "root",
       type: "page",
@@ -111,39 +111,53 @@ function createEmptyDocument(): PageDocumentV1 {
   };
 }
 
-function createFilledDocument(): PageDocumentV1 {
+function createFilledDocument(): PageDocumentV2 {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     root: {
       id: "root",
       type: "page",
       children: [
         {
-          id: "heading-1",
-          type: "heading",
+          id: "section-1",
+          type: "section",
           props: {
-            text: "Добро пожаловать",
-            level: 1,
-            align: "center"
-          }
-        },
-        {
-          id: "text-1",
-          type: "text",
-          props: {
-            text: "Описание страницы",
-            align: "left"
-          }
-        },
-        {
-          id: "button-1",
-          type: "button",
-          props: {
-            label: "Перейти",
-            href: "/catalog",
-            align: "left",
-            variant: "primary"
-          }
+            background: "white",
+            paddingY: "medium",
+            contentWidth: "standard",
+            layout: "single",
+            columnRatio: "50-50",
+            verticalAlign: "start"
+          },
+          children: [
+            {
+              id: "heading-1",
+              type: "heading",
+              props: {
+                text: "Добро пожаловать",
+                level: 1,
+                align: "center"
+              }
+            },
+            {
+              id: "text-1",
+              type: "text",
+              props: {
+                text: "Описание страницы",
+                align: "left"
+              }
+            },
+            {
+              id: "button-1",
+              type: "button",
+              props: {
+                label: "Перейти",
+                href: "/catalog",
+                align: "left",
+                variant: "primary"
+              }
+            }
+          ]
         }
       ]
     }

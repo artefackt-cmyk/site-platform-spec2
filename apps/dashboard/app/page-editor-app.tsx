@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { BlockPropsByType, BlockType } from "@site-platform/editor-core";
+import type {
+  BlockPropsByType,
+  BlockType,
+  NodePropsByType,
+  SectionLayout
+} from "@site-platform/editor-core";
 import {
   DashboardApiError,
   createDashboardApiClient
@@ -9,15 +14,19 @@ import {
 import { PageEditorView, type PageEditorLoadState } from "./page-editor-view";
 import {
   addBlock,
+  addHeroSection,
+  addSection,
+  addTextSection,
   canSaveEditorState,
+  convertSelectedSection,
   createEditorState,
   markSaveError,
   markSaved,
   markSaving,
-  moveBlock,
-  removeBlockById,
-  selectBlock,
-  updateSelectedBlockProps
+  moveNode,
+  removeNodeById,
+  selectNode,
+  updateSelectedNodeProps
 } from "./page-editor-state";
 import {
   openSavedPreview,
@@ -109,7 +118,7 @@ export function PageEditorApp({
 
     try {
       const response = await apiClient.saveProjectPageDocument(projectId, pageId, {
-        schemaVersion: 1,
+        schemaVersion: 2,
         revision: snapshot.revision,
         document: snapshot.document
       });
@@ -165,27 +174,42 @@ export function PageEditorApp({
   return (
     <PageEditorView
       state={state}
+      onAddSection={() => updateEditor((editor) => addSection(editor))}
+      onAddHeroSection={() => updateEditor((editor) => addHeroSection(editor))}
+      onAddTextSection={() => updateEditor((editor) => addTextSection(editor))}
       onAddBlock={(type: BlockType) => updateEditor((editor) => addBlock(editor, type))}
-      onSelectBlock={(blockId) =>
-        updateEditor((editor) => selectBlock(editor, blockId))
+      onSelectNode={(nodeId) =>
+        updateEditor((editor) => selectNode(editor, nodeId))
       }
-      onMoveBlock={(blockId, direction) =>
-        updateEditor((editor) => moveBlock(editor, blockId, direction))
+      onMoveNode={(nodeId, direction) =>
+        updateEditor((editor) => moveNode(editor, nodeId, direction))
       }
-      onRemoveBlock={(blockId) =>
-        updateEditor((editor) => removeBlockById(editor, blockId))
+      onRemoveNode={(nodeId) =>
+        updateEditor((editor) => removeNodeById(editor, nodeId))
+      }
+      onConvertSection={(layout: SectionLayout) =>
+        updateEditor((editor) => convertSelectedSection(editor, layout))
+      }
+      onUpdateSection={(props: Partial<NodePropsByType["section"]>) =>
+        updateEditor((editor) => updateSelectedNodeProps(editor, props))
+      }
+      onUpdateColumn={(props: Partial<NodePropsByType["column"]>) =>
+        updateEditor((editor) => updateSelectedNodeProps(editor, props))
       }
       onUpdateHeading={(props: Partial<BlockPropsByType["heading"]>) =>
-        updateEditor((editor) => updateSelectedBlockProps(editor, props))
+        updateEditor((editor) => updateSelectedNodeProps(editor, props))
       }
       onUpdateText={(props: Partial<BlockPropsByType["text"]>) =>
-        updateEditor((editor) => updateSelectedBlockProps(editor, props))
+        updateEditor((editor) => updateSelectedNodeProps(editor, props))
       }
       onUpdateButton={(props: Partial<BlockPropsByType["button"]>) =>
-        updateEditor((editor) => updateSelectedBlockProps(editor, props))
+        updateEditor((editor) => updateSelectedNodeProps(editor, props))
+      }
+      onUpdateImage={(props: Partial<BlockPropsByType["image"]>) =>
+        updateEditor((editor) => updateSelectedNodeProps(editor, props))
       }
       onUpdateSpacer={(props: Partial<BlockPropsByType["spacer"]>) =>
-        updateEditor((editor) => updateSelectedBlockProps(editor, props))
+        updateEditor((editor) => updateSelectedNodeProps(editor, props))
       }
       onSave={save}
       onPreview={openPreview}
