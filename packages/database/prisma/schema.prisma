@@ -1,0 +1,13 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// This schema intentionally contains no product models yet.
+// Business entities such as User, Organization, Project, AuditLog, commerce,
+// editor and integration models are out of scope for this foundation task.
+
