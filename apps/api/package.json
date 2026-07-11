@@ -10,12 +10,16 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@site-platform/config": "workspace:*",
-    "@site-platform/database": "workspace:*",
     "@nestjs/common": "^11.1.6",
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-express": "^11.1.6",
+    "@site-platform/config": "workspace:*",
+    "@site-platform/database": "workspace:*",
+    "@site-platform/domain": "workspace:*",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^11.1.28"
   }
 }

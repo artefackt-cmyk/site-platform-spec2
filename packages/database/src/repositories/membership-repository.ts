@@ -1,5 +1,6 @@
 import type {
   Membership,
+  Organization,
   OrganizationRole as PrismaOrganizationRole
 } from "@prisma/client";
 import type { OrganizationRole } from "@site-platform/domain";
@@ -9,6 +10,10 @@ export type CreateMembershipInput = {
   readonly userId: string;
   readonly organizationId: string;
   readonly role: OrganizationRole;
+};
+
+export type MembershipWithOrganization = Membership & {
+  readonly organization: Organization;
 };
 
 export class MembershipRepository {
@@ -42,6 +47,25 @@ export class MembershipRepository {
     return this.client.membership.findMany({
       where: {
         organizationId
+      },
+      orderBy: {
+        createdAt: "asc"
+      }
+    });
+  }
+
+  async findFirstActiveByUserId(
+    userId: string
+  ): Promise<MembershipWithOrganization | null> {
+    return this.client.membership.findFirst({
+      where: {
+        userId,
+        organization: {
+          deletedAt: null
+        }
+      },
+      include: {
+        organization: true
       },
       orderBy: {
         createdAt: "asc"

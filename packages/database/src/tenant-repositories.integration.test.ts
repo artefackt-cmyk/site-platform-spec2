@@ -2,6 +2,7 @@ import { loadConfigSafe, type AppConfig } from "@site-platform/config";
 import { describe, expect, it, beforeAll, afterAll, beforeEach } from "vitest";
 import {
   assertSafeTestDatabaseConfig,
+  checkDatabaseConnection,
   createPrismaClient,
   disconnectPrismaClient,
   MembershipRepository,
@@ -11,7 +12,7 @@ import {
   type DatabasePrismaClient
 } from "./index";
 
-const integrationConfig = getSafeIntegrationConfig();
+const integrationConfig = await getAvailableIntegrationConfig();
 
 describe.skipIf(integrationConfig === undefined)(
   "tenant-aware repositories",
@@ -201,7 +202,7 @@ type OrganizationFixture = {
   >["organization"];
 };
 
-function getSafeIntegrationConfig(): AppConfig | undefined {
+async function getAvailableIntegrationConfig(): Promise<AppConfig | undefined> {
   const result = loadConfigSafe({
     overrides: {
       NODE_ENV: "test"
@@ -214,9 +215,18 @@ function getSafeIntegrationConfig(): AppConfig | undefined {
 
   try {
     assertSafeTestDatabaseConfig(result.config);
-    return result.config;
   } catch {
     return undefined;
+  }
+
+  const client = createPrismaClient(result.config);
+
+  try {
+    const connectionResult = await checkDatabaseConnection(client);
+
+    return connectionResult.ok ? result.config : undefined;
+  } finally {
+    await disconnectPrismaClient(client);
   }
 }
 

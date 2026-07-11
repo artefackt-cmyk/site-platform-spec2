@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadConfig, loadConfigSafe } from "./index";
+import { loadConfig, loadConfigSafe, loadPublicConfig } from "./index";
 
 const developmentDatabaseUrl =
   "postgresql://site_platform:local@localhost:5432/site_platform_dev?schema=public";
@@ -13,6 +13,9 @@ describe("loadConfig", () => {
       env: {
         NODE_ENV: "development",
         DATABASE_URL: developmentDatabaseUrl,
+        DEV_USER_EMAIL: "Owner@Example.COM",
+        DASHBOARD_ORIGIN: "http://localhost:3000",
+        NEXT_PUBLIC_API_URL: "http://localhost:3002",
         API_PORT: "3002",
         DASHBOARD_PORT: "3000",
         STOREFRONT_PORT: "3001"
@@ -25,6 +28,13 @@ describe("loadConfig", () => {
         api: 3002,
         dashboard: 3000,
         storefront: 3001
+      },
+      web: {
+        dashboardOrigin: "http://localhost:3000",
+        publicApiUrl: "http://localhost:3002"
+      },
+      development: {
+        devUserEmail: "Owner@Example.COM"
       },
       database: {
         url: developmentDatabaseUrl,
@@ -91,5 +101,40 @@ describe("loadConfig", () => {
     expect(config.database.url).toBe(testDatabaseUrl);
     expect(config.database.activeUrlKind).toBe("test");
     expect(config.database.developmentUrl).toBe(developmentDatabaseUrl);
+  });
+
+  it("rejects development identity configuration in production", () => {
+    const result = loadConfigSafe({
+      dotenvPath: false,
+      env: {
+        NODE_ENV: "production",
+        DATABASE_URL: developmentDatabaseUrl,
+        DEV_USER_EMAIL: "owner@example.com"
+      }
+    });
+
+    expect(result.ok).toBe(false);
+
+    if (!result.ok) {
+      expect(result.error.issues).toContainEqual({
+        variable: "DEV_USER_EMAIL",
+        message:
+          "DEV_USER_EMAIL is development-only and must not be set in production",
+        secret: false
+      });
+    }
+  });
+
+  it("loads public dashboard configuration without database variables", () => {
+    const publicConfig = loadPublicConfig({
+      dotenvPath: false,
+      env: {
+        NEXT_PUBLIC_API_URL: "http://localhost:3002"
+      }
+    });
+
+    expect(publicConfig).toEqual({
+      apiUrl: "http://localhost:3002"
+    });
   });
 });

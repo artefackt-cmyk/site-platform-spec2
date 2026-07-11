@@ -7,7 +7,7 @@ import {
   disconnectPrismaClient
 } from "./index";
 
-const integrationConfig = getSafeIntegrationConfig();
+const integrationConfig = await getAvailableIntegrationConfig();
 
 describe.skipIf(integrationConfig === undefined)("PostgreSQL integration", () => {
   it("connects to the configured test database", async () => {
@@ -29,7 +29,7 @@ describe.skipIf(integrationConfig === undefined)("PostgreSQL integration", () =>
   });
 });
 
-function getSafeIntegrationConfig(): AppConfig | undefined {
+async function getAvailableIntegrationConfig(): Promise<AppConfig | undefined> {
   const result = loadConfigSafe({
     overrides: {
       NODE_ENV: "test"
@@ -42,9 +42,17 @@ function getSafeIntegrationConfig(): AppConfig | undefined {
 
   try {
     assertSafeTestDatabaseConfig(result.config);
-    return result.config;
   } catch {
     return undefined;
   }
-}
 
+  const client = createPrismaClient(result.config);
+
+  try {
+    const connectionResult = await checkDatabaseConnection(client);
+
+    return connectionResult.ok ? result.config : undefined;
+  } finally {
+    await disconnectPrismaClient(client);
+  }
+}

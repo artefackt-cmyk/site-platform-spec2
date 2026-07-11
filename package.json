@@ -16,6 +16,7 @@
     "db:generate": "pnpm --filter @site-platform/database db:generate",
     "db:migrate": "pnpm --filter @site-platform/database db:migrate",
     "db:migrate:test": "pnpm --filter @site-platform/database db:migrate:test",
+    "db:seed": "pnpm --filter @site-platform/database db:seed",
     "db:studio": "pnpm --filter @site-platform/database db:studio",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",

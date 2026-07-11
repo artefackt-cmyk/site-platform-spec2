@@ -16,6 +16,7 @@
     "db:migrate": "tsx src/scripts/migrate-database.ts",
     "db:migrate:test": "tsx src/scripts/migrate-test-database.ts",
     "db:reset:test": "tsx src/scripts/reset-test-database.ts",
+    "db:seed": "tsx src/scripts/seed-development.ts",
     "db:studio": "tsx src/scripts/open-studio.ts",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "pnpm db:generate && tsc --noEmit -p tsconfig.json",

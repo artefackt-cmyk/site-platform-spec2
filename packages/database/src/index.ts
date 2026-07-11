@@ -11,7 +11,8 @@ export {
 } from "./repositories/audit-log-repository";
 export {
   MembershipRepository,
-  type CreateMembershipInput
+  type CreateMembershipInput,
+  type MembershipWithOrganization
 } from "./repositories/membership-repository";
 export {
   OrganizationRepository,
@@ -40,3 +41,4 @@ export {
   type PrismaJsonInput,
   type RepositoryPrismaClient
 } from "./types";
+export type { Project, ProjectStatus } from "@prisma/client";

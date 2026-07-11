@@ -1,4 +1,5 @@
-import { resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { config as loadDotenvFile } from "dotenv";
 import { z } from "zod";
 
@@ -12,12 +13,23 @@ export type AppConfig = {
     readonly dashboard: number;
     readonly storefront: number;
   };
+  readonly web: {
+    readonly dashboardOrigin: string;
+    readonly publicApiUrl: string;
+  };
+  readonly development: {
+    readonly devUserEmail?: string;
+  };
   readonly database: {
     readonly url: string;
     readonly activeUrlKind: ActiveDatabaseUrlKind;
     readonly developmentUrl?: string;
     readonly testUrl?: string;
   };
+};
+
+export type PublicAppConfig = {
+  readonly apiUrl: string;
 };
 
 export type EnvironmentInput = Record<string, string | undefined>;
@@ -53,6 +65,12 @@ const portSchema = z.coerce
   .max(65535, "Port must be less than or equal to 65535");
 
 const databaseUrlSchema = z.string().trim().url("Database URL must be a valid URL");
+const publicUrlSchema = z.string().trim().url("URL must be a valid URL");
+const optionalEmailSchema = z
+  .string()
+  .trim()
+  .email("DEV_USER_EMAIL must be a valid email")
+  .optional();
 
 const environmentSchema = z
   .object({
@@ -61,6 +79,9 @@ const environmentSchema = z
       .default("development"),
     DATABASE_URL: databaseUrlSchema.optional(),
     TEST_DATABASE_URL: databaseUrlSchema.optional(),
+    DEV_USER_EMAIL: optionalEmailSchema,
+    DASHBOARD_ORIGIN: publicUrlSchema.default("http://localhost:3000"),
+    NEXT_PUBLIC_API_URL: publicUrlSchema.default("http://localhost:3002"),
     API_PORT: portSchema.default(3002),
     DASHBOARD_PORT: portSchema.default(3000),
     STOREFRONT_PORT: portSchema.default(3001)
@@ -81,7 +102,19 @@ const environmentSchema = z
         message: "DATABASE_URL is required when NODE_ENV is not test"
       });
     }
+
+    if (env.NODE_ENV === "production" && env.DEV_USER_EMAIL !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["DEV_USER_EMAIL"],
+        message: "DEV_USER_EMAIL is development-only and must not be set in production"
+      });
+    }
   });
+
+const publicEnvironmentSchema = z.object({
+  NEXT_PUBLIC_API_URL: publicUrlSchema.default("http://localhost:3002")
+});
 
 type ParsedEnvironment = z.infer<typeof environmentSchema>;
 
@@ -124,10 +157,25 @@ export function loadConfigSafe(options: LoadConfigOptions = {}): LoadConfigResul
   }
 }
 
+export function loadPublicConfig(
+  options: LoadConfigOptions = {}
+): PublicAppConfig {
+  const env = resolveEnvironment(options);
+  const parsed = publicEnvironmentSchema.safeParse(env);
+
+  if (!parsed.success) {
+    throw new ConfigValidationError(toSafeIssues(parsed.error));
+  }
+
+  return {
+    apiUrl: parsed.data.NEXT_PUBLIC_API_URL
+  };
+}
+
 function resolveEnvironment(options: LoadConfigOptions): EnvironmentInput {
   if (options.env === undefined && options.dotenvPath !== false) {
     loadDotenvFile({
-      path: options.dotenvPath ?? resolve(process.cwd(), ".env"),
+      path: options.dotenvPath ?? findWorkspaceDotenvPath(process.cwd()),
       quiet: true
     });
   }
@@ -136,6 +184,30 @@ function resolveEnvironment(options: LoadConfigOptions): EnvironmentInput {
     ...(options.env ?? process.env),
     ...(options.overrides ?? {})
   };
+}
+
+function findWorkspaceDotenvPath(startDirectory: string): string {
+  let currentDirectory = startDirectory;
+
+  while (true) {
+    const dotenvPath = resolve(currentDirectory, ".env");
+
+    if (existsSync(dotenvPath)) {
+      return dotenvPath;
+    }
+
+    if (existsSync(resolve(currentDirectory, "pnpm-workspace.yaml"))) {
+      return dotenvPath;
+    }
+
+    const parentDirectory = dirname(currentDirectory);
+
+    if (parentDirectory === currentDirectory) {
+      return dotenvPath;
+    }
+
+    currentDirectory = parentDirectory;
+  }
 }
 
 function toAppConfig(env: ParsedEnvironment): AppConfig {
@@ -161,6 +233,16 @@ function toAppConfig(env: ParsedEnvironment): AppConfig {
       dashboard: env.DASHBOARD_PORT,
       storefront: env.STOREFRONT_PORT
     },
+    web: {
+      dashboardOrigin: env.DASHBOARD_ORIGIN,
+      publicApiUrl: env.NEXT_PUBLIC_API_URL
+    },
+    development:
+      env.DEV_USER_EMAIL === undefined
+        ? {}
+        : {
+            devUserEmail: env.DEV_USER_EMAIL
+          },
     database: {
       url: databaseUrl,
       activeUrlKind,

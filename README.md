@@ -1,6 +1,6 @@
 # Site Platform Spec 2
 
-Минимальный технический каркас monorepo для будущей SaaS-платформы. В репозитории есть первые foundation-модели для организаций, участников, проектов и audit log. Авторизации, редактора, commerce, очередей и реальных интеграций пока нет.
+Минимальный технический каркас monorepo для будущей SaaS-платформы. В репозитории есть первые foundation-модели для организаций, участников, проектов и audit log, а также development-only dashboard для просмотра и создания проектов. Production-авторизации, редактора, commerce, очередей и реальных интеграций пока нет.
 
 ## Требования к окружению
 
@@ -16,6 +16,18 @@ cp .env.example .env
 ```
 
 Значения в `.env.example` предназначены только для локальной разработки. Не используйте их как production credentials.
+
+Минимальный набор значений для локального dashboard/API:
+
+```bash
+DATABASE_URL=postgresql://site_platform:site_platform_local_password@localhost:5432/site_platform_dev?schema=public
+TEST_DATABASE_URL=postgresql://site_platform:site_platform_local_password@localhost:5432/site_platform_test?schema=public
+DEV_USER_EMAIL=owner@example.com
+DASHBOARD_ORIGIN=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:3002
+```
+
+`DEV_USER_EMAIL` используется только в `NODE_ENV=development`. Это не production-auth, не session, не cookie и не token.
 
 ## PostgreSQL
 
@@ -81,6 +93,24 @@ pnpm db:reset:test
 
 Editor, commerce и integration-модели пока намеренно не добавлены.
 
+## Development Seed
+
+После применения миграций заполнить development database начальными данными:
+
+```bash
+pnpm db:seed
+```
+
+Seed работает только вне production и идемпотентно создает:
+
+- пользователя `owner@example.com`;
+- организацию `Demo Brand`;
+- `OWNER` membership;
+- проект `Demo Store` со slug `demo-store`;
+- audit log записи для создания организации и проекта.
+
+Повторный запуск не создает дубликаты и не удаляет существующие данные.
+
 ## Запуск
 
 ```bash
@@ -98,6 +128,34 @@ API endpoints:
 
 - `GET /health` - не требует подключения к базе;
 - `GET /health/database` - проверяет PostgreSQL и возвращает стабильную ошибку без раскрытия connection string.
+- `GET /api/me` - development-only текущий пользователь и активная организация;
+- `GET /api/projects` - проекты активной организации;
+- `POST /api/projects` - создание проекта в активной организации.
+
+Для раздельного запуска:
+
+```bash
+pnpm --filter @site-platform/api dev
+pnpm --filter @site-platform/dashboard dev
+```
+
+Адреса для браузера и API:
+
+- dashboard: `http://localhost:3000`;
+- API: `http://localhost:3002`;
+- database health: `http://localhost:3002/health/database`.
+
+Перед открытием dashboard обычно нужен такой порядок:
+
+```bash
+pnpm db:up
+pnpm db:migrate
+pnpm db:seed
+pnpm --filter @site-platform/api dev
+pnpm --filter @site-platform/dashboard dev
+```
+
+Если `DEV_USER_EMAIL` отсутствует или пользователь не найден в таблицах `User`/`Membership`, API вернет понятную JSON-ошибку, а dashboard покажет сообщение конфигурации.
 
 ## Команды проверки
 
@@ -160,6 +218,8 @@ docs/
 - `TEST_DATABASE_URL_MATCHES_DEVELOPMENT`: test database URL совпадает с development database URL; команда reset/migrate для test базы остановлена защитой.
 - `TEST_DATABASE_URL_NOT_RECOGNIZED`: имя базы в `TEST_DATABASE_URL` не содержит `test`.
 - `P1001` или connection refused: PostgreSQL не запущен; выполните `pnpm db:up` и дождитесь healthcheck.
+- `DEV_USER_EMAIL_REQUIRED`: добавьте `DEV_USER_EMAIL=owner@example.com` в `.env`.
+- `DEV_USER_NOT_FOUND` или `DEV_MEMBERSHIP_NOT_FOUND`: выполните `pnpm db:seed` после миграций.
 
 ## Продуктовая документация
 

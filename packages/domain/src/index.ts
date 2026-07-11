@@ -88,6 +88,9 @@ export const DOMAIN_ERROR_CODES = {
   organizationNameRequired: "ORGANIZATION_NAME_REQUIRED",
   organizationNameTooShort: "ORGANIZATION_NAME_TOO_SHORT",
   organizationNameTooLong: "ORGANIZATION_NAME_TOO_LONG",
+  projectNameRequired: "PROJECT_NAME_REQUIRED",
+  projectNameTooShort: "PROJECT_NAME_TOO_SHORT",
+  projectNameTooLong: "PROJECT_NAME_TOO_LONG",
   projectSlugRequired: "PROJECT_SLUG_REQUIRED",
   projectSlugTooShort: "PROJECT_SLUG_TOO_SHORT",
   projectSlugTooLong: "PROJECT_SLUG_TOO_LONG",
@@ -111,6 +114,8 @@ export type ValidationResult<TValue> =
 
 const ORGANIZATION_NAME_MIN_LENGTH = 2;
 const ORGANIZATION_NAME_MAX_LENGTH = 120;
+const PROJECT_NAME_MIN_LENGTH = 2;
+const PROJECT_NAME_MAX_LENGTH = 120;
 const PROJECT_SLUG_MIN_LENGTH = 2;
 const PROJECT_SLUG_MAX_LENGTH = 80;
 const PROJECT_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -143,6 +148,24 @@ export function validateOrganizationName(
 
   if (normalizedName.length > ORGANIZATION_NAME_MAX_LENGTH) {
     return invalid(DOMAIN_ERROR_CODES.organizationNameTooLong);
+  }
+
+  return valid(normalizedName);
+}
+
+export function validateProjectName(name: string): ValidationResult<string> {
+  const normalizedName = name.trim().replace(/\s+/g, " ");
+
+  if (normalizedName.length === 0) {
+    return invalid(DOMAIN_ERROR_CODES.projectNameRequired);
+  }
+
+  if (normalizedName.length < PROJECT_NAME_MIN_LENGTH) {
+    return invalid(DOMAIN_ERROR_CODES.projectNameTooShort);
+  }
+
+  if (normalizedName.length > PROJECT_NAME_MAX_LENGTH) {
+    return invalid(DOMAIN_ERROR_CODES.projectNameTooLong);
   }
 
   return valid(normalizedName);
