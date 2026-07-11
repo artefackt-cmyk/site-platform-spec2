@@ -36,6 +36,7 @@ model User {
   memberships Membership[]
   auditLogs   AuditLog[]   @relation("AuditActor")
   mediaAssets MediaAsset[] @relation("MediaAssetCreator")
+  publishedSnapshots PublishedPageSnapshot[] @relation("PublishedByUser")
 
   @@map("users")
 }
@@ -52,6 +53,9 @@ model Organization {
   sitePages   SitePage[]
   pageDocuments PageDocument[]
   mediaAssets MediaAsset[]
+  publicationSettings ProjectPublicationSettings[]
+  publishedPageSnapshots PublishedPageSnapshot[]
+  publishedPageStates PublishedPageState[]
   auditLogs   AuditLog[]
 
   @@map("organizations")
@@ -85,6 +89,9 @@ model Project {
   sitePages      SitePage[]
   pageDocuments  PageDocument[]
   mediaAssets    MediaAsset[]
+  publicationSettings ProjectPublicationSettings?
+  publishedPageSnapshots PublishedPageSnapshot[]
+  publishedPageStates PublishedPageState[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -105,11 +112,77 @@ model SitePage {
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   project        Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
   pageDocument   PageDocument?
+  publishedSnapshots PublishedPageSnapshot[]
+  publishedState PublishedPageState?
 
   @@unique([projectId, slug])
   @@index([organizationId, projectId])
   @@index([projectId])
   @@map("site_pages")
+}
+
+model ProjectPublicationSettings {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  projectId      String       @unique @map("project_id")
+  publicHandle   String       @unique @map("public_handle")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@map("project_publication_settings")
+}
+
+model PublishedPageSnapshot {
+  id                       String       @id @default(cuid())
+  organizationId           String       @map("organization_id")
+  projectId                String       @map("project_id")
+  pageId                   String       @map("page_id")
+  version                  Int
+  pageTitle                String       @map("page_title")
+  pageSlug                 String       @map("page_slug")
+  documentJson             Json         @map("document_json")
+  sourceRevision           Int          @map("source_revision")
+  rollbackSourceSnapshotId String?      @map("rollback_source_snapshot_id")
+  publishedByUserId        String       @map("published_by_user_id")
+  publishedAt              DateTime     @default(now()) @map("published_at")
+  createdAt                DateTime     @default(now()) @map("created_at")
+  organization             Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project                  Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  page                     SitePage     @relation(fields: [pageId], references: [id], onDelete: Restrict)
+  publishedByUser          User         @relation("PublishedByUser", fields: [publishedByUserId], references: [id], onDelete: Restrict)
+  activeStates             PublishedPageState[] @relation("ActivePublishedSnapshot")
+
+  @@unique([pageId, version])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([pageId])
+  @@index([projectId, pageSlug])
+  @@index([publishedAt])
+  @@map("published_page_snapshots")
+}
+
+model PublishedPageState {
+  id               String                 @id @default(cuid())
+  organizationId   String                 @map("organization_id")
+  projectId        String                 @map("project_id")
+  pageId           String                 @unique @map("page_id")
+  activeSnapshotId String?                @map("active_snapshot_id")
+  publishedAt      DateTime?              @map("published_at")
+  unpublishedAt    DateTime?              @map("unpublished_at")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project          Project                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  page             SitePage               @relation(fields: [pageId], references: [id], onDelete: Restrict)
+  activeSnapshot   PublishedPageSnapshot? @relation("ActivePublishedSnapshot", fields: [activeSnapshotId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([activeSnapshotId])
+  @@map("published_page_states")
 }
 
 model PageDocument {

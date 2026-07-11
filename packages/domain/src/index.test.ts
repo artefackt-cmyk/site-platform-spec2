@@ -8,6 +8,7 @@ import {
   normalizeEmail,
   packageName,
   validateOrganizationName,
+  validatePublicHandle,
   validatePageSlug,
   validatePageTitle,
   validateProjectSlug
@@ -68,6 +69,25 @@ describe("@site-platform/domain", () => {
     expect(validatePageSlug("About page")).toEqual({
       ok: false,
       code: DOMAIN_ERROR_CODES.pageSlugInvalidFormat
+    });
+    expect(validatePageSlug("api")).toEqual({
+      ok: false,
+      code: DOMAIN_ERROR_CODES.pageSlugReserved
+    });
+  });
+
+  it("validates public handles", () => {
+    expect(validatePublicHandle("Demo-Store")).toEqual({
+      ok: true,
+      value: "demo-store"
+    });
+    expect(validatePublicHandle("dashboard")).toEqual({
+      ok: false,
+      code: DOMAIN_ERROR_CODES.publicHandleReserved
+    });
+    expect(validatePublicHandle("-store")).toEqual({
+      ok: false,
+      code: DOMAIN_ERROR_CODES.publicHandleInvalidFormat
     });
   });
 

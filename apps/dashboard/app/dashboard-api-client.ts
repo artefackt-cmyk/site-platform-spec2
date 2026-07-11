@@ -7,13 +7,19 @@ import type {
   CurrentUserResponse,
   DeleteMediaAssetResponse,
   MediaAssetsListResponse,
+  PublicationHistoryResponse,
+  PublicationSettingsResponse,
+  PublicationStatusResponse,
   ProjectPagesListResponse,
   ProjectSummary,
   PageDocumentResponse,
+  PublishPageResponse,
   SavePageDocumentRequest,
   SitePageSummary,
   ProjectsListResponse,
+  UpdatePageSettingsFormValues,
   UpdateMediaAssetResponse,
+  UpdateProjectPageResponse,
   UploadMediaAssetResponse
 } from "./dashboard-types";
 
@@ -49,6 +55,11 @@ export type DashboardApiClient = {
     projectId: string,
     pageId: string
   ) => Promise<SitePageSummary>;
+  readonly updateProjectPage: (
+    projectId: string,
+    pageId: string,
+    input: UpdatePageSettingsFormValues
+  ) => Promise<UpdateProjectPageResponse>;
   readonly getProjectPageDocument: (
     projectId: string,
     pageId: string
@@ -77,6 +88,41 @@ export type DashboardApiClient = {
     projectId: string,
     assetId: string
   ) => Promise<DeleteMediaAssetResponse>;
+  readonly getPublicationSettings: (
+    projectId: string
+  ) => Promise<PublicationSettingsResponse>;
+  readonly updatePublicationSettings: (
+    projectId: string,
+    input: {
+      readonly publicHandle: string;
+    }
+  ) => Promise<PublicationSettingsResponse>;
+  readonly getPagePublicationStatus: (
+    projectId: string,
+    pageId: string
+  ) => Promise<PublicationStatusResponse>;
+  readonly publishPage: (
+    projectId: string,
+    pageId: string,
+    input: {
+      readonly expectedRevision: number;
+    }
+  ) => Promise<PublishPageResponse>;
+  readonly unpublishPage: (
+    projectId: string,
+    pageId: string
+  ) => Promise<{
+    readonly publicationStatus: PublicationStatusResponse;
+  }>;
+  readonly listPagePublications: (
+    projectId: string,
+    pageId: string
+  ) => Promise<PublicationHistoryResponse>;
+  readonly rollbackPagePublication: (
+    projectId: string,
+    pageId: string,
+    snapshotId: string
+  ) => Promise<PublishPageResponse>;
 };
 
 export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
@@ -122,6 +168,20 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
         `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
           pageId
         )}`
+      ),
+    updateProjectPage: (projectId, pageId, input) =>
+      request<UpdateProjectPageResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
+          pageId
+        )}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
       ),
     getProjectPageDocument: (projectId, pageId) =>
       request<PageDocumentResponse>(
@@ -189,6 +249,73 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
         )}`,
         {
           method: "DELETE"
+        }
+      ),
+    getPublicationSettings: (projectId) =>
+      request<PublicationSettingsResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/publication-settings`
+      ),
+    updatePublicationSettings: (projectId, input) =>
+      request<PublicationSettingsResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/publication-settings`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    getPagePublicationStatus: (projectId, pageId) =>
+      request<PublicationStatusResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
+          pageId
+        )}/publication-status`
+      ),
+    publishPage: (projectId, pageId, input) =>
+      request<PublishPageResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
+          pageId
+        )}/publish`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    unpublishPage: (projectId, pageId) =>
+      request<{
+        readonly publicationStatus: PublicationStatusResponse;
+      }>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
+          pageId
+        )}/unpublish`,
+        {
+          method: "POST"
+        }
+      ),
+    listPagePublications: (projectId, pageId) =>
+      request<PublicationHistoryResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
+          pageId
+        )}/publications`
+      ),
+    rollbackPagePublication: (projectId, pageId, snapshotId) =>
+      request<PublishPageResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
+          pageId
+        )}/publications/${encodeURIComponent(snapshotId)}/rollback`,
+        {
+          method: "POST"
         }
       )
   };

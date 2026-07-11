@@ -25,6 +25,12 @@ export {
   type CreateOrganizationInput
 } from "./repositories/organization-repository";
 export {
+  ProjectPublicationSettingsRepository,
+  type CreateProjectPublicationSettingsInput,
+  type PublicProjectLookup,
+  type UpdateProjectPublicationSettingsInput
+} from "./repositories/project-publication-settings-repository";
+export {
   ProjectRepository,
   type CreateProjectInput,
   type ProjectTenantLookupInput,
@@ -40,6 +46,15 @@ export {
   type PageDocumentRecord,
   type PageDocumentRepositoryErrorCode
 } from "./repositories/page-document-repository";
+export {
+  PublishedPageSnapshotRepository,
+  type ActivePublishedPageLookup,
+  type CreatePublishedPageSnapshotInput
+} from "./repositories/published-page-snapshot-repository";
+export {
+  PublishedPageStateRepository,
+  type ActivatePublishedPageInput
+} from "./repositories/published-page-state-repository";
 export {
   SitePageRepository,
   type CreateSitePageInput
@@ -64,7 +79,10 @@ export type {
   PageDocument,
   MediaAsset,
   Project,
+  ProjectPublicationSettings,
   ProjectStatus,
+  PublishedPageSnapshot,
+  PublishedPageState,
   SitePage,
   SitePageStatus
 } from "@prisma/client";

@@ -14,15 +14,14 @@ import type {
 
 export const packageName = "@site-platform/renderer" as const;
 
-export type PageRendererMode = "editor" | "preview";
+export type PageRendererMode = "editor" | "preview" | "storefront";
 
 export type PageRendererProps = {
   readonly document: PageDocument;
   readonly mode: PageRendererMode;
   readonly selectedNodeId?: string | null | undefined;
   readonly selectedBlockId?: string | null | undefined;
-  readonly onNodeSelect?: ((nodeId: string) => void) | undefined;
-  readonly onBlockSelect?: ((blockId: string) => void) | undefined;
+  readonly siteBasePath?: string | undefined;
 };
 
 export function PageRenderer({
@@ -30,17 +29,9 @@ export function PageRenderer({
   mode,
   selectedNodeId,
   selectedBlockId,
-  onNodeSelect,
-  onBlockSelect
+  siteBasePath
 }: PageRendererProps): React.ReactElement {
   const selectedId = selectedNodeId ?? selectedBlockId ?? null;
-  const handleNodeSelect =
-    onNodeSelect ??
-    (onBlockSelect === undefined
-      ? undefined
-      : (nodeId: string) => {
-          onBlockSelect(nodeId);
-        });
 
   return React.createElement(
     "div",
@@ -59,7 +50,7 @@ export function PageRenderer({
         section,
         mode,
         selectedId,
-        onNodeSelect: handleNodeSelect
+        siteBasePath
       })
     )
   );
@@ -69,7 +60,7 @@ function renderSection(input: {
   readonly section: SectionNode;
   readonly mode: PageRendererMode;
   readonly selectedId: string | null;
-  readonly onNodeSelect?: ((nodeId: string) => void) | undefined;
+  readonly siteBasePath?: string | undefined;
 }): React.ReactElement {
   const content = React.createElement(
     "div",
@@ -86,18 +77,18 @@ function renderSection(input: {
             column: child,
             mode: input.mode,
             selectedId: input.selectedId,
-            onNodeSelect: input.onNodeSelect
+            siteBasePath: input.siteBasePath
           })
         : renderLeafBlock({
             block: child,
             mode: input.mode,
             selectedId: input.selectedId,
-            onNodeSelect: input.onNodeSelect
+            siteBasePath: input.siteBasePath
           })
     )
   );
 
-  if (input.mode === "preview") {
+  if (input.mode !== "editor") {
     return React.createElement(
       "section",
       {
@@ -119,11 +110,8 @@ function renderSection(input: {
         ? "sp-editor-section sp-editor-section-selected"
         : "sp-editor-section",
       "data-editor-chrome": "section",
+      "data-renderer-node-id": input.section.id,
       "data-selected": selected ? "true" : "false",
-      onClick: (event: React.MouseEvent<HTMLElement>) => {
-        event.stopPropagation();
-        input.onNodeSelect?.(input.section.id);
-      },
       style: {
         ...createSectionStyle(input.section),
         ...editorSectionStyle,
@@ -138,18 +126,18 @@ function renderColumn(input: {
   readonly column: ColumnNode;
   readonly mode: PageRendererMode;
   readonly selectedId: string | null;
-  readonly onNodeSelect?: ((nodeId: string) => void) | undefined;
+  readonly siteBasePath?: string | undefined;
 }): React.ReactElement {
   const content = input.column.children.map((block) =>
     renderLeafBlock({
       block,
       mode: input.mode,
       selectedId: input.selectedId,
-      onNodeSelect: input.onNodeSelect
+      siteBasePath: input.siteBasePath
     })
   );
 
-  if (input.mode === "preview") {
+  if (input.mode !== "editor") {
     return React.createElement(
       "div",
       {
@@ -169,11 +157,8 @@ function renderColumn(input: {
       key: input.column.id,
       className: selected ? "sp-editor-column sp-editor-column-selected" : "sp-editor-column",
       "data-editor-chrome": "column",
+      "data-renderer-node-id": input.column.id,
       "data-selected": selected ? "true" : "false",
-      onClick: (event: React.MouseEvent<HTMLDivElement>) => {
-        event.stopPropagation();
-        input.onNodeSelect?.(input.column.id);
-      },
       style: {
         ...createColumnStyle(input.column),
         ...editorBlockStyle,
@@ -198,11 +183,11 @@ function renderLeafBlock(input: {
   readonly block: BlockNode;
   readonly mode: PageRendererMode;
   readonly selectedId: string | null;
-  readonly onNodeSelect?: ((nodeId: string) => void) | undefined;
+  readonly siteBasePath?: string | undefined;
 }): React.ReactElement {
-  const content = renderBlockContent(input.block, input.mode);
+  const content = renderBlockContent(input.block, input.mode, input.siteBasePath);
 
-  if (input.mode === "preview") {
+  if (input.mode !== "editor") {
     return React.createElement(
       "div",
       {
@@ -223,11 +208,8 @@ function renderLeafBlock(input: {
         ? "sp-editor-block sp-editor-block-selected"
         : "sp-editor-block",
       "data-editor-chrome": "block",
+      "data-renderer-node-id": input.block.id,
       "data-selected": selected ? "true" : "false",
-      onClick: (event: React.MouseEvent<HTMLDivElement>) => {
-        event.stopPropagation();
-        input.onNodeSelect?.(input.block.id);
-      },
       style: {
         ...editorBlockStyle,
         ...(selected ? selectedChromeStyle : {})
@@ -239,7 +221,8 @@ function renderLeafBlock(input: {
 
 function renderBlockContent(
   block: BlockNode,
-  mode: PageRendererMode
+  mode: PageRendererMode,
+  siteBasePath: string | undefined
 ): React.ReactElement {
   switch (block.type) {
     case "heading":
@@ -253,7 +236,8 @@ function renderBlockContent(
     case "button":
       return React.createElement(ButtonRenderer, {
         block,
-        mode
+        mode,
+        siteBasePath
       });
     case "spacer":
       return React.createElement(SpacerRenderer, {
@@ -314,12 +298,15 @@ function TextRenderer({
 
 function ButtonRenderer({
   block,
-  mode
+  mode,
+  siteBasePath
 }: {
   readonly block: ButtonBlock;
   readonly mode: PageRendererMode;
+  readonly siteBasePath?: string | undefined;
 }): React.ReactElement {
-  const linkProps = createButtonLinkProps(block, mode);
+  const buttonTarget = createButtonTarget(block, mode, siteBasePath);
+  const buttonStyle = createButtonStyle(block, buttonTarget.disabled);
 
   return React.createElement(
     "div",
@@ -331,24 +318,11 @@ function ButtonRenderer({
       }
     },
     React.createElement(
-      "a",
+      buttonTarget.element,
       {
         className: `sp-button sp-button-${block.props.variant}`,
-        ...linkProps,
-        style: {
-          display: "inline-flex",
-          minHeight: 42,
-          alignItems: "center",
-          borderRadius: 6,
-          borderWidth: 1,
-          borderStyle: "solid",
-          borderColor: block.props.variant === "primary" ? "#2563eb" : "#c8d2e0",
-          background: block.props.variant === "primary" ? "#2563eb" : "#ffffff",
-          padding: "0 18px",
-          color: block.props.variant === "primary" ? "#ffffff" : "#1d4ed8",
-          fontWeight: 700,
-          textDecoration: "none"
-        }
+        ...buttonTarget.props,
+        style: buttonStyle
       },
       block.props.label
     )
@@ -395,16 +369,7 @@ function ImageRenderer({
       ? React.createElement("img", {
           src,
           alt: block.props.alt,
-          style: createImageBoxStyle(block),
-          onError: (event: React.SyntheticEvent<HTMLImageElement>) => {
-            event.currentTarget.style.display = "none";
-            const nextElement = event.currentTarget
-              .nextElementSibling as HTMLElement | null;
-
-            if (nextElement !== null) {
-              nextElement.style.display = "flex";
-            }
-          }
+          style: createImageBoxStyle(block)
         })
       : null,
     placeholder,
@@ -425,45 +390,92 @@ function ImageRenderer({
   );
 }
 
-function createButtonLinkProps(
+type ButtonTarget =
+  | {
+      readonly element: "a";
+      readonly disabled: false;
+      readonly props: {
+        readonly href: string;
+        readonly target?: "_blank";
+        readonly rel?: "noopener noreferrer";
+      };
+    }
+  | {
+      readonly element: "span";
+      readonly disabled: true;
+      readonly props: {
+        readonly "aria-disabled": "true";
+        readonly "data-disabled-link": "true";
+      };
+    };
+
+function createButtonTarget(
   block: ButtonBlock,
-  mode: PageRendererMode
-): {
-  readonly href: string;
-  readonly onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
-  readonly target?: "_blank";
-  readonly rel?: "noreferrer";
-  readonly "data-disabled-link"?: "true";
-} {
-  if (mode === "editor") {
+  mode: PageRendererMode,
+  siteBasePath: string | undefined
+): ButtonTarget {
+  const href = block.props.href.trim();
+
+  if (mode === "editor" || href === "" || href === "#") {
     return {
-      href: block.props.href,
-      onClick: (event) => {
-        event.preventDefault();
+      element: "span",
+      disabled: true,
+      props: {
+        "aria-disabled": "true",
+        "data-disabled-link": "true"
       }
     };
   }
 
-  if (block.props.href === "#") {
+  if (isExternalHref(href)) {
     return {
-      href: block.props.href,
-      "data-disabled-link": "true",
-      onClick: (event) => {
-        event.preventDefault();
+      element: "a",
+      disabled: false,
+      props: {
+        href,
+        target: "_blank",
+        rel: "noopener noreferrer"
       }
     };
   }
 
-  if (isExternalHref(block.props.href)) {
+  if (mode === "storefront" && href.startsWith("/")) {
     return {
-      href: block.props.href,
-      target: "_blank",
-      rel: "noreferrer"
+      element: "a",
+      disabled: false,
+      props: {
+        href: `${siteBasePath?.replace(/\/$/, "") ?? ""}${href}`
+      }
     };
   }
 
   return {
-    href: block.props.href
+    element: "a",
+    disabled: false,
+    props: {
+      href
+    }
+  };
+}
+
+function createButtonStyle(
+  block: ButtonBlock,
+  disabled: boolean
+): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    minHeight: 42,
+    alignItems: "center",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: block.props.variant === "primary" ? "#2563eb" : "#c8d2e0",
+    background: block.props.variant === "primary" ? "#2563eb" : "#ffffff",
+    padding: "0 18px",
+    color: block.props.variant === "primary" ? "#ffffff" : "#1d4ed8",
+    cursor: disabled ? "default" : "pointer",
+    fontWeight: 700,
+    textDecoration: "none"
   };
 }
 

@@ -122,6 +122,12 @@ export const DOMAIN_ERROR_CODES = {
   pageSlugTooShort: "PAGE_SLUG_TOO_SHORT",
   pageSlugTooLong: "PAGE_SLUG_TOO_LONG",
   pageSlugInvalidFormat: "PAGE_SLUG_INVALID_FORMAT",
+  pageSlugReserved: "PAGE_SLUG_RESERVED",
+  publicHandleRequired: "PUBLIC_HANDLE_REQUIRED",
+  publicHandleTooShort: "PUBLIC_HANDLE_TOO_SHORT",
+  publicHandleTooLong: "PUBLIC_HANDLE_TOO_LONG",
+  publicHandleInvalidFormat: "PUBLIC_HANDLE_INVALID_FORMAT",
+  publicHandleReserved: "PUBLIC_HANDLE_RESERVED",
   tenantContextRequired: "TENANT_CONTEXT_REQUIRED",
   tenantScopedEntityNotFound: "TENANT_SCOPED_ENTITY_NOT_FOUND"
 } as const;
@@ -151,6 +157,33 @@ const PAGE_TITLE_MAX_LENGTH = 120;
 const PAGE_SLUG_MIN_LENGTH = 1;
 const PAGE_SLUG_MAX_LENGTH = 80;
 const PAGE_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const PUBLIC_HANDLE_MIN_LENGTH = 3;
+const PUBLIC_HANDLE_MAX_LENGTH = 48;
+const PUBLIC_HANDLE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const RESERVED_PUBLIC_HANDLES = [
+  "api",
+  "admin",
+  "dashboard",
+  "login",
+  "signup",
+  "media",
+  "assets",
+  "preview",
+  "projects",
+  "static",
+  "health",
+  "www"
+] as const;
+export const RESERVED_PAGE_SLUGS = [
+  "api",
+  "admin",
+  "media",
+  "assets",
+  "preview",
+  "editor",
+  "_next",
+  "favicon.ico"
+] as const;
 
 export function hasPermission(
   role: OrganizationRole,
@@ -262,7 +295,37 @@ export function validatePageSlug(slug: string): ValidationResult<string> {
     return invalid(DOMAIN_ERROR_CODES.pageSlugInvalidFormat);
   }
 
+  if ((RESERVED_PAGE_SLUGS as readonly string[]).includes(normalizedSlug)) {
+    return invalid(DOMAIN_ERROR_CODES.pageSlugReserved);
+  }
+
   return valid(normalizedSlug);
+}
+
+export function validatePublicHandle(handle: string): ValidationResult<string> {
+  const normalizedHandle = handle.trim().toLowerCase();
+
+  if (normalizedHandle.length === 0) {
+    return invalid(DOMAIN_ERROR_CODES.publicHandleRequired);
+  }
+
+  if (normalizedHandle.length < PUBLIC_HANDLE_MIN_LENGTH) {
+    return invalid(DOMAIN_ERROR_CODES.publicHandleTooShort);
+  }
+
+  if (normalizedHandle.length > PUBLIC_HANDLE_MAX_LENGTH) {
+    return invalid(DOMAIN_ERROR_CODES.publicHandleTooLong);
+  }
+
+  if (!PUBLIC_HANDLE_PATTERN.test(normalizedHandle)) {
+    return invalid(DOMAIN_ERROR_CODES.publicHandleInvalidFormat);
+  }
+
+  if ((RESERVED_PUBLIC_HANDLES as readonly string[]).includes(normalizedHandle)) {
+    return invalid(DOMAIN_ERROR_CODES.publicHandleReserved);
+  }
+
+  return valid(normalizedHandle);
 }
 
 function valid<TValue>(value: TValue): ValidationResult<TValue> {

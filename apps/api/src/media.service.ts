@@ -9,6 +9,10 @@ import {
   type MediaAsset
 } from "@site-platform/database";
 import {
+  collectPageDocumentImageAssetIds,
+  validatePageDocument
+} from "@site-platform/editor-core";
+import {
   LocalMediaStorage,
   UploadValidationError,
   validateImageUpload,
@@ -241,6 +245,19 @@ export class MediaService {
       );
     }
 
+    const publishedUsageCount = await this.countPublishedUsage(
+      identity.tenantContext.organizationId,
+      projectId,
+      asset.id
+    );
+
+    if (publishedUsageCount > 0) {
+      throw conflict(
+        API_ERROR_CODES.mediaAssetInUse,
+        `Media asset is used ${publishedUsageCount} time(s) in published pages.`
+      );
+    }
+
     await this.storage.delete(asset.storageKey);
     await this.client.$transaction(async (transaction) => {
       const scopedRepository = new MediaAssetRepository(transaction);
@@ -312,6 +329,52 @@ export class MediaService {
     if (project === null) {
       throw notFound(API_ERROR_CODES.projectNotFound, "Project was not found.");
     }
+  }
+
+  private async countPublishedUsage(
+    organizationId: string,
+    projectId: string,
+    assetId: string
+  ): Promise<number> {
+    const states = await this.client.publishedPageState.findMany({
+      where: {
+        organizationId,
+        projectId,
+        activeSnapshotId: {
+          not: null
+        },
+        page: {
+          deletedAt: null,
+          project: {
+            deletedAt: null
+          }
+        }
+      },
+      include: {
+        activeSnapshot: true
+      }
+    });
+
+    return states.reduce((count, state) => {
+      if (state.activeSnapshot === null) {
+        return count;
+      }
+
+      const validation = validatePageDocument(state.activeSnapshot.documentJson);
+
+      if (!validation.ok) {
+        throw new Error(
+          `Cannot count media usage for invalid published snapshot ${state.activeSnapshot.id}.`
+        );
+      }
+
+      return (
+        count +
+        collectPageDocumentImageAssetIds(validation.document).filter(
+          (currentAssetId) => currentAssetId === assetId
+        ).length
+      );
+    }, 0);
   }
 }
 

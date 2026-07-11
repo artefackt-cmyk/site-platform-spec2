@@ -15,7 +15,9 @@ describe("loadConfig", () => {
         DATABASE_URL: developmentDatabaseUrl,
         DEV_USER_EMAIL: "Owner@Example.COM",
         DASHBOARD_ORIGIN: "http://localhost:3000",
+        STOREFRONT_ORIGIN: "http://localhost:3001",
         NEXT_PUBLIC_API_URL: "http://localhost:3002",
+        NEXT_PUBLIC_STOREFRONT_URL: "http://localhost:3001",
         API_PORT: "3002",
         DASHBOARD_PORT: "3000",
         STOREFRONT_PORT: "3001"
@@ -31,7 +33,9 @@ describe("loadConfig", () => {
       },
       web: {
         dashboardOrigin: "http://localhost:3000",
-        publicApiUrl: "http://localhost:3002"
+        storefrontOrigin: "http://localhost:3001",
+        publicApiUrl: "http://localhost:3002",
+        publicStorefrontUrl: "http://localhost:3001"
       },
       media: {
         storageDir: ".local-media",
@@ -133,12 +137,14 @@ describe("loadConfig", () => {
     const publicConfig = loadPublicConfig({
       dotenvPath: false,
       env: {
-        NEXT_PUBLIC_API_URL: "http://localhost:3002"
+        NEXT_PUBLIC_API_URL: "http://localhost:3002",
+        NEXT_PUBLIC_STOREFRONT_URL: "http://localhost:3001"
       }
     });
 
     expect(publicConfig).toEqual({
-      apiUrl: "http://localhost:3002"
+      apiUrl: "http://localhost:3002",
+      storefrontUrl: "http://localhost:3001"
     });
   });
 });

@@ -16,7 +16,10 @@ import {
   PageDocumentInvalidError,
   PageDocumentRepository,
   PageDocumentRevisionConflictError,
+  ProjectPublicationSettingsRepository,
   ProjectRepository,
+  PublishedPageSnapshotRepository,
+  PublishedPageStateRepository,
   SitePageRepository,
   UserRepository,
   type DatabasePrismaClient
@@ -664,6 +667,144 @@ describe.skipIf(integrationConfig === undefined)(
         pageIds: [page.id]
       });
     });
+
+    it("enforces public handle uniqueness and tenant-scoped settings", async () => {
+      const currentClient = getClient(client);
+      const tenantA = await createPageFixture(currentClient, "tenant-a");
+      const tenantB = await createPageFixture(currentClient, "tenant-b");
+      const settingsRepository = new ProjectPublicationSettingsRepository(
+        currentClient
+      );
+
+      await expect(
+        settingsRepository.create({
+          tenantContext: tenantA.context,
+          projectId: tenantA.project.id,
+          publicHandle: "shared-handle"
+        })
+      ).resolves.toMatchObject({
+        publicHandle: "shared-handle"
+      });
+
+      await expect(
+        settingsRepository.create({
+          tenantContext: tenantB.context,
+          projectId: tenantB.project.id,
+          publicHandle: "shared-handle"
+        })
+      ).rejects.toThrow();
+
+      await expect(
+        settingsRepository.findByProject(tenantA.context, tenantB.project.id)
+      ).resolves.toBeNull();
+    });
+
+    it("increments publication snapshot versions without mutating draft", async () => {
+      const currentClient = getClient(client);
+      const { context, project, page } = await createPageFixture(currentClient);
+      const snapshotRepository = new PublishedPageSnapshotRepository(currentClient);
+      const firstSnapshot = await snapshotRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        pageId: page.id,
+        pageTitle: page.title,
+        pageSlug: page.slug,
+        document: createEmptyPageDocument(),
+        sourceRevision: 1,
+        publishedByUserId: context.userId
+      });
+      const secondSnapshot = await snapshotRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        pageId: page.id,
+        pageTitle: page.title,
+        pageSlug: page.slug,
+        document: insertBlock(createEmptyPageDocument(), createDefaultBlock("text")),
+        sourceRevision: 2,
+        publishedByUserId: context.userId
+      });
+
+      expect(firstSnapshot).toMatchObject({
+        version: 1,
+        sourceRevision: 1
+      });
+      expect(secondSnapshot).toMatchObject({
+        version: 2,
+        sourceRevision: 2
+      });
+      await expect(
+        new PageDocumentRepository(currentClient).findByPage(
+          context,
+          project.id,
+          page.id
+        )
+      ).resolves.toBeNull();
+    });
+
+    it("public lookup returns only active snapshots and hides unpublished pages", async () => {
+      const currentClient = getClient(client);
+      const { context, project, page } = await createPageFixture(currentClient);
+      const settingsRepository = new ProjectPublicationSettingsRepository(
+        currentClient
+      );
+      const snapshotRepository = new PublishedPageSnapshotRepository(currentClient);
+      const stateRepository = new PublishedPageStateRepository(currentClient);
+
+      await settingsRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        publicHandle: "public-lookup"
+      });
+      const snapshot = await snapshotRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        pageId: page.id,
+        pageTitle: page.title,
+        pageSlug: page.slug,
+        document: createEmptyPageDocument(),
+        sourceRevision: 1,
+        publishedByUserId: context.userId
+      });
+
+      if (snapshot === null) {
+        throw new Error("Expected publication snapshot fixture.");
+      }
+
+      await expect(
+        snapshotRepository.findActivePageByHandleAndSlug(
+          "public-lookup",
+          page.slug
+        )
+      ).resolves.toBeNull();
+
+      await stateRepository.activate({
+        tenantContext: context,
+        projectId: project.id,
+        pageId: page.id,
+        snapshotId: snapshot.id,
+        publishedAt: snapshot.publishedAt
+      });
+
+      await expect(
+        snapshotRepository.findActivePageByHandleAndSlug(
+          "public-lookup",
+          page.slug
+        )
+      ).resolves.toMatchObject({
+        snapshot: {
+          id: snapshot.id
+        }
+      });
+
+      await stateRepository.unpublish(context, project.id, page.id, new Date());
+
+      await expect(
+        snapshotRepository.findActivePageByHandleAndSlug(
+          "public-lookup",
+          page.slug
+        )
+      ).resolves.toBeNull();
+    });
   }
 );
 
@@ -738,6 +879,9 @@ async function createOrganizationFixture(
 
 async function clearDatabase(client: DatabasePrismaClient): Promise<void> {
   await client.auditLog.deleteMany();
+  await client.publishedPageState.deleteMany();
+  await client.publishedPageSnapshot.deleteMany();
+  await client.projectPublicationSettings.deleteMany();
   await client.mediaAsset.deleteMany();
   await client.pageDocument.deleteMany();
   await client.sitePage.deleteMany();

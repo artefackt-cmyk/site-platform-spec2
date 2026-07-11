@@ -1,6 +1,6 @@
 # Site Platform Spec 2
 
-Минимальный технический каркас monorepo для будущей SaaS-платформы. В репозитории есть foundation-модели для организаций, участников, проектов, страниц и audit log, а также development-only dashboard с первым блочным редактором страниц. Production-авторизации, публикации, commerce, очередей и реальных интеграций пока нет.
+Минимальный технический каркас monorepo для будущей SaaS-платформы. В репозитории есть foundation-модели для организаций, участников, проектов, страниц и audit log, development-only dashboard с первым блочным редактором страниц, локальная media library и первый flow публикации через immutable snapshots. Production-авторизации, commerce, очередей и реальных интеграций пока нет.
 
 ## Требования к окружению
 
@@ -24,7 +24,9 @@ DATABASE_URL=postgresql://site_platform:site_platform_local_password@localhost:5
 TEST_DATABASE_URL=postgresql://site_platform:site_platform_local_password@localhost:5432/site_platform_test?schema=public
 DEV_USER_EMAIL=owner@example.com
 DASHBOARD_ORIGIN=http://localhost:3000
+STOREFRONT_ORIGIN=http://localhost:3001
 NEXT_PUBLIC_API_URL=http://localhost:3002
+NEXT_PUBLIC_STOREFRONT_URL=http://localhost:3001
 MEDIA_STORAGE_DIR=.local-media
 MEDIA_PUBLIC_BASE_URL=http://localhost:3002
 ```
@@ -81,6 +83,9 @@ pnpm db:migrate:test
 - `SitePage`;
 - `PageDocument`;
 - `MediaAsset`;
+- `ProjectPublicationSettings`;
+- `PublishedPageSnapshot`;
+- `PublishedPageState`;
 - `AuditLog`.
 
 Открыть Prisma Studio:
@@ -115,11 +120,13 @@ Seed работает только вне production и идемпотентно
 - проект `Demo Store` со slug `demo-store`;
 - страницы проекта `Главная`, `Каталог` и `О бренде`;
 - draft-документы страниц в PageDocument V2 с начальными секциями, если документа еще нет;
+- publication settings с handle `demo-store`, если settings отсутствует;
 - audit log записи для создания организации и проекта.
 
-Повторный запуск не создает дубликаты, не удаляет существующие данные и не перетирает пользовательские `PageDocument`.
+Повторный запуск не создает дубликаты, не удаляет существующие данные, не перетирает пользовательские `PageDocument` и не меняет существующий public handle.
 
 Seed не мигрирует и не перезаписывает существующие V1/V2 документы. V1 документы мигрируются в памяти при чтении и становятся V2 только после явного сохранения.
+Seed не публикует страницы автоматически: publication flow проверяется вручную через dashboard.
 
 Для повторного запуска seed после изменения локальных данных выполните:
 
@@ -151,6 +158,7 @@ API endpoints:
 - `GET /api/projects/:projectId/pages` - страницы проекта;
 - `POST /api/projects/:projectId/pages` - создание страницы проекта;
 - `GET /api/projects/:projectId/pages/:pageId` - данные страницы проекта.
+- `PATCH /api/projects/:projectId/pages/:pageId` - обновление title, slug и home flag страницы;
 - `GET /api/projects/:projectId/pages/:pageId/document` - draft-документ страницы; если документа нет, API создает пустой документ.
 - `PUT /api/projects/:projectId/pages/:pageId/document` - сохранение draft-документа с optimistic concurrency по `revision`.
 - `GET /api/projects/:projectId/media` - изображения проекта;
@@ -158,12 +166,23 @@ API endpoints:
 - `PATCH /api/projects/:projectId/media/:assetId` - обновление media metadata;
 - `DELETE /api/projects/:projectId/media/:assetId` - удаление неиспользуемого media asset;
 - `GET /api/projects/:projectId/media/:assetId/content` - project-scoped выдача файла.
+- `GET /api/projects/:projectId/publication-settings` - project public handle и URL;
+- `PATCH /api/projects/:projectId/publication-settings` - изменение public handle;
+- `GET /api/projects/:projectId/pages/:pageId/publication-status` - вычисленный статус публикации;
+- `POST /api/projects/:projectId/pages/:pageId/publish` - публикация сохраненного draft revision;
+- `POST /api/projects/:projectId/pages/:pageId/unpublish` - снятие страницы с публикации;
+- `GET /api/projects/:projectId/pages/:pageId/publications` - история публикаций страницы;
+- `POST /api/projects/:projectId/pages/:pageId/publications/:snapshotId/rollback` - rollback публичной версии;
+- `GET /api/public/sites/:publicHandle` - публичная home page;
+- `GET /api/public/sites/:publicHandle/pages/:pageSlug` - публичная опубликованная страница;
+- `GET /api/public/media/:assetId/content` - публичная выдача media asset, если он используется active snapshot.
 
 Для раздельного запуска:
 
 ```bash
 pnpm --filter @site-platform/api dev
 pnpm --filter @site-platform/dashboard dev
+pnpm --filter @site-platform/storefront dev
 ```
 
 Адреса для браузера и API:
@@ -173,6 +192,7 @@ pnpm --filter @site-platform/dashboard dev
 - media library: `http://localhost:3000/projects/{projectId}/media`;
 - page editor: `http://localhost:3000/projects/{projectId}/pages/{pageId}`;
 - page preview: `http://localhost:3000/projects/{projectId}/pages/{pageId}/preview`;
+- storefront: `http://localhost:3001/s/{publicHandle}/{pageSlug}`;
 - API: `http://localhost:3002`;
 - database health: `http://localhost:3002/health/database`.
 
@@ -184,6 +204,7 @@ pnpm db:migrate
 pnpm db:seed
 pnpm --filter @site-platform/api dev
 pnpm --filter @site-platform/dashboard dev
+pnpm --filter @site-platform/storefront dev
 ```
 
 Если `DEV_USER_EMAIL` отсутствует или пользователь не найден в таблицах `User`/`Membership`, API вернет понятную JSON-ошибку, а dashboard покажет сообщение конфигурации.
@@ -211,17 +232,42 @@ pnpm --filter @site-platform/dashboard dev
 - сохранение документа в PostgreSQL с проверкой `revision`.
 - предпросмотр последней сохранённой draft-версии через общий `PageRenderer`;
 - переключение ширины preview canvas: Desktop, Tablet, Mobile.
+- редактирование title, slug и home flag страницы;
+- публикация сохраненного draft в immutable `PublishedPageSnapshot`;
+- статус публикации: `Не опубликовано`, `Опубликовано`, `Есть неопубликованные изменения`, `Снято с публикации`;
+- открытие публичного storefront URL;
+- история публикаций, rollback и unpublish.
 
 Пока не реализовано:
 
-- публикация.
 - autosave;
 - undo/redo;
 - drag-and-drop;
 - S3, CDN и image resize pipeline;
-- storefront rendering.
+- custom domains, redirects, sitemap, robots UI и custom SEO fields.
 
 Preview route `/projects/{projectId}/pages/{pageId}/preview` не является публичным storefront URL и не использует published snapshot. Он загружает сохранённый `PageDocument`, валидирует его и рендерит через `packages/renderer` в `mode="preview"` без editor chrome, inspector и block controls. Если в editor есть несохранённые изменения, кнопка `Предпросмотр` предупреждает, что preview показывает последнюю сохранённую версию.
+
+## Local Publication Flow
+
+1. Запустить PostgreSQL: `pnpm db:up`.
+2. Применить миграции: `pnpm db:migrate`.
+3. Заполнить demo data: `pnpm db:seed`.
+4. Запустить API: `pnpm --filter @site-platform/api dev`.
+5. Запустить dashboard: `pnpm --filter @site-platform/dashboard dev`.
+6. Запустить storefront: `pnpm --filter @site-platform/storefront dev`.
+7. Открыть страницу в dashboard, отредактировать draft и нажать `Сохранить`.
+8. Нажать `Опубликовать`.
+9. Открыть public URL вида `http://localhost:3001/s/demo-store/home`.
+
+Если локальный `.env` был создан до публикации, добавьте вручную:
+
+```bash
+STOREFRONT_ORIGIN=http://localhost:3001
+NEXT_PUBLIC_STOREFRONT_URL=http://localhost:3001
+```
+
+Публикация не сохраняет dirty editor state автоматически. Если есть несохраненные изменения, dashboard предлагает сохранить и опубликовать либо опубликовать последнюю сохраненную версию.
 
 Текущая write-схема документа: `schemaVersion: 2`. Старые V1 документы читаются через in-memory миграцию в `packages/editor-core` и не перезаписываются без явного save.
 
@@ -258,6 +304,8 @@ pnpm --filter @site-platform/database... test
 `PageDocument` всегда связан с одной `SitePage` и дополнительно хранит `organizationId` и `projectId`. Репозиторий документов не предоставляет lookup только по `id`: чтение и сохранение выполняются через `TenantContext`, `projectId` и `pageId`. Сохранение использует optimistic concurrency через `revision`; stale revision возвращает conflict.
 
 `MediaAsset` всегда связан с одной `Organization` и одним `Project`. Репозиторий media assets не предоставляет project-less lookup: список, чтение, обновление и удаление выполняются через `TenantContext` и `projectId`. API сохранения PageDocument проверяет, что каждый `ImageBlock.props.assetId` принадлежит тому же проекту. Чужие или неизвестные media assets возвращаются как invalid document/not found, без раскрытия существования объекта в другом tenant.
+
+`PublishedPageSnapshot` хранит immutable опубликованную копию PageDocument V2 и metadata страницы. `PublishedPageState` хранит активный snapshot для page. Authenticated publication endpoints используют `TenantContext`, а public storefront lookup идет только через `publicHandle` и active published state. Draft-only content and draft-only media assets are not public.
 
 Локальные файлы лежат под `MEDIA_STORAGE_DIR`, но dashboard получает только API URL вида `/api/projects/:projectId/media/:assetId/content`. Удаление media asset блокируется, если asset используется в сохранённых PageDocuments проекта.
 

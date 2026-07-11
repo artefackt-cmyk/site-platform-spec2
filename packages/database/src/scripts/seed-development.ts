@@ -120,6 +120,18 @@ export async function seedDevelopmentDatabase(
     }
   });
 
+  await client.projectPublicationSettings.upsert({
+    where: {
+      projectId: project.id
+    },
+    create: {
+      organizationId: organization.id,
+      projectId: project.id,
+      publicHandle: DEMO_PROJECT_SLUG
+    },
+    update: {}
+  });
+
   await seedDemoPages(client, {
     organizationId: organization.id,
     projectId: project.id
@@ -165,18 +177,18 @@ async function seedDemoPages(
   }
 ): Promise<void> {
   await client.$transaction(async (transaction) => {
-    await transaction.sitePage.updateMany({
+    const existingHomePage = await transaction.sitePage.findFirst({
       where: {
         organizationId: input.organizationId,
         projectId: input.projectId,
-        deletedAt: null
-      },
-      data: {
-        isHome: false
+        deletedAt: null,
+        isHome: true
       }
     });
 
     for (const page of DEMO_PAGES) {
+      const shouldAssignHome = existingHomePage === null && page.isHome;
+
       await transaction.sitePage.upsert({
         where: {
           projectId_slug: {
@@ -190,12 +202,11 @@ async function seedDemoPages(
           title: page.title,
           slug: page.slug,
           status: "DRAFT",
-          isHome: page.isHome
+          isHome: shouldAssignHome
         },
         update: {
           title: page.title,
           status: "DRAFT",
-          isHome: page.isHome,
           deletedAt: null
         }
       });

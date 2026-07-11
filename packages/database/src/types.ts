@@ -7,7 +7,10 @@ export type RepositoryPrismaClient = Pick<
   | "mediaAsset"
   | "organization"
   | "pageDocument"
+  | "projectPublicationSettings"
   | "project"
+  | "publishedPageSnapshot"
+  | "publishedPageState"
   | "sitePage"
   | "user"
 >;

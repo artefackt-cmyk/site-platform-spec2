@@ -24,7 +24,19 @@ export const API_ERROR_CODES = {
   mediaAssetNotFound: "MEDIA_ASSET_NOT_FOUND",
   mediaAssetInvalid: "MEDIA_ASSET_INVALID",
   mediaAssetInUse: "MEDIA_ASSET_IN_USE",
-  mediaUploadFailed: "MEDIA_UPLOAD_FAILED"
+  mediaUploadFailed: "MEDIA_UPLOAD_FAILED",
+  pageDraftNotFound: "PAGE_DRAFT_NOT_FOUND",
+  pageDraftInvalid: "PAGE_DRAFT_INVALID",
+  pageDraftRevisionMismatch: "PAGE_DRAFT_REVISION_MISMATCH",
+  pageSlugInvalid: "PAGE_SLUG_INVALID",
+  pageSlugConflict: "PAGE_SLUG_CONFLICT",
+  mediaAssetMissing: "MEDIA_ASSET_MISSING",
+  mediaAssetFileMissing: "MEDIA_ASSET_FILE_MISSING",
+  pageNotPublished: "PAGE_NOT_PUBLISHED",
+  publicationSnapshotNotFound: "PUBLICATION_SNAPSHOT_NOT_FOUND",
+  publicHandleInvalid: "PUBLIC_HANDLE_INVALID",
+  publicHandleConflict: "PUBLIC_HANDLE_CONFLICT",
+  publicHandleReserved: "PUBLIC_HANDLE_RESERVED"
 } as const;
 
 export type ApiErrorCode =

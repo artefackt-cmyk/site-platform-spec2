@@ -8,7 +8,7 @@ import {
   updateSectionProps,
   type BlockNode
 } from "@site-platform/editor-core";
-import { PageRenderer } from "./index";
+import { PageRenderer, type PageRendererMode } from "./index";
 
 describe("@site-platform/renderer", () => {
   it("renders heading blocks", () => {
@@ -61,22 +61,45 @@ describe("@site-platform/renderer", () => {
     expect(html).toContain("href=\"/catalog\"");
   });
 
-  it("marks placeholder preview button links as disabled navigation", () => {
-    const html = renderDocument([
-      {
-        id: "button-1",
-        type: "button",
-        props: {
-          label: "Не переходить",
-          href: "#",
-          align: "left",
-          variant: "secondary"
-        }
-      }
-    ]);
+  it("renders placeholder storefront button links as disabled non-links", () => {
+    const html = renderButton("#", {
+      mode: "storefront"
+    });
 
-    expect(html).toContain("href=\"#\"");
+    expect(html).toContain("<span");
+    expect(html).not.toContain("<a");
+    expect(html).not.toContain("href=");
+    expect(html).not.toContain("onClick");
+    expect(html).toContain("aria-disabled=\"true\"");
     expect(html).toContain("data-disabled-link=\"true\"");
+  });
+
+  it("server-renders placeholder storefront button links without event handlers", () => {
+    expect(() =>
+      renderButton("#", {
+        mode: "storefront"
+      })
+    ).not.toThrow();
+  });
+
+  it("renders placeholder preview button links without event handlers", () => {
+    const html = renderButton("#");
+
+    expect(html).toContain("<span");
+    expect(html).not.toContain("href=");
+    expect(html).not.toContain("onClick");
+    expect(html).toContain("aria-disabled=\"true\"");
+  });
+
+  it("renders empty button links as disabled non-links", () => {
+    const html = renderButton("", {
+      mode: "storefront"
+    });
+
+    expect(html).toContain("<span");
+    expect(html).not.toContain("href=");
+    expect(html).toContain("aria-disabled=\"true\"");
+    expect(html).toContain("cursor:default");
   });
 
   it("renders external preview button links safely", () => {
@@ -95,7 +118,7 @@ describe("@site-platform/renderer", () => {
 
     expect(html).toContain("href=\"https://example.com\"");
     expect(html).toContain("target=\"_blank\"");
-    expect(html).toContain("rel=\"noreferrer\"");
+    expect(html).toContain("rel=\"noopener noreferrer\"");
   });
 
   it("renders spacer blocks", () => {
@@ -291,13 +314,93 @@ describe("@site-platform/renderer", () => {
     expect(html).not.toContain("data-editor-chrome");
     expect(html).not.toContain("sp-editor-block-selected");
   });
+
+  it("does not render editor chrome in storefront mode", () => {
+    const html = renderDocument(
+      [
+        {
+          id: "heading-1",
+          type: "heading",
+          props: {
+            text: "Storefront",
+            level: 2,
+            align: "left"
+          }
+        }
+      ],
+      {
+        mode: "storefront",
+        selectedBlockId: "heading-1"
+      }
+    );
+
+    expect(html).toContain("sp-renderer-storefront");
+    expect(html).not.toContain("data-editor-chrome");
+    expect(html).not.toContain("sp-editor-block-selected");
+  });
+
+  it("prefixes internal storefront button links with the site base path", () => {
+    const html = renderButton("/catalog", {
+      mode: "storefront",
+      siteBasePath: "/s/demo-store"
+    });
+
+    expect(html).toContain("href=\"/s/demo-store/catalog\"");
+  });
+
+  it("does not pass function props to rendered DOM elements", () => {
+    const document = insertBlock(
+      createEmptyPageDocument(),
+      {
+        id: "button-1",
+        type: "button",
+        props: {
+          label: "Не переходить",
+          href: "#",
+          align: "left",
+          variant: "secondary"
+        }
+      }
+    );
+    const element = React.createElement(PageRenderer, {
+      document,
+      mode: "storefront"
+    });
+
+    expect(() => assertNoFunctionDomProps(element)).not.toThrow();
+  });
 });
+
+function renderButton(
+  href: string,
+  options: {
+    readonly mode?: PageRendererMode;
+    readonly siteBasePath?: string;
+  } = {}
+): string {
+  return renderDocument(
+    [
+      {
+        id: "button-1",
+        type: "button",
+        props: {
+          label: "Перейти",
+          href,
+          align: "left",
+          variant: "primary"
+        }
+      }
+    ],
+    options
+  );
+}
 
 function renderDocument(
   blocks: readonly BlockNode[],
   options: {
-    readonly mode?: "editor" | "preview";
+    readonly mode?: PageRendererMode;
     readonly selectedBlockId?: string;
+    readonly siteBasePath?: string;
   } = {}
 ): string {
   const document = blocks.reduce(
@@ -309,7 +412,59 @@ function renderDocument(
     React.createElement(PageRenderer, {
       document,
       mode: options.mode ?? "preview",
-      selectedBlockId: options.selectedBlockId
+      selectedBlockId: options.selectedBlockId,
+      siteBasePath: options.siteBasePath
     })
   );
+}
+
+function assertNoFunctionDomProps(node: React.ReactNode): void {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      assertNoFunctionDomProps(child);
+    }
+
+    return;
+  }
+
+  if (!React.isValidElement(node)) {
+    return;
+  }
+
+  if (typeof node.type === "function") {
+    assertNoFunctionDomProps(node.type(node.props));
+    return;
+  }
+
+  if (typeof node.type === "string") {
+    assertPropsHaveNoFunctions(node.props, node.type);
+  }
+
+  const children = getChildren(node.props);
+
+  assertNoFunctionDomProps(children);
+}
+
+function assertPropsHaveNoFunctions(props: unknown, elementName: string): void {
+  if (!isRecord(props)) {
+    return;
+  }
+
+  for (const [key, value] of Object.entries(props)) {
+    if (key === "children") {
+      continue;
+    }
+
+    expect(typeof value, `${elementName}.${key}`).not.toBe("function");
+  }
+}
+
+function getChildren(props: unknown): React.ReactNode {
+  return isRecord(props) && "children" in props
+    ? (props.children as React.ReactNode)
+    : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

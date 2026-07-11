@@ -79,6 +79,10 @@ export type CreateProjectPageResponse = {
   readonly page: SitePageResponse;
 };
 
+export type UpdateProjectPageResponse = {
+  readonly page: SitePageResponse;
+};
+
 export type PageDocumentResponse = {
   readonly pageId: string;
   readonly schemaVersion: 2;
@@ -243,6 +247,52 @@ export class ProjectsService {
     }
 
     return toSitePageResponse(page);
+  }
+
+  async updateProjectPage(
+    projectId: string,
+    pageId: string,
+    body: unknown
+  ): Promise<UpdateProjectPageResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.pageUpdate)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to update pages."
+      );
+    }
+
+    await this.getPageOrThrow(identity.tenantContext, projectId, pageId);
+
+    const payload = parseUpdatePagePayload(body);
+
+    try {
+      const page = await this.projectStore.updatePageWithAudit({
+        tenantContext: identity.tenantContext,
+        projectId,
+        pageId,
+        title: payload.title,
+        slug: payload.slug,
+        isHome: payload.isHome
+      });
+
+      if (page === null) {
+        throw pageNotFoundError();
+      }
+
+      return {
+        page: toSitePageResponse(page)
+      };
+    } catch (error) {
+      if (isPageSlugUniqueError(error)) {
+        throw duplicatePageSlugError();
+      }
+
+      throw error;
+    }
   }
 
   async getProjectPageDocument(
@@ -625,6 +675,103 @@ function parseCreatePagePayload(body: unknown): {
     title: titleResult.value,
     slug: slugResult.value,
     isHome: rawIsHome === true
+  };
+}
+
+function parseUpdatePagePayload(body: unknown): {
+  readonly title: string;
+  readonly slug: string;
+  readonly isHome: boolean;
+} {
+  if (!isRecord(body)) {
+    throw badRequest(API_ERROR_CODES.validationFailed, "Request body is invalid.", [
+      {
+        field: "body",
+        code: "FIELD_INVALID_TYPE",
+        message: "Request body must be an object."
+      }
+    ]);
+  }
+
+  if ("organizationId" in body || "projectId" in body) {
+    throw badRequest(
+      API_ERROR_CODES.organizationIdNotAllowed,
+      "organizationId and projectId must not be provided in the request body."
+    );
+  }
+
+  const issues: ApiValidationIssue[] = [];
+  const rawTitle = body.title;
+  const rawSlug = body.slug;
+  const rawIsHome = body.isHome;
+
+  if (typeof rawTitle !== "string") {
+    issues.push({
+      field: "title",
+      code: rawTitle === undefined ? "FIELD_REQUIRED" : "FIELD_INVALID_TYPE",
+      message: "Page title is required."
+    });
+  }
+
+  if (typeof rawSlug !== "string") {
+    issues.push({
+      field: "slug",
+      code: rawSlug === undefined ? "FIELD_REQUIRED" : "FIELD_INVALID_TYPE",
+      message: "Page slug is required."
+    });
+  }
+
+  if (typeof rawIsHome !== "boolean") {
+    issues.push({
+      field: "isHome",
+      code: rawIsHome === undefined ? "FIELD_REQUIRED" : "FIELD_INVALID_TYPE",
+      message: "isHome must be a boolean."
+    });
+  }
+
+  if (
+    typeof rawTitle !== "string" ||
+    typeof rawSlug !== "string" ||
+    typeof rawIsHome !== "boolean"
+  ) {
+    throw badRequest(
+      API_ERROR_CODES.validationFailed,
+      "Page payload is invalid.",
+      issues
+    );
+  }
+
+  const titleResult = validatePageTitle(rawTitle);
+  const slugResult = validatePageSlug(rawSlug);
+
+  if (!titleResult.ok) {
+    issues.push({
+      field: "title",
+      code: titleResult.code,
+      message: toValidationMessage(titleResult.code)
+    });
+  }
+
+  if (!slugResult.ok) {
+    issues.push({
+      field: "slug",
+      code: slugResult.code,
+      message: toValidationMessage(slugResult.code)
+    });
+  }
+
+  if (!titleResult.ok || !slugResult.ok || issues.length > 0) {
+    throw badRequest(
+      API_ERROR_CODES.validationFailed,
+      "Page payload is invalid.",
+      issues
+    );
+  }
+
+  return {
+    title: titleResult.value,
+    slug: slugResult.value,
+    isHome: rawIsHome
   };
 }
 

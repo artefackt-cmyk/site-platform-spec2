@@ -17,6 +17,15 @@ describe("PageEditorView", () => {
     expect(html).toContain("Инспектор");
   });
 
+  it("renders page settings when no node is selected", () => {
+    const html = renderEditor({
+      state: createReadyState("saved", null)
+    });
+
+    expect(html).toContain("Настройки");
+    expect(html).toContain("Главная страница");
+  });
+
   it("renders section presets and image controls", () => {
     const html = renderEditor();
 
@@ -83,7 +92,16 @@ function renderEditor(input: {
       onUpdateSpacer: () => undefined,
       onSave: () => undefined,
       onPreview: () => undefined,
+      onPublish: () => undefined,
+      onUpdatePageSettings: () => Promise.resolve(true),
+      onOpenPublicationHistory: () => undefined,
+      onUnpublish: () => undefined,
       previewWarningOpen: input.previewWarningOpen ?? false,
+      publicationHistoryOpen: false,
+      publicationHistory: [],
+      publicationHistoryLoading: false,
+      onRollbackPublication: () => undefined,
+      onClosePublicationHistory: () => undefined,
       onSaveAndPreview: () => undefined,
       onOpenSavedPreview: () => undefined,
       onCancelPreview: () => undefined
@@ -92,7 +110,8 @@ function renderEditor(input: {
 }
 
 function createReadyState(
-  saveStatus: "saved" | "dirty"
+  saveStatus: "saved" | "dirty",
+  selectedNodeId?: string | null
 ): PageEditorLoadState {
   const document = insertBlock(
     createEmptyPageDocument(),
@@ -113,7 +132,8 @@ function createReadyState(
       revision: 1,
       document
     }),
-    saveStatus
+    saveStatus,
+    ...(selectedNodeId === undefined ? {} : { selectedNodeId })
   };
 
   return {
@@ -134,6 +154,13 @@ function createReadyState(
       isHome: true,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z"
+    },
+    publicationStatus: {
+      status: "never-published",
+      publicUrl: null,
+      activeSnapshotId: null,
+      activeVersion: null,
+      publishedAt: null
     },
     editor
   };

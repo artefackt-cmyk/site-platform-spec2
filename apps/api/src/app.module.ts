@@ -10,12 +10,24 @@ import { HealthController } from "./health.controller";
 import { MediaController } from "./media.controller";
 import { MediaService } from "./media.service";
 import { MeController } from "./me.controller";
+import {
+  PublicationController,
+  PublicSiteController
+} from "./publication.controller";
+import { PublicationService, PublicSiteService } from "./publication.service";
 import { PROJECT_STORE, PrismaProjectStore } from "./project-store";
 import { ProjectsController } from "./projects.controller";
 import { ProjectsService } from "./projects.service";
 
 @Module({
-  controllers: [HealthController, MeController, ProjectsController, MediaController],
+  controllers: [
+    HealthController,
+    MeController,
+    ProjectsController,
+    MediaController,
+    PublicationController,
+    PublicSiteController
+  ],
   providers: [
     appConfigProvider,
     databaseClientProvider,
@@ -31,7 +43,9 @@ import { ProjectsService } from "./projects.service";
       useExisting: PrismaProjectStore
     },
     ProjectsService,
-    MediaService
+    MediaService,
+    PublicationService,
+    PublicSiteService
   ]
 })
 export class AppModule {}

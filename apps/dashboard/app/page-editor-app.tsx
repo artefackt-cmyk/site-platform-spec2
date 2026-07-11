@@ -7,7 +7,7 @@ import type {
   NodePropsByType,
   SectionLayout
 } from "@site-platform/editor-core";
-import type { MediaAssetSummary } from "./dashboard-types";
+import type { MediaAssetSummary, PublicationHistoryItem } from "./dashboard-types";
 import {
   DashboardApiError,
   createDashboardApiClient
@@ -51,6 +51,11 @@ export function PageEditorApp({
     status: "loading"
   });
   const [previewWarningOpen, setPreviewWarningOpen] = useState(false);
+  const [publicationHistoryOpen, setPublicationHistoryOpen] = useState(false);
+  const [publicationHistory, setPublicationHistory] = useState<
+    readonly PublicationHistoryItem[]
+  >([]);
+  const [publicationHistoryLoading, setPublicationHistoryLoading] = useState(false);
   const [mediaPicker, setMediaPicker] = useState({
     open: false,
     assets: [] as readonly MediaAssetSummary[],
@@ -65,16 +70,18 @@ export function PageEditorApp({
     });
 
     try {
-      const [project, page, pageDocument] = await Promise.all([
+      const [project, page, pageDocument, publicationStatus] = await Promise.all([
         apiClient.getProject(projectId),
         apiClient.getProjectPage(projectId, pageId),
-        apiClient.getProjectPageDocument(projectId, pageId)
+        apiClient.getProjectPageDocument(projectId, pageId),
+        apiClient.getPagePublicationStatus(projectId, pageId)
       ]);
 
       setState({
         status: "ready",
         project,
         page,
+        publicationStatus,
         editor: createEditorState(pageDocument)
       });
     } catch (error) {
@@ -259,6 +266,194 @@ export function PageEditorApp({
     openSavedPreview(projectId, pageId, navigateToPreview);
   }, [navigateToPreview, pageId, projectId]);
 
+  const refreshPublicationStatus = useCallback(async () => {
+    const publicationStatus = await apiClient.getPagePublicationStatus(
+      projectId,
+      pageId
+    );
+
+    setState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            publicationStatus
+          }
+    );
+
+    return publicationStatus;
+  }, [apiClient, pageId, projectId]);
+
+  const publishSavedRevision = useCallback(
+    async (revision: number) => {
+      const response = await apiClient.publishPage(projectId, pageId, {
+        expectedRevision: revision
+      });
+
+      setState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              publicationStatus: response.publicationStatus
+            }
+      );
+
+      window.alert(`Страница опубликована: ${response.publicUrl}`);
+    },
+    [apiClient, pageId, projectId]
+  );
+
+  const updatePageSettings = useCallback(
+    async (input: {
+      readonly title: string;
+      readonly slug: string;
+      readonly isHome: boolean;
+    }): Promise<boolean> => {
+      try {
+        const response = await apiClient.updateProjectPage(
+          projectId,
+          pageId,
+          input
+        );
+        const publicationStatus = await apiClient.getPagePublicationStatus(
+          projectId,
+          pageId
+        );
+
+        setState((current) =>
+          current.status !== "ready"
+            ? current
+            : {
+                ...current,
+                page: response.page,
+                publicationStatus,
+                editor: {
+                  ...current.editor,
+                  errorMessage: null
+                }
+              }
+        );
+
+        return true;
+      } catch (error) {
+        setState((current) =>
+          current.status !== "ready"
+            ? current
+            : {
+                ...current,
+                editor: markSaveError(
+                  current.editor,
+                  toUserFacingError(error)
+                )
+              }
+        );
+
+        return false;
+      }
+    },
+    [apiClient, pageId, projectId]
+  );
+
+  const publish = useCallback(async () => {
+    if (state.status !== "ready") {
+      return;
+    }
+
+    if (state.editor.saveStatus === "dirty" || state.editor.saveStatus === "error") {
+      const shouldSave = window.confirm(
+        "Для публикации нужно сначала сохранить изменения. Нажмите OK, чтобы сохранить и опубликовать. Нажмите Отмена, чтобы опубликовать последнюю сохранённую версию."
+      );
+
+      if (shouldSave) {
+        const saved = await save();
+
+        if (!saved) {
+          return;
+        }
+
+        const refreshedStatus = await refreshPublicationStatus();
+        const refreshedState = await apiClient.getProjectPageDocument(projectId, pageId);
+
+        await publishSavedRevision(refreshedState.revision);
+        if (refreshedStatus.status === "published-with-changes") {
+          await refreshPublicationStatus();
+        }
+        return;
+      }
+    }
+
+    await publishSavedRevision(state.editor.revision);
+  }, [
+    apiClient,
+    pageId,
+    projectId,
+    publishSavedRevision,
+    refreshPublicationStatus,
+    save,
+    state
+  ]);
+
+  const unpublish = useCallback(async () => {
+    if (!window.confirm("Снять страницу с публикации? Публичный URL начнет возвращать 404.")) {
+      return;
+    }
+
+    const response = await apiClient.unpublishPage(projectId, pageId);
+
+    setState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            publicationStatus: response.publicationStatus
+          }
+    );
+  }, [apiClient, pageId, projectId]);
+
+  const openPublicationHistory = useCallback(async () => {
+    setPublicationHistoryOpen(true);
+    setPublicationHistoryLoading(true);
+
+    try {
+      const response = await apiClient.listPagePublications(projectId, pageId);
+
+      setPublicationHistory(response.publications);
+    } finally {
+      setPublicationHistoryLoading(false);
+    }
+  }, [apiClient, pageId, projectId]);
+
+  const rollbackPublication = useCallback(
+    async (snapshotId: string) => {
+      if (
+        !window.confirm(
+          "Вернуть эту опубликованную версию? Draft не изменится, а публичная страница переключится на выбранную версию."
+        )
+      ) {
+        return;
+      }
+
+      const response = await apiClient.rollbackPagePublication(
+        projectId,
+        pageId,
+        snapshotId
+      );
+
+      setState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              publicationStatus: response.publicationStatus
+            }
+      );
+      const history = await apiClient.listPagePublications(projectId, pageId);
+      setPublicationHistory(history.publications);
+    },
+    [apiClient, pageId, projectId]
+  );
+
   return (
     <PageEditorView
       state={state}
@@ -315,7 +510,16 @@ export function PageEditorApp({
       }
       onSave={save}
       onPreview={openPreview}
+      onPublish={publish}
+      onUpdatePageSettings={updatePageSettings}
+      onOpenPublicationHistory={openPublicationHistory}
+      onUnpublish={unpublish}
       previewWarningOpen={previewWarningOpen}
+      publicationHistoryOpen={publicationHistoryOpen}
+      publicationHistory={publicationHistory}
+      publicationHistoryLoading={publicationHistoryLoading}
+      onRollbackPublication={rollbackPublication}
+      onClosePublicationHistory={() => setPublicationHistoryOpen(false)}
       onSaveAndPreview={saveBeforePreview}
       onOpenSavedPreview={openSavedVersion}
       onCancelPreview={() => setPreviewWarningOpen(false)}

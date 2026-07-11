@@ -29,6 +29,15 @@ export type CreateProjectPageInput = {
   readonly isHome: boolean;
 };
 
+export type UpdateProjectPageInput = {
+  readonly tenantContext: TenantContext;
+  readonly projectId: string;
+  readonly pageId: string;
+  readonly title: string;
+  readonly slug: string;
+  readonly isHome: boolean;
+};
+
 export type SavePageDocumentInput = {
   readonly tenantContext: TenantContext;
   readonly projectId: string;
@@ -63,6 +72,9 @@ export type ProjectStore = {
   ) => Promise<SitePage | null>;
   readonly createPageWithAudit: (
     input: CreateProjectPageInput
+  ) => Promise<SitePage | null>;
+  readonly updatePageWithAudit: (
+    input: UpdateProjectPageInput
   ) => Promise<SitePage | null>;
   readonly getOrCreatePageDocument: (
     tenantContext: TenantContext,
@@ -197,6 +209,45 @@ export class PrismaProjectStore implements ProjectStore {
         organizationId: input.tenantContext.organizationId,
         actorUserId: input.tenantContext.userId,
         action: "page.created",
+        entityType: "SitePage",
+        entityId: page.id,
+        metadata: {
+          projectId: input.projectId,
+          title: page.title,
+          slug: page.slug,
+          isHome: page.isHome
+        }
+      });
+
+      return page;
+    });
+  }
+
+  async updatePageWithAudit(
+    input: UpdateProjectPageInput
+  ): Promise<SitePage | null> {
+    return this.client.$transaction(async (transaction) => {
+      const sitePageRepository = new SitePageRepository(transaction);
+      const auditLogRepository = new AuditLogRepository(transaction);
+      const page = await sitePageRepository.updateSettings(
+        input.tenantContext,
+        input.projectId,
+        input.pageId,
+        {
+          title: input.title,
+          slug: input.slug,
+          isHome: input.isHome
+        }
+      );
+
+      if (page === null) {
+        return null;
+      }
+
+      await auditLogRepository.create({
+        organizationId: input.tenantContext.organizationId,
+        actorUserId: input.tenantContext.userId,
+        action: "page.settings.updated",
         entityType: "SitePage",
         entityId: page.id,
         metadata: {

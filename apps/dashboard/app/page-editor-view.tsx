@@ -18,8 +18,11 @@ import {
 import { PageRenderer } from "@site-platform/renderer";
 import type {
   MediaAssetSummary,
+  PublicationHistoryItem,
+  PublicationStatusResponse,
   ProjectSummary,
-  SitePageSummary
+  SitePageSummary,
+  UpdatePageSettingsFormValues
 } from "./dashboard-types";
 import type { EditorState } from "./page-editor-state";
 
@@ -35,6 +38,7 @@ export type PageEditorLoadState =
       readonly status: "ready";
       readonly project: ProjectSummary;
       readonly page: SitePageSummary;
+      readonly publicationStatus: PublicationStatusResponse;
       readonly editor: EditorState;
     };
 
@@ -62,7 +66,18 @@ export type PageEditorViewProps = {
   readonly onUpdateSpacer: (props: Partial<BlockPropsByType["spacer"]>) => void;
   readonly onSave: () => void | Promise<boolean>;
   readonly onPreview: () => void;
+  readonly onPublish: () => void;
+  readonly onUpdatePageSettings: (
+    input: UpdatePageSettingsFormValues
+  ) => Promise<boolean>;
+  readonly onOpenPublicationHistory: () => void;
+  readonly onUnpublish: () => void;
   readonly previewWarningOpen: boolean;
+  readonly publicationHistoryOpen: boolean;
+  readonly publicationHistory: readonly PublicationHistoryItem[];
+  readonly publicationHistoryLoading: boolean;
+  readonly onRollbackPublication: (snapshotId: string) => void;
+  readonly onClosePublicationHistory: () => void;
   readonly onSaveAndPreview: () => void;
   readonly onOpenSavedPreview: () => void;
   readonly onCancelPreview: () => void;
@@ -100,7 +115,16 @@ export function PageEditorView({
   onUpdateSpacer,
   onSave,
   onPreview,
+  onPublish,
+  onUpdatePageSettings,
+  onOpenPublicationHistory,
+  onUnpublish,
   previewWarningOpen,
+  publicationHistoryOpen,
+  publicationHistory,
+  publicationHistoryLoading,
+  onRollbackPublication,
+  onClosePublicationHistory,
   onSaveAndPreview,
   onOpenSavedPreview,
   onCancelPreview
@@ -139,9 +163,13 @@ export function PageEditorView({
         project={state.project}
         page={state.page}
         saveStatus={state.editor.saveStatus}
+        publicationStatus={state.publicationStatus}
         errorMessage={state.editor.errorMessage}
         onSave={onSave}
         onPreview={onPreview}
+        onPublish={onPublish}
+        onOpenPublicationHistory={onOpenPublicationHistory}
+        onUnpublish={onUnpublish}
       />
 
       <section className="editor-workbench">
@@ -161,7 +189,18 @@ export function PageEditorView({
           <AddBlockPanel onAddBlock={onAddBlock} />
         </aside>
 
-        <section className="editor-center-panel" onClick={() => onSelectNode(null)}>
+        <section
+          className="editor-center-panel"
+          onClick={(event) => {
+            const target = event.target;
+            const nodeElement =
+              target instanceof Element
+                ? target.closest<HTMLElement>("[data-renderer-node-id]")
+                : null;
+
+            onSelectNode(nodeElement?.dataset.rendererNodeId ?? null);
+          }}
+        >
           <div className="editor-canvas">
             {state.editor.document.root.children.length === 0 ? (
               <div className="editor-empty-canvas">
@@ -172,7 +211,6 @@ export function PageEditorView({
                 document={state.editor.document}
                 mode="editor"
                 selectedNodeId={state.editor.selectedNodeId}
-                onNodeSelect={onSelectNode}
               />
             )}
           </div>
@@ -180,6 +218,7 @@ export function PageEditorView({
 
         <aside className="editor-panel editor-right-panel">
           <Inspector
+            page={state.page}
             node={selectedNode}
             onConvertSection={onConvertSection}
             onUpdateSection={onUpdateSection}
@@ -194,6 +233,7 @@ export function PageEditorView({
             onUploadImageAsset={onUploadImageAsset}
             onSelectImageAsset={onSelectImageAsset}
             onUpdateSpacer={onUpdateSpacer}
+            onUpdatePageSettings={onUpdatePageSettings}
           />
         </aside>
       </section>
@@ -202,6 +242,14 @@ export function PageEditorView({
           onSaveAndPreview={onSaveAndPreview}
           onOpenSavedPreview={onOpenSavedPreview}
           onCancelPreview={onCancelPreview}
+        />
+      ) : null}
+      {publicationHistoryOpen ? (
+        <PublicationHistoryDialog
+          publications={publicationHistory}
+          loading={publicationHistoryLoading}
+          onRollback={onRollbackPublication}
+          onClose={onClosePublicationHistory}
         />
       ) : null}
     </main>
@@ -220,16 +268,24 @@ function EditorTopbar({
   project,
   page,
   saveStatus,
+  publicationStatus,
   errorMessage,
   onSave,
-  onPreview
+  onPreview,
+  onPublish,
+  onOpenPublicationHistory,
+  onUnpublish
 }: {
   readonly project: ProjectSummary;
   readonly page: SitePageSummary;
   readonly saveStatus: EditorState["saveStatus"];
+  readonly publicationStatus: PublicationStatusResponse;
   readonly errorMessage: string | null;
   readonly onSave: () => void | Promise<boolean>;
   readonly onPreview: () => void;
+  readonly onPublish: () => void;
+  readonly onOpenPublicationHistory: () => void;
+  readonly onUnpublish: () => void;
 }) {
   return (
     <header className="editor-topbar">
@@ -247,6 +303,9 @@ function EditorTopbar({
         <span className={`save-indicator save-indicator-${saveStatus}`}>
           {toSaveStatusLabel(saveStatus)}
         </span>
+        <span className="save-indicator save-indicator-saved">
+          {toPublicationStatusLabel(publicationStatus.status)}
+        </span>
         <button
           className="primary-button"
           type="button"
@@ -263,6 +322,29 @@ function EditorTopbar({
         >
           Предпросмотр
         </button>
+        <button className="secondary-button" type="button" onClick={onPublish}>
+          Опубликовать
+        </button>
+        {publicationStatus.publicUrl === null ? null : (
+          <a className="ghost-button" href={publicationStatus.publicUrl}>
+            Открыть сайт
+          </a>
+        )}
+        <button
+          className="ghost-button"
+          type="button"
+          onClick={onOpenPublicationHistory}
+        >
+          История
+        </button>
+        <button
+          className="ghost-button"
+          type="button"
+          onClick={onUnpublish}
+          disabled={publicationStatus.activeSnapshotId === null}
+        >
+          Снять
+        </button>
         <a className="ghost-button" href={`/projects/${project.id}`}>
           Назад к страницам
         </a>
@@ -273,6 +355,73 @@ function EditorTopbar({
         </p>
       )}
     </header>
+  );
+}
+
+function PublicationHistoryDialog({
+  publications,
+  loading,
+  onRollback,
+  onClose
+}: {
+  readonly publications: readonly PublicationHistoryItem[];
+  readonly loading: boolean;
+  readonly onRollback: (snapshotId: string) => void;
+  readonly onClose: () => void;
+}) {
+  return (
+    <div className="preview-warning-backdrop" role="presentation">
+      <section
+        className="preview-warning-dialog media-picker-dialog"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="workspace-section-heading">
+          <div>
+            <p className="eyebrow">Публикации</p>
+            <h2>История публикаций</h2>
+          </div>
+          <button className="ghost-button" type="button" onClick={onClose}>
+            Закрыть
+          </button>
+        </div>
+        {loading ? (
+          <p className="editor-muted">Загрузка...</p>
+        ) : publications.length === 0 ? (
+          <p className="editor-muted">Публикаций пока нет.</p>
+        ) : (
+          <div className="page-list">
+            {publications.map((publication) => (
+              <article className="page-row" key={publication.snapshotId}>
+                <div>
+                  <div className="page-title-line">
+                    <h3>Версия {publication.version}</h3>
+                    {publication.active ? (
+                      <span className="home-badge">Активна</span>
+                    ) : null}
+                  </div>
+                  <p className="project-slug">
+                    /{publication.pageSlug} · revision {publication.sourceRevision}
+                  </p>
+                  <p className="editor-muted">{publication.pageTitle}</p>
+                </div>
+                <div className="page-row-meta">
+                  <span>{formatDate(publication.publishedAt)}</span>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={() => onRollback(publication.snapshotId)}
+                    disabled={publication.active}
+                  >
+                    Вернуть
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -605,6 +754,7 @@ function AddBlockPanel({
 }
 
 function Inspector({
+  page,
   node,
   onConvertSection,
   onUpdateSection,
@@ -618,8 +768,10 @@ function Inspector({
   onCloseImagePicker,
   onUploadImageAsset,
   onSelectImageAsset,
-  onUpdateSpacer
+  onUpdateSpacer,
+  onUpdatePageSettings
 }: {
+  readonly page: SitePageSummary;
   readonly node: ReturnType<typeof findNodeById>;
   readonly onConvertSection: (layout: SectionLayout) => void;
   readonly onUpdateSection: (props: Partial<NodePropsByType["section"]>) => void;
@@ -634,14 +786,16 @@ function Inspector({
   readonly onUploadImageAsset: (file: File) => void;
   readonly onSelectImageAsset: (asset: MediaAssetSummary) => void;
   readonly onUpdateSpacer: (props: Partial<BlockPropsByType["spacer"]>) => void;
+  readonly onUpdatePageSettings: (
+    input: UpdatePageSettingsFormValues
+  ) => Promise<boolean>;
 }) {
   if (node === null || node.type === "page") {
     return (
-      <section className="editor-panel-section">
-        <p className="eyebrow">Инспектор</p>
-        <h2>Выберите элемент</h2>
-        <p className="editor-muted">Настройки появятся после выбора элемента.</p>
-      </section>
+      <PageSettingsInspector
+        page={page}
+        onUpdatePageSettings={onUpdatePageSettings}
+      />
     );
   }
 
@@ -679,6 +833,73 @@ function Inspector({
     case "spacer":
       return <SpacerInspector block={node} onUpdateSpacer={onUpdateSpacer} />;
   }
+}
+
+function PageSettingsInspector({
+  page,
+  onUpdatePageSettings
+}: {
+  readonly page: SitePageSummary;
+  readonly onUpdatePageSettings: (
+    input: UpdatePageSettingsFormValues
+  ) => Promise<boolean>;
+}) {
+  const [title, setTitle] = React.useState(page.title);
+  const [slug, setSlug] = React.useState(page.slug);
+  const [isHome, setIsHome] = React.useState(page.isHome);
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    setTitle(page.title);
+    setSlug(page.slug);
+    setIsHome(page.isHome);
+  }, [page.isHome, page.slug, page.title]);
+
+  const dirty = title !== page.title || slug !== page.slug || isHome !== page.isHome;
+
+  return (
+    <section className="editor-panel-section">
+      <p className="eyebrow">Страница</p>
+      <h2>Настройки</h2>
+      <form
+        className="inspector-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setSaving(true);
+          void onUpdatePageSettings({
+            title,
+            slug,
+            isHome
+          }).finally(() => setSaving(false));
+        }}
+      >
+        <InspectorTextInput
+          label="Название"
+          value={title}
+          onChange={setTitle}
+        />
+        <InspectorTextInput label="Slug" value={slug} onChange={setSlug} />
+        <label className="inspector-field checkbox-field">
+          <span>Главная страница</span>
+          <input
+            type="checkbox"
+            checked={isHome}
+            onChange={(event) => setIsHome(event.currentTarget.checked)}
+          />
+        </label>
+        <p className="editor-muted">
+          Изменения slug попадут на публичный сайт только после новой публикации.
+        </p>
+        <button
+          className="secondary-button"
+          type="submit"
+          disabled={!dirty || saving}
+        >
+          {saving ? "Сохраняем..." : "Сохранить настройки"}
+        </button>
+      </form>
+    </section>
+  );
 }
 
 function SectionInspector({
@@ -1298,4 +1519,24 @@ function toSaveStatusLabel(status: EditorState["saveStatus"]): string {
     case "error":
       return "Ошибка сохранения";
   }
+}
+
+function toPublicationStatusLabel(status: PublicationStatusResponse["status"]): string {
+  switch (status) {
+    case "never-published":
+      return "Не опубликовано";
+    case "published-current":
+      return "Опубликовано";
+    case "published-with-changes":
+      return "Есть неопубликованные изменения";
+    case "unpublished":
+      return "Снято с публикации";
+  }
+}
+
+function formatDate(date: string): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(date));
 }

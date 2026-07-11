@@ -10,6 +10,12 @@ export type CreateSitePageInput = {
   readonly isHome?: boolean;
 };
 
+export type UpdateSitePageSettingsInput = {
+  readonly title: string;
+  readonly slug: string;
+  readonly isHome: boolean;
+};
+
 export class SitePageRepository {
   constructor(private readonly client: RepositoryPrismaClient) {}
 
@@ -106,6 +112,17 @@ export class SitePageRepository {
     );
   }
 
+  async updateSettings(
+    context: TenantContext,
+    projectId: string,
+    pageId: string,
+    input: UpdateSitePageSettingsInput
+  ): Promise<SitePage | null> {
+    return this.runInTransaction((repository) =>
+      repository.updateSettingsInCurrentScope(context, projectId, pageId, input)
+    );
+  }
+
   private async createInCurrentScope(
     context: TenantContext,
     projectId: string,
@@ -159,6 +176,46 @@ export class SitePageRepository {
         isHome: true
       }
     });
+
+    return this.findById(context, projectId, pageId);
+  }
+
+  private async updateSettingsInCurrentScope(
+    context: TenantContext,
+    projectId: string,
+    pageId: string,
+    input: UpdateSitePageSettingsInput
+  ): Promise<SitePage | null> {
+    const page = await this.findById(context, projectId, pageId);
+
+    if (page === null) {
+      return null;
+    }
+
+    if (input.isHome) {
+      await this.client.sitePage.updateMany({
+        where: activeSitePageScope(context, projectId),
+        data: {
+          isHome: false
+        }
+      });
+    }
+
+    const result = await this.client.sitePage.updateMany({
+      where: {
+        ...activeSitePageScope(context, projectId),
+        id: pageId
+      },
+      data: {
+        title: input.title,
+        slug: input.slug,
+        isHome: input.isHome
+      }
+    });
+
+    if (result.count === 0) {
+      return null;
+    }
 
     return this.findById(context, projectId, pageId);
   }

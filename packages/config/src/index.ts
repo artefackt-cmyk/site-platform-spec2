@@ -15,7 +15,9 @@ export type AppConfig = {
   };
   readonly web: {
     readonly dashboardOrigin: string;
+    readonly storefrontOrigin: string;
     readonly publicApiUrl: string;
+    readonly publicStorefrontUrl: string;
   };
   readonly development: {
     readonly devUserEmail?: string;
@@ -34,6 +36,7 @@ export type AppConfig = {
 
 export type PublicAppConfig = {
   readonly apiUrl: string;
+  readonly storefrontUrl: string;
 };
 
 export type EnvironmentInput = Record<string, string | undefined>;
@@ -85,7 +88,9 @@ const environmentSchema = z
     TEST_DATABASE_URL: databaseUrlSchema.optional(),
     DEV_USER_EMAIL: optionalEmailSchema,
     DASHBOARD_ORIGIN: publicUrlSchema.default("http://localhost:3000"),
+    STOREFRONT_ORIGIN: publicUrlSchema.default("http://localhost:3001"),
     NEXT_PUBLIC_API_URL: publicUrlSchema.default("http://localhost:3002"),
+    NEXT_PUBLIC_STOREFRONT_URL: publicUrlSchema.default("http://localhost:3001"),
     MEDIA_STORAGE_DIR: z.string().trim().min(1).default(".local-media"),
     MEDIA_PUBLIC_BASE_URL: publicUrlSchema.default("http://localhost:3002"),
     API_PORT: portSchema.default(3002),
@@ -119,7 +124,8 @@ const environmentSchema = z
   });
 
 const publicEnvironmentSchema = z.object({
-  NEXT_PUBLIC_API_URL: publicUrlSchema.default("http://localhost:3002")
+  NEXT_PUBLIC_API_URL: publicUrlSchema.default("http://localhost:3002"),
+  NEXT_PUBLIC_STOREFRONT_URL: publicUrlSchema.default("http://localhost:3001")
 });
 
 type ParsedEnvironment = z.infer<typeof environmentSchema>;
@@ -174,7 +180,8 @@ export function loadPublicConfig(
   }
 
   return {
-    apiUrl: parsed.data.NEXT_PUBLIC_API_URL
+    apiUrl: parsed.data.NEXT_PUBLIC_API_URL,
+    storefrontUrl: parsed.data.NEXT_PUBLIC_STOREFRONT_URL
   };
 }
 
@@ -241,7 +248,9 @@ function toAppConfig(env: ParsedEnvironment): AppConfig {
     },
     web: {
       dashboardOrigin: env.DASHBOARD_ORIGIN,
-      publicApiUrl: env.NEXT_PUBLIC_API_URL
+      storefrontOrigin: env.STOREFRONT_ORIGIN,
+      publicApiUrl: env.NEXT_PUBLIC_API_URL,
+      publicStorefrontUrl: env.NEXT_PUBLIC_STOREFRONT_URL
     },
     development:
       env.DEV_USER_EMAIL === undefined
