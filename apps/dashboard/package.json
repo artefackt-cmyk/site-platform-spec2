@@ -10,8 +10,11 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@site-platform/block-library": "workspace:*",
     "@site-platform/config": "workspace:*",
     "@site-platform/domain": "workspace:*",
+    "@site-platform/editor-core": "workspace:*",
+    "@site-platform/renderer": "workspace:*",
     "next": "^15.5.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

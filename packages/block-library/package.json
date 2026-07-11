@@ -16,7 +16,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
   },
-  "files": ["dist", "src"],
-  "sideEffects": false
+  "files": [
+    "dist",
+    "src"
+  ],
+  "sideEffects": false,
+  "dependencies": {
+    "@site-platform/editor-core": "workspace:*",
+    "zod": "^4.4.3"
+  }
 }
-

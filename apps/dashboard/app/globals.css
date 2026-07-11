@@ -419,6 +419,239 @@ button:disabled {
   font-weight: 700;
 }
 
+.editor-shell {
+  min-height: 100vh;
+  background: #eef2f7;
+  color: #152033;
+}
+
+.editor-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  border-bottom: 1px solid #d9e1ec;
+  background: #ffffff;
+  padding: 16px 24px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.editor-topbar h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.editor-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.save-indicator {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.save-indicator-saved {
+  background: #ecfdf3;
+  color: #047857;
+}
+
+.save-indicator-dirty {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.save-indicator-saving {
+  background: #eef4ff;
+  color: #1d4ed8;
+}
+
+.save-indicator-error {
+  background: #fef2f2;
+  color: #b42318;
+}
+
+.editor-save-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  border-radius: 6px;
+  background: #fef2f2;
+  padding: 10px 12px;
+  color: #b42318;
+  font-weight: 700;
+}
+
+.editor-workbench {
+  display: grid;
+  grid-template-columns: 280px minmax(420px, 1fr) 320px;
+  gap: 16px;
+  height: calc(100vh - 96px);
+  padding: 16px;
+}
+
+.editor-panel {
+  overflow: auto;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.editor-panel-section {
+  display: grid;
+  gap: 14px;
+  border-bottom: 1px solid #edf1f6;
+  padding: 16px;
+}
+
+.editor-panel-section:last-child {
+  border-bottom: 0;
+}
+
+.editor-panel-section h2 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.editor-muted {
+  margin: 0;
+  color: #667085;
+  font-size: 14px;
+}
+
+.editor-block-list {
+  display: grid;
+  gap: 10px;
+}
+
+.editor-block-list-item {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #e0e7f1;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.editor-block-list-item-selected {
+  border-color: #93b4f8;
+  background: #f8fbff;
+}
+
+.editor-block-select {
+  display: grid;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #152033;
+  text-align: left;
+}
+
+.editor-block-select span {
+  overflow: hidden;
+  color: #667085;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-block-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.mini-button {
+  min-height: 30px;
+  border: 1px solid #d7deea;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.danger-mini-button {
+  color: #b42318;
+}
+
+.add-block-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.editor-center-panel {
+  overflow: auto;
+  border-radius: 8px;
+  background: #e7ecf3;
+  padding: 28px;
+}
+
+.editor-canvas {
+  width: min(860px, 100%);
+  min-height: 720px;
+  margin: 0 auto;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 56px;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
+}
+
+.editor-empty-canvas {
+  display: grid;
+  min-height: 420px;
+  place-items: center;
+  border: 1px dashed #b8c4d6;
+  border-radius: 8px;
+  color: #667085;
+  font-weight: 700;
+  text-align: center;
+}
+
+.inspector-field {
+  display: grid;
+  gap: 8px;
+  color: #344054;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.inspector-field input,
+.inspector-field select,
+.inspector-field textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #152033;
+  font: inherit;
+}
+
+.inspector-field textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.inspector-field input:focus,
+.inspector-field select:focus,
+.inspector-field textarea:focus {
+  border-color: #2563eb;
+  outline: 3px solid rgba(37, 99, 235, 0.14);
+}
+
 @media (max-width: 860px) {
   .dashboard-shell {
     padding: 18px;
@@ -464,5 +697,32 @@ button:disabled {
   .editor-side-panel,
   .editor-canvas-placeholder {
     min-height: 220px;
+  }
+
+  .editor-topbar,
+  .editor-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-topbar-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .editor-workbench {
+    height: auto;
+  }
+
+  .editor-panel {
+    max-height: none;
+  }
+
+  .editor-center-panel {
+    padding: 14px;
+  }
+
+  .editor-canvas {
+    min-height: 420px;
+    padding: 28px;
   }
 }

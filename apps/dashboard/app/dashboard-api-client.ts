@@ -7,6 +7,8 @@ import type {
   CurrentUserResponse,
   ProjectPagesListResponse,
   ProjectSummary,
+  PageDocumentResponse,
+  SavePageDocumentRequest,
   SitePageSummary,
   ProjectsListResponse
 } from "./dashboard-types";
@@ -43,6 +45,15 @@ export type DashboardApiClient = {
     projectId: string,
     pageId: string
   ) => Promise<SitePageSummary>;
+  readonly getProjectPageDocument: (
+    projectId: string,
+    pageId: string
+  ) => Promise<PageDocumentResponse>;
+  readonly saveProjectPageDocument: (
+    projectId: string,
+    pageId: string,
+    input: SavePageDocumentRequest
+  ) => Promise<PageDocumentResponse>;
 };
 
 export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
@@ -88,6 +99,27 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
         `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
           pageId
         )}`
+      ),
+    getProjectPageDocument: (projectId, pageId) =>
+      request<PageDocumentResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
+          pageId
+        )}/document`
+      ),
+    saveProjectPageDocument: (projectId, pageId, input) =>
+      request<PageDocumentResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
+          pageId
+        )}/document`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
       )
   };
 }

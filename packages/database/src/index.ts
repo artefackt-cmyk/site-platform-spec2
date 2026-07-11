@@ -26,6 +26,15 @@ export {
   type UpdateProjectSettingsInput
 } from "./repositories/project-repository";
 export {
+  PAGE_DOCUMENT_REPOSITORY_ERROR_CODES,
+  PageDocumentInvalidError,
+  PageDocumentRepository,
+  PageDocumentRevisionConflictError,
+  toPrismaJson,
+  type PageDocumentRecord,
+  type PageDocumentRepositoryErrorCode
+} from "./repositories/page-document-repository";
+export {
   SitePageRepository,
   type CreateSitePageInput
 } from "./repositories/site-page-repository";
@@ -45,4 +54,10 @@ export {
   type PrismaJsonInput,
   type RepositoryPrismaClient
 } from "./types";
-export type { Project, ProjectStatus, SitePage, SitePageStatus } from "@prisma/client";
+export type {
+  PageDocument,
+  Project,
+  ProjectStatus,
+  SitePage,
+  SitePageStatus
+} from "@prisma/client";

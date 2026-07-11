@@ -1,6 +1,17 @@
 import "reflect-metadata";
 import { HttpException } from "@nestjs/common";
-import type { Project, SitePage } from "@site-platform/database";
+import {
+  PageDocumentRevisionConflictError,
+  type PageDocumentRecord,
+  type Project,
+  type SitePage
+} from "@site-platform/database";
+import {
+  createDefaultBlock,
+  createEmptyPageDocument,
+  insertBlock,
+  validatePageDocument
+} from "@site-platform/editor-core";
 import type { OrganizationRole, TenantContext } from "@site-platform/domain";
 import { describe, expect, it } from "vitest";
 import { API_ERROR_CODES } from "./api-errors";
@@ -271,10 +282,140 @@ describe("GET /api/projects/:projectId/pages/:pageId", () => {
   });
 });
 
+describe("GET /api/projects/:projectId/pages/:pageId/document", () => {
+  it("returns an existing or default page document", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })],
+      pages: [createPage({ id: "page-a", projectId: "project-a" })]
+    });
+
+    await expect(
+      service.getProjectPageDocument("project-a", "page-a")
+    ).resolves.toMatchObject({
+      pageId: "page-a",
+      schemaVersion: 1,
+      revision: 1,
+      document: {
+        root: {
+          children: []
+        }
+      }
+    });
+  });
+});
+
+describe("PUT /api/projects/:projectId/pages/:pageId/document", () => {
+  it("saves a valid page document", async () => {
+    const document = insertBlock(
+      createEmptyPageDocument(),
+      createDefaultBlock("heading")
+    );
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })],
+      pages: [createPage({ id: "page-a", projectId: "project-a" })],
+      documents: [createPageDocument({ pageId: "page-a", revision: 1 })]
+    });
+
+    await expect(
+      service.saveProjectPageDocument("project-a", "page-a", {
+        schemaVersion: 1,
+        revision: 1,
+        document
+      })
+    ).resolves.toMatchObject({
+      pageId: "page-a",
+      revision: 2,
+      document: {
+        root: {
+          children: [expect.objectContaining({ type: "heading" })]
+        }
+      }
+    });
+  });
+
+  it("rejects invalid documents", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })],
+      pages: [createPage({ id: "page-a", projectId: "project-a" })],
+      documents: [createPageDocument({ pageId: "page-a", revision: 1 })]
+    });
+
+    await expectHttpError(
+      service.saveProjectPageDocument("project-a", "page-a", {
+        schemaVersion: 1,
+        revision: 1,
+        document: {
+          ...createEmptyPageDocument(),
+          schemaVersion: 2
+        }
+      }),
+      400,
+      API_ERROR_CODES.pageDocumentInvalid
+    );
+  });
+
+  it("returns a stable conflict error for stale revisions", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })],
+      pages: [createPage({ id: "page-a", projectId: "project-a" })],
+      documents: [createPageDocument({ pageId: "page-a", revision: 2 })]
+    });
+
+    await expectHttpError(
+      service.saveProjectPageDocument("project-a", "page-a", {
+        schemaVersion: 1,
+        revision: 1,
+        document: createEmptyPageDocument()
+      }),
+      409,
+      API_ERROR_CODES.pageDocumentRevisionConflict
+    );
+  });
+
+  it("returns forbidden when the current role cannot update pages", async () => {
+    const { service } = createProjectsService({
+      role: "VIEWER",
+      projects: [createProject({ id: "project-a" })],
+      pages: [createPage({ id: "page-a", projectId: "project-a" })],
+      documents: [createPageDocument({ pageId: "page-a", revision: 1 })]
+    });
+
+    await expectHttpError(
+      service.saveProjectPageDocument("project-a", "page-a", {
+        schemaVersion: 1,
+        revision: 1,
+        document: createEmptyPageDocument()
+      }),
+      403,
+      API_ERROR_CODES.permissionDenied
+    );
+  });
+
+  it("returns not found for a cross-tenant page", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-b", organizationId: "org-b" })],
+      pages: [
+        createPage({
+          id: "page-b",
+          organizationId: "org-b",
+          projectId: "project-b"
+        })
+      ]
+    });
+
+    await expectHttpError(
+      service.getProjectPageDocument("project-b", "page-b"),
+      404,
+      API_ERROR_CODES.projectNotFound
+    );
+  });
+});
+
 type CreateProjectsServiceOptions = {
   readonly role?: OrganizationRole;
   readonly projects?: readonly Project[];
   readonly pages?: readonly SitePage[];
+  readonly documents?: readonly PageDocumentRecord[];
 };
 
 function createProjectsService(options: CreateProjectsServiceOptions = {}): {
@@ -287,7 +428,8 @@ function createProjectsService(options: CreateProjectsServiceOptions = {}): {
   };
   const projectStore = new InMemoryProjectStore(
     options.projects ?? [],
-    options.pages ?? []
+    options.pages ?? [],
+    options.documents ?? []
   );
 
   return {
@@ -320,12 +462,18 @@ function createIdentity(role: OrganizationRole): ActiveIdentity {
 class InMemoryProjectStore implements ProjectStore {
   private readonly projects: Project[];
   private readonly pages: SitePage[];
+  private readonly documents: PageDocumentRecord[];
   private createdProjects = 0;
   private createdPages = 0;
 
-  constructor(projects: readonly Project[], pages: readonly SitePage[]) {
+  constructor(
+    projects: readonly Project[],
+    pages: readonly SitePage[],
+    documents: readonly PageDocumentRecord[]
+  ) {
     this.projects = [...projects];
     this.pages = [...pages];
+    this.documents = [...documents];
   }
 
   get createdProjectCount(): number {
@@ -459,6 +607,92 @@ class InMemoryProjectStore implements ProjectStore {
 
     return page;
   }
+
+  async getOrCreatePageDocument(
+    activeTenantContext: TenantContext,
+    projectId: string,
+    pageId: string
+  ): Promise<PageDocumentRecord | null> {
+    const page = await this.findPageById(activeTenantContext, projectId, pageId);
+
+    if (page === null) {
+      return null;
+    }
+
+    const existingDocument = this.documents.find(
+      (document) =>
+        document.organizationId === activeTenantContext.organizationId &&
+        document.projectId === projectId &&
+        document.pageId === pageId
+    );
+
+    if (existingDocument !== undefined) {
+      return existingDocument;
+    }
+
+    const document = createPageDocument({
+      organizationId: activeTenantContext.organizationId,
+      projectId,
+      pageId
+    });
+
+    this.documents.push(document);
+
+    return document;
+  }
+
+  async savePageDocumentWithAudit(input: {
+    readonly tenantContext: TenantContext;
+    readonly projectId: string;
+    readonly pageId: string;
+    readonly document: unknown;
+    readonly expectedRevision: number;
+  }): Promise<PageDocumentRecord | null> {
+    const page = await this.findPageById(
+      input.tenantContext,
+      input.projectId,
+      input.pageId
+    );
+
+    if (page === null) {
+      return null;
+    }
+
+    const document = await this.getOrCreatePageDocument(
+      input.tenantContext,
+      input.projectId,
+      input.pageId
+    );
+
+    if (document === null) {
+      return null;
+    }
+
+    if (document.revision !== input.expectedRevision) {
+      throw new PageDocumentRevisionConflictError();
+    }
+
+    const validation = validatePageDocument(input.document);
+
+    if (!validation.ok) {
+      throw new Error("Expected valid document in service-level test store.");
+    }
+
+    const nextDocument = {
+      ...document,
+      schemaVersion: validation.document.schemaVersion,
+      document: validation.document,
+      revision: document.revision + 1,
+      updatedAt: new Date("2026-01-02T00:00:00.000Z")
+    };
+    const index = this.documents.findIndex(
+      (existingDocument) => existingDocument.id === document.id
+    );
+
+    this.documents.splice(index, 1, nextDocument);
+
+    return nextDocument;
+  }
 }
 
 function createProject(input: {
@@ -500,6 +734,27 @@ function createPage(input: {
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),
     deletedAt: input.deletedAt ?? null
+  };
+}
+
+function createPageDocument(input: {
+  readonly id?: string;
+  readonly organizationId?: string;
+  readonly projectId?: string;
+  readonly pageId?: string;
+  readonly revision?: number;
+  readonly document?: PageDocumentRecord["document"];
+}): PageDocumentRecord {
+  return {
+    id: input.id ?? "page-document",
+    organizationId: input.organizationId ?? "org-a",
+    projectId: input.projectId ?? "project-a",
+    pageId: input.pageId ?? "page-a",
+    schemaVersion: 1,
+    document: input.document ?? createEmptyPageDocument(),
+    revision: input.revision ?? 1,
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z")
   };
 }
 

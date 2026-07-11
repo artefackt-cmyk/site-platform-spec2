@@ -53,6 +53,9 @@ importers:
       '@site-platform/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@site-platform/editor-core':
+        specifier: workspace:*
+        version: link:../../packages/editor-core
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -66,12 +69,21 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@site-platform/block-library':
+        specifier: workspace:*
+        version: link:../../packages/block-library
       '@site-platform/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@site-platform/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@site-platform/editor-core':
+        specifier: workspace:*
+        version: link:../../packages/editor-core
+      '@site-platform/renderer':
+        specifier: workspace:*
+        version: link:../../packages/renderer
       next:
         specifier: ^15.5.3
         version: 15.5.20(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -110,7 +122,14 @@ importers:
 
   apps/worker: {}
 
-  packages/block-library: {}
+  packages/block-library:
+    dependencies:
+      '@site-platform/editor-core':
+        specifier: workspace:*
+        version: link:../editor-core
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/config:
     dependencies:
@@ -132,6 +151,9 @@ importers:
       '@site-platform/domain':
         specifier: workspace:*
         version: link:../domain
+      '@site-platform/editor-core':
+        specifier: workspace:*
+        version: link:../editor-core
     devDependencies:
       prisma:
         specifier: ^6.19.0
@@ -139,11 +161,32 @@ importers:
 
   packages/domain: {}
 
-  packages/editor-core: {}
+  packages/editor-core:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/integrations: {}
 
-  packages/renderer: {}
+  packages/renderer:
+    dependencies:
+      '@site-platform/editor-core':
+        specifier: workspace:*
+        version: link:../editor-core
+      react:
+        specifier: ^19.2.7
+        version: 19.2.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      react-dom:
+        specifier: ^19.2.7
+        version: 19.2.7(react@19.2.7)
 
   packages/testing: {}
 

@@ -1,6 +1,6 @@
 # Site Platform Spec 2
 
-Минимальный технический каркас monorepo для будущей SaaS-платформы. В репозитории есть первые foundation-модели для организаций, участников, проектов и audit log, а также development-only dashboard для просмотра и создания проектов. Production-авторизации, редактора, commerce, очередей и реальных интеграций пока нет.
+Минимальный технический каркас monorepo для будущей SaaS-платформы. В репозитории есть foundation-модели для организаций, участников, проектов, страниц и audit log, а также development-only dashboard с первым блочным редактором страниц. Production-авторизации, публикации, commerce, очередей и реальных интеграций пока нет.
 
 ## Требования к окружению
 
@@ -76,6 +76,7 @@ pnpm db:migrate:test
 - `Membership`;
 - `Project`;
 - `SitePage`;
+- `PageDocument`;
 - `AuditLog`.
 
 Открыть Prisma Studio:
@@ -92,7 +93,7 @@ pnpm db:reset:test
 
 `db:reset:test` откажется выполняться, если активное окружение не `test`, если `TEST_DATABASE_URL` совпадает с `DATABASE_URL`, или если URL не распознан как тестовая база.
 
-Editor, commerce и integration-модели пока намеренно не добавлены.
+Commerce и integration-модели пока намеренно не добавлены. `PageDocument` хранит только текущий draft-документ страницы; published snapshot пока отсутствует.
 
 ## Development Seed
 
@@ -109,9 +110,10 @@ Seed работает только вне production и идемпотентно
 - `OWNER` membership;
 - проект `Demo Store` со slug `demo-store`;
 - страницы проекта `Главная`, `Каталог` и `О бренде`;
+- draft-документы страниц с начальными блоками, если документа еще нет;
 - audit log записи для создания организации и проекта.
 
-Повторный запуск не создает дубликаты и не удаляет существующие данные.
+Повторный запуск не создает дубликаты, не удаляет существующие данные и не перетирает пользовательские `PageDocument`.
 
 Для повторного запуска seed после изменения локальных данных выполните:
 
@@ -143,6 +145,8 @@ API endpoints:
 - `GET /api/projects/:projectId/pages` - страницы проекта;
 - `POST /api/projects/:projectId/pages` - создание страницы проекта;
 - `GET /api/projects/:projectId/pages/:pageId` - данные страницы проекта.
+- `GET /api/projects/:projectId/pages/:pageId/document` - draft-документ страницы; если документа нет, API создает пустой документ.
+- `PUT /api/projects/:projectId/pages/:pageId/document` - сохранение draft-документа с optimistic concurrency по `revision`.
 
 Для раздельного запуска:
 
@@ -155,7 +159,7 @@ pnpm --filter @site-platform/dashboard dev
 
 - dashboard: `http://localhost:3000`;
 - project workspace: `http://localhost:3000/projects/{projectId}`;
-- page editor placeholder: `http://localhost:3000/projects/{projectId}/pages/{pageId}`;
+- page editor: `http://localhost:3000/projects/{projectId}/pages/{pageId}`;
 - API: `http://localhost:3002`;
 - database health: `http://localhost:3002/health/database`.
 
@@ -178,15 +182,20 @@ pnpm --filter @site-platform/dashboard dev
 - открытие рабочей области проекта;
 - просмотр страниц проекта;
 - создание страниц проекта;
-- открытие placeholder будущего редактора страницы.
+- открытие редактора страницы;
+- визуальный рендеринг draft-документа;
+- добавление блоков `heading`, `text`, `button` и `spacer`;
+- выбор, редактирование, перемещение вверх/вниз и удаление блоков;
+- сохранение документа в PostgreSQL с проверкой `revision`.
 
-Пока placeholder:
+Пока не реализовано:
 
-- визуальный редактор;
-- структура блоков;
-- настройки блока;
 - предпросмотр;
 - публикация.
+- autosave;
+- undo/redo;
+- drag-and-drop;
+- storefront rendering.
 
 ## Команды проверки
 
@@ -218,6 +227,8 @@ pnpm --filter @site-platform/database... test
 
 `SitePage` всегда принадлежит одному `Project` и содержит `organizationId` для tenant isolation. Репозиторий страниц не предоставляет lookup только по `pageId`: каждый query включает `TenantContext` и `projectId`. Обычные query скрывают soft-deleted страницы.
 
+`PageDocument` всегда связан с одной `SitePage` и дополнительно хранит `organizationId` и `projectId`. Репозиторий документов не предоставляет lookup только по `id`: чтение и сохранение выполняются через `TenantContext`, `projectId` и `pageId`. Сохранение использует optimistic concurrency через `revision`; stale revision возвращает conflict.
+
 Обычные запросы к `Organization` и `Project` исключают записи с `deletedAt`. `AuditLog` считается append-only: repository предоставляет только create/read методы.
 
 ## Структура monorepo
@@ -230,13 +241,13 @@ apps/
   worker/      минимальное Node.js/TypeScript приложение
 
 packages/
-  block-library/
+  block-library/ определения первых блоков и inspector metadata
   config/      Zod env validation и typed config
   database/    Prisma/PostgreSQL foundation, repositories и tenant-aware tests
   domain/      tenant context, RBAC permissions, validators и domain errors
-  editor-core/
+  editor-core/ схема PageDocument v1 и immutable document commands
   integrations/
-  renderer/
+  renderer/    общий React renderer для editor/preview/future storefront
   testing/
   ui/
 
@@ -266,3 +277,4 @@ docs/
 - `AGENTS.md`
 - `docs/TECHNICAL_FOUNDATION_PROPOSAL.md`
 - `docs/PROJECT_WORKSPACE.md`
+- `docs/PAGE_DOCUMENT_SCHEMA_V1.md`

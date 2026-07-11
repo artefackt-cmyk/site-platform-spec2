@@ -1,4 +1,5 @@
 import type { OrganizationRole } from "@site-platform/domain";
+import type { PageDocumentV1 } from "@site-platform/editor-core";
 
 export type ProjectStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 export type SitePageStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
@@ -48,6 +49,19 @@ export type ProjectPagesListResponse = {
 
 export type CreateProjectPageResponse = {
   readonly page: SitePageSummary;
+};
+
+export type PageDocumentResponse = {
+  readonly pageId: string;
+  readonly schemaVersion: 1;
+  readonly revision: number;
+  readonly document: PageDocumentV1;
+};
+
+export type SavePageDocumentRequest = {
+  readonly schemaVersion: 1;
+  readonly revision: number;
+  readonly document: PageDocumentV1;
 };
 
 export type CreateProjectFormValues = {

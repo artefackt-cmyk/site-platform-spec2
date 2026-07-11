@@ -1,5 +1,16 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { Project, SitePage } from "@site-platform/database";
+import {
+  PageDocumentInvalidError,
+  PageDocumentRevisionConflictError,
+  type PageDocumentRecord,
+  type Project,
+  type SitePage
+} from "@site-platform/database";
+import {
+  PAGE_DOCUMENT_SCHEMA_VERSION,
+  validatePageDocument,
+  type PageDocumentV1
+} from "@site-platform/editor-core";
 import {
   DOMAIN_ERROR_CODES,
   PERMISSIONS,
@@ -62,6 +73,13 @@ export type ProjectPagesListResponse = {
 
 export type CreateProjectPageResponse = {
   readonly page: SitePageResponse;
+};
+
+export type PageDocumentResponse = {
+  readonly pageId: string;
+  readonly schemaVersion: 1;
+  readonly revision: number;
+  readonly document: PageDocumentV1;
 };
 
 @Injectable()
@@ -222,6 +240,90 @@ export class ProjectsService {
     return toSitePageResponse(page);
   }
 
+  async getProjectPageDocument(
+    projectId: string,
+    pageId: string
+  ): Promise<PageDocumentResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.pageRead)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to read pages."
+      );
+    }
+
+    await this.getPageOrThrow(identity.tenantContext, projectId, pageId);
+
+    const pageDocument = await this.projectStore.getOrCreatePageDocument(
+      identity.tenantContext,
+      projectId,
+      pageId
+    );
+
+    if (pageDocument === null) {
+      throw pageNotFoundError();
+    }
+
+    return toPageDocumentResponse(pageDocument);
+  }
+
+  async saveProjectPageDocument(
+    projectId: string,
+    pageId: string,
+    body: unknown
+  ): Promise<PageDocumentResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.pageUpdate)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to update pages."
+      );
+    }
+
+    await this.getPageOrThrow(identity.tenantContext, projectId, pageId);
+
+    const payload = parseSavePageDocumentPayload(body);
+
+    try {
+      const pageDocument = await this.projectStore.savePageDocumentWithAudit({
+        tenantContext: identity.tenantContext,
+        projectId,
+        pageId,
+        document: payload.document,
+        expectedRevision: payload.revision
+      });
+
+      if (pageDocument === null) {
+        throw pageNotFoundError();
+      }
+
+      return toPageDocumentResponse(pageDocument);
+    } catch (error) {
+      if (error instanceof PageDocumentRevisionConflictError) {
+        throw conflict(
+          API_ERROR_CODES.pageDocumentRevisionConflict,
+          "Page document was changed by another save."
+        );
+      }
+
+      if (error instanceof PageDocumentInvalidError) {
+        throw badRequest(
+          API_ERROR_CODES.pageDocumentInvalid,
+          "Page document is invalid.",
+          toDocumentValidationIssues(error.errors)
+        );
+      }
+
+      throw error;
+    }
+  }
+
   private async getProjectOrThrow(
     tenantContext: TenantContext,
     projectId: string
@@ -236,6 +338,24 @@ export class ProjectsService {
     }
 
     return project;
+  }
+
+  private async getPageOrThrow(
+    tenantContext: TenantContext,
+    projectId: string,
+    pageId: string
+  ): Promise<SitePage> {
+    const page = await this.projectStore.findPageById(
+      tenantContext,
+      projectId,
+      pageId
+    );
+
+    if (page === null) {
+      throw pageNotFoundError();
+    }
+
+    return page;
   }
 }
 
@@ -259,6 +379,17 @@ export function toSitePageResponse(page: SitePage): SitePageResponse {
     isHome: page.isHome,
     createdAt: page.createdAt.toISOString(),
     updatedAt: page.updatedAt.toISOString()
+  };
+}
+
+export function toPageDocumentResponse(
+  pageDocument: PageDocumentRecord
+): PageDocumentResponse {
+  return {
+    pageId: pageDocument.pageId,
+    schemaVersion: PAGE_DOCUMENT_SCHEMA_VERSION,
+    revision: pageDocument.revision,
+    document: pageDocument.document
   };
 }
 
@@ -437,6 +568,78 @@ function parseCreatePagePayload(body: unknown): {
   };
 }
 
+function parseSavePageDocumentPayload(body: unknown): {
+  readonly revision: number;
+  readonly document: PageDocumentV1;
+} {
+  if (!isRecord(body)) {
+    throw badRequest(API_ERROR_CODES.validationFailed, "Request body is invalid.", [
+      {
+        field: "body",
+        code: "FIELD_INVALID_TYPE",
+        message: "Request body must be an object."
+      }
+    ]);
+  }
+
+  if ("organizationId" in body || "projectId" in body) {
+    throw badRequest(
+      API_ERROR_CODES.organizationIdNotAllowed,
+      "organizationId and projectId must not be provided in the request body."
+    );
+  }
+
+  const issues: ApiValidationIssue[] = [];
+  const rawSchemaVersion = body.schemaVersion;
+  const rawRevision = body.revision;
+  const rawDocument = body.document;
+  const revision =
+    typeof rawRevision === "number" &&
+    Number.isInteger(rawRevision) &&
+    rawRevision >= 1
+      ? rawRevision
+      : null;
+
+  if (rawSchemaVersion !== PAGE_DOCUMENT_SCHEMA_VERSION) {
+    issues.push({
+      field: "schemaVersion",
+      code: "FIELD_INVALID_VALUE",
+      message: "schemaVersion must be 1."
+    });
+  }
+
+  if (revision === null) {
+    issues.push({
+      field: "revision",
+      code: "FIELD_INVALID_VALUE",
+      message: "revision must be a positive integer."
+    });
+  }
+
+  const documentValidation = validatePageDocument(rawDocument);
+
+  if (!documentValidation.ok) {
+    issues.push(...toDocumentValidationIssues(documentValidation.errors));
+  }
+
+  if (issues.length > 0) {
+    throw badRequest(
+      API_ERROR_CODES.pageDocumentInvalid,
+      "Page document is invalid.",
+      issues
+    );
+  }
+
+  if (revision === null || !documentValidation.ok) {
+    throw new Error("Unexpected invalid page document payload.");
+  }
+
+  return {
+    revision,
+    document: documentValidation.document
+  };
+}
+
 function duplicateSlugError() {
   return conflict(
     API_ERROR_CODES.projectSlugAlreadyExists,
@@ -453,6 +656,23 @@ function duplicatePageSlugError() {
 
 function projectNotFoundError() {
   return notFound(API_ERROR_CODES.projectNotFound, "Project was not found.");
+}
+
+function pageNotFoundError() {
+  return notFound(API_ERROR_CODES.pageNotFound, "Project page was not found.");
+}
+
+function toDocumentValidationIssues(
+  errors: readonly {
+    readonly path: readonly (string | number)[];
+    readonly message: string;
+  }[]
+): readonly ApiValidationIssue[] {
+  return errors.map((error) => ({
+    field: error.path.length === 0 ? "document" : `document.${error.path.join(".")}`,
+    code: "DOCUMENT_INVALID",
+    message: error.message
+  }));
 }
 
 function toValidationMessage(code: string): string {

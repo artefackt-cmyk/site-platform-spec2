@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Put } from "@nestjs/common";
 import {
   type CreateProjectPageResponse,
   type CreateProjectResponse,
+  type PageDocumentResponse,
   type ProjectPagesListResponse,
   type ProjectResponse,
   type ProjectsListResponse,
@@ -54,5 +55,22 @@ export class ProjectsController {
     @Param("pageId") pageId: string
   ): Promise<SitePageResponse> {
     return this.projectsService.getProjectPage(projectId, pageId);
+  }
+
+  @Get(":projectId/pages/:pageId/document")
+  async getProjectPageDocument(
+    @Param("projectId") projectId: string,
+    @Param("pageId") pageId: string
+  ): Promise<PageDocumentResponse> {
+    return this.projectsService.getProjectPageDocument(projectId, pageId);
+  }
+
+  @Put(":projectId/pages/:pageId/document")
+  async saveProjectPageDocument(
+    @Param("projectId") projectId: string,
+    @Param("pageId") pageId: string,
+    @Body() body: unknown
+  ): Promise<PageDocumentResponse> {
+    return this.projectsService.saveProjectPageDocument(projectId, pageId, body);
   }
 }

@@ -1,8 +1,14 @@
 import { loadConfig } from "@site-platform/config";
+import {
+  createEmptyPageDocument,
+  insertBlock,
+  type PageDocumentV1
+} from "@site-platform/editor-core";
 import { normalizeEmail } from "@site-platform/domain";
 import {
   createPrismaClient,
   disconnectPrismaClient,
+  toPrismaJson,
   type DatabasePrismaClient
 } from "../index";
 
@@ -197,8 +203,119 @@ async function seedDemoPages(
           deletedAt: null
         }
       });
+
+      const sitePage = await transaction.sitePage.findUniqueOrThrow({
+        where: {
+          projectId_slug: {
+            projectId: input.projectId,
+            slug: page.slug
+          }
+        }
+      });
+      const existingDocument = await transaction.pageDocument.findUnique({
+        where: {
+          pageId: sitePage.id
+        }
+      });
+
+      if (existingDocument === null) {
+        const document = createSeedPageDocument(page.slug);
+
+        await transaction.pageDocument.create({
+          data: {
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            pageId: sitePage.id,
+            schemaVersion: document.schemaVersion,
+            document: toPrismaJson(document),
+            revision: 1
+          }
+        });
+      }
     }
   });
+}
+
+function createSeedPageDocument(slug: string): PageDocumentV1 {
+  switch (slug) {
+    case "home":
+      return insertBlock(
+        insertBlock(
+          insertBlock(
+            createEmptyPageDocument(),
+            {
+              id: "seed-home-heading",
+              type: "heading",
+              props: {
+                text: "Добро пожаловать",
+                level: 1,
+                align: "center"
+              }
+            }
+          ),
+          {
+            id: "seed-home-text",
+            type: "text",
+            props: {
+              text: "Это первая страница вашего сайта",
+              align: "center"
+            }
+          }
+        ),
+        {
+          id: "seed-home-button",
+          type: "button",
+          props: {
+            label: "Перейти в каталог",
+            href: "/catalog",
+            align: "center",
+            variant: "primary"
+          }
+        }
+      );
+    case "catalog":
+      return insertBlock(
+        insertBlock(createEmptyPageDocument(), {
+          id: "seed-catalog-heading",
+          type: "heading",
+          props: {
+            text: "Каталог",
+            level: 1,
+            align: "left"
+          }
+        }),
+        {
+          id: "seed-catalog-text",
+          type: "text",
+          props: {
+            text: "Здесь появятся товары",
+            align: "left"
+          }
+        }
+      );
+    case "about":
+      return insertBlock(
+        insertBlock(createEmptyPageDocument(), {
+          id: "seed-about-heading",
+          type: "heading",
+          props: {
+            text: "О бренде",
+            level: 1,
+            align: "left"
+          }
+        }),
+        {
+          id: "seed-about-text",
+          type: "text",
+          props: {
+            text: "Расскажите историю вашего бренда",
+            align: "left"
+          }
+        }
+      );
+    default:
+      return createEmptyPageDocument();
+  }
 }
 
 async function main(): Promise<void> {

@@ -25,11 +25,15 @@
   "dependencies": {
     "@prisma/client": "^6.19.0",
     "@site-platform/config": "workspace:*",
-    "@site-platform/domain": "workspace:*"
+    "@site-platform/domain": "workspace:*",
+    "@site-platform/editor-core": "workspace:*"
   },
   "devDependencies": {
     "prisma": "^6.19.0"
   },
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "sideEffects": false
 }

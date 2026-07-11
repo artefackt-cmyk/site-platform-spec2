@@ -1,12 +1,15 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   AuditLogRepository,
+  PageDocumentRepository,
   ProjectRepository,
   SitePageRepository,
   type DatabasePrismaClient,
+  type PageDocumentRecord,
   type Project,
   type SitePage
 } from "@site-platform/database";
+import type { PageDocumentV1 } from "@site-platform/editor-core";
 import type { TenantContext } from "@site-platform/domain";
 import { DATABASE_CLIENT } from "./database.provider";
 
@@ -22,6 +25,14 @@ export type CreateProjectPageInput = {
   readonly title: string;
   readonly slug: string;
   readonly isHome: boolean;
+};
+
+export type SavePageDocumentInput = {
+  readonly tenantContext: TenantContext;
+  readonly projectId: string;
+  readonly pageId: string;
+  readonly document: PageDocumentV1;
+  readonly expectedRevision: number;
 };
 
 export type ProjectStore = {
@@ -51,6 +62,14 @@ export type ProjectStore = {
   readonly createPageWithAudit: (
     input: CreateProjectPageInput
   ) => Promise<SitePage | null>;
+  readonly getOrCreatePageDocument: (
+    tenantContext: TenantContext,
+    projectId: string,
+    pageId: string
+  ) => Promise<PageDocumentRecord | null>;
+  readonly savePageDocumentWithAudit: (
+    input: SavePageDocumentInput
+  ) => Promise<PageDocumentRecord | null>;
 };
 
 export const PROJECT_STORE = Symbol("PROJECT_STORE");
@@ -182,6 +201,60 @@ export class PrismaProjectStore implements ProjectStore {
       });
 
       return page;
+    });
+  }
+
+  async getOrCreatePageDocument(
+    tenantContext: TenantContext,
+    projectId: string,
+    pageId: string
+  ): Promise<PageDocumentRecord | null> {
+    const pageDocumentRepository = new PageDocumentRepository(this.client);
+    const pageDocument = await pageDocumentRepository.findByPage(
+      tenantContext,
+      projectId,
+      pageId
+    );
+
+    if (pageDocument !== null) {
+      return pageDocument;
+    }
+
+    return pageDocumentRepository.createDefault(tenantContext, projectId, pageId);
+  }
+
+  async savePageDocumentWithAudit(
+    input: SavePageDocumentInput
+  ): Promise<PageDocumentRecord | null> {
+    return this.client.$transaction(async (transaction) => {
+      const pageDocumentRepository = new PageDocumentRepository(transaction);
+      const auditLogRepository = new AuditLogRepository(transaction);
+      const pageDocument = await pageDocumentRepository.save(
+        input.tenantContext,
+        input.projectId,
+        input.pageId,
+        input.document,
+        input.expectedRevision
+      );
+
+      if (pageDocument === null) {
+        return null;
+      }
+
+      await auditLogRepository.create({
+        organizationId: input.tenantContext.organizationId,
+        actorUserId: input.tenantContext.userId,
+        action: "page.document.updated",
+        entityType: "PageDocument",
+        entityId: pageDocument.id,
+        metadata: {
+          projectId: input.projectId,
+          pageId: input.pageId,
+          revision: pageDocument.revision
+        }
+      });
+
+      return pageDocument;
     });
   }
 }

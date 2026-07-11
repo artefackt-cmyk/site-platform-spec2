@@ -1,26 +1,82 @@
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { insertBlock } from "@site-platform/editor-core";
 import { PageEditorView, type PageEditorLoadState } from "./page-editor-view";
+import { createEditorState } from "./page-editor-state";
 
 describe("PageEditorView", () => {
-  it("renders the placeholder editor page", () => {
-    const html = renderToStaticMarkup(
-      React.createElement(PageEditorView, {
-        state: createReadyState()
-      })
-    );
+  it("renders editor blocks and panels", () => {
+    const html = renderEditor();
 
-    expect(html).toContain("Главная");
-    expect(html).toContain("/home");
-    expect(html).toContain("Структура");
-    expect(html).toContain("Здесь появится визуальный редактор");
-    expect(html).toContain("Настройки блока");
-    expect(html).toContain("Назад к страницам");
+    expect(html).toContain("Добро пожаловать");
+    expect(html).toContain("Блоки страницы");
+    expect(html).toContain("Добавить блок");
+    expect(html).toContain("Заголовок");
+    expect(html).toContain("Инспектор");
+  });
+
+  it("renders dirty state", () => {
+    const html = renderEditor({
+      state: createReadyState("dirty")
+    });
+
+    expect(html).toContain("Есть изменения");
+    expect(html).toContain("Сохранить");
   });
 });
 
-function createReadyState(): PageEditorLoadState {
+function renderEditor(input: {
+  readonly state?: PageEditorLoadState;
+} = {}): string {
+  return renderToStaticMarkup(
+    React.createElement(PageEditorView, {
+      state: input.state ?? createReadyState("saved"),
+      onAddBlock: () => undefined,
+      onSelectBlock: () => undefined,
+      onMoveBlock: () => undefined,
+      onRemoveBlock: () => undefined,
+      onUpdateHeading: () => undefined,
+      onUpdateText: () => undefined,
+      onUpdateButton: () => undefined,
+      onUpdateSpacer: () => undefined,
+      onSave: () => undefined
+    })
+  );
+}
+
+function createReadyState(
+  saveStatus: "saved" | "dirty"
+): PageEditorLoadState {
+  const document = insertBlock(
+    {
+      schemaVersion: 1,
+      root: {
+        id: "root",
+        type: "page",
+        children: []
+      }
+    },
+    {
+      id: "heading-1",
+      type: "heading",
+      props: {
+        text: "Добро пожаловать",
+        level: 1,
+        align: "center"
+      }
+    }
+  );
+  const editor = {
+    ...createEditorState({
+      pageId: "page-1",
+      schemaVersion: 1,
+      revision: 1,
+      document
+    }),
+    saveStatus
+  };
+
   return {
     status: "ready",
     project: {
@@ -39,6 +95,7 @@ function createReadyState(): PageEditorLoadState {
       isHome: true,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z"
-    }
+    },
+    editor
   };
 }

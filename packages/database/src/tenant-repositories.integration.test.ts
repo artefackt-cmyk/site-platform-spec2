@@ -1,4 +1,9 @@
 import { loadConfigSafe, type AppConfig } from "@site-platform/config";
+import {
+  createDefaultBlock,
+  createEmptyPageDocument,
+  insertBlock
+} from "@site-platform/editor-core";
 import { describe, expect, it, beforeAll, afterAll, beforeEach } from "vitest";
 import {
   assertSafeTestDatabaseConfig,
@@ -7,6 +12,9 @@ import {
   disconnectPrismaClient,
   MembershipRepository,
   OrganizationCreationService,
+  PageDocumentInvalidError,
+  PageDocumentRepository,
+  PageDocumentRevisionConflictError,
   ProjectRepository,
   SitePageRepository,
   UserRepository,
@@ -353,6 +361,156 @@ describe.skipIf(integrationConfig === undefined)(
         sitePageRepository.listByProject(context, project.id)
       ).resolves.toEqual([]);
     });
+
+    it("creates a page document for the correct page", async () => {
+      const currentClient = getClient(client);
+      const { context, project, page } = await createPageFixture(currentClient);
+      const pageDocumentRepository = new PageDocumentRepository(currentClient);
+
+      await expect(
+        pageDocumentRepository.createDefault(context, project.id, page.id)
+      ).resolves.toMatchObject({
+        pageId: page.id,
+        revision: 1,
+        document: {
+          schemaVersion: 1
+        }
+      });
+    });
+
+    it("does not expose another tenant page document", async () => {
+      const currentClient = getClient(client);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const tenantBFixture = await createPageFixture(currentClient, "tenant-b");
+      const pageDocumentRepository = new PageDocumentRepository(currentClient);
+
+      await pageDocumentRepository.createDefault(
+        tenantBFixture.context,
+        tenantBFixture.project.id,
+        tenantBFixture.page.id
+      );
+
+      await expect(
+        pageDocumentRepository.findByPage(
+          createTenantContext(tenantA),
+          tenantBFixture.project.id,
+          tenantBFixture.page.id
+        )
+      ).resolves.toBeNull();
+    });
+
+    it("returns null when creating a document for a foreign page", async () => {
+      const currentClient = getClient(client);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const tenantBFixture = await createPageFixture(currentClient, "tenant-b");
+      const pageDocumentRepository = new PageDocumentRepository(currentClient);
+
+      await expect(
+        pageDocumentRepository.createDefault(
+          createTenantContext(tenantA),
+          tenantBFixture.project.id,
+          tenantBFixture.page.id
+        )
+      ).resolves.toBeNull();
+    });
+
+    it("increments revision when saving a valid document", async () => {
+      const currentClient = getClient(client);
+      const { context, project, page } = await createPageFixture(currentClient);
+      const pageDocumentRepository = new PageDocumentRepository(currentClient);
+      const initialDocument = await pageDocumentRepository.createDefault(
+        context,
+        project.id,
+        page.id
+      );
+
+      if (initialDocument === null) {
+        throw new Error("Expected page document fixture.");
+      }
+
+      const nextDocument = insertBlock(
+        initialDocument.document,
+        createDefaultBlock("heading")
+      );
+
+      await expect(
+        pageDocumentRepository.save(
+          context,
+          project.id,
+          page.id,
+          nextDocument,
+          initialDocument.revision
+        )
+      ).resolves.toMatchObject({
+        revision: 2,
+        document: {
+          root: {
+            children: [expect.objectContaining({ type: "heading" })]
+          }
+        }
+      });
+    });
+
+    it("rejects stale expectedRevision with a stable conflict error", async () => {
+      const currentClient = getClient(client);
+      const { context, project, page } = await createPageFixture(currentClient);
+      const pageDocumentRepository = new PageDocumentRepository(currentClient);
+      const initialDocument = await pageDocumentRepository.createDefault(
+        context,
+        project.id,
+        page.id
+      );
+
+      if (initialDocument === null) {
+        throw new Error("Expected page document fixture.");
+      }
+
+      await pageDocumentRepository.save(
+        context,
+        project.id,
+        page.id,
+        insertBlock(initialDocument.document, createDefaultBlock("text")),
+        initialDocument.revision
+      );
+
+      await expect(
+        pageDocumentRepository.save(
+          context,
+          project.id,
+          page.id,
+          insertBlock(initialDocument.document, createDefaultBlock("heading")),
+          initialDocument.revision
+        )
+      ).rejects.toBeInstanceOf(PageDocumentRevisionConflictError);
+    });
+
+    it("does not save invalid documents", async () => {
+      const currentClient = getClient(client);
+      const { context, project, page } = await createPageFixture(currentClient);
+      const pageDocumentRepository = new PageDocumentRepository(currentClient);
+      const initialDocument = await pageDocumentRepository.createDefault(
+        context,
+        project.id,
+        page.id
+      );
+
+      if (initialDocument === null) {
+        throw new Error("Expected page document fixture.");
+      }
+
+      await expect(
+        pageDocumentRepository.save(
+          context,
+          project.id,
+          page.id,
+          {
+            ...createEmptyPageDocument(),
+            schemaVersion: 2
+          },
+          initialDocument.revision
+        )
+      ).rejects.toBeInstanceOf(PageDocumentInvalidError);
+    });
   }
 );
 
@@ -427,6 +585,7 @@ async function createOrganizationFixture(
 
 async function clearDatabase(client: DatabasePrismaClient): Promise<void> {
   await client.auditLog.deleteMany();
+  await client.pageDocument.deleteMany();
   await client.sitePage.deleteMany();
   await client.project.deleteMany();
   await client.membership.deleteMany();
@@ -441,6 +600,35 @@ function createTenantContext(fixture: OrganizationFixture) {
     membershipId: "integration-test-membership",
     role: "OWNER"
   } as const;
+}
+
+async function createPageFixture(
+  client: DatabasePrismaClient,
+  slugPrefix = "tenant-a"
+) {
+  const tenant = await createOrganizationFixture(client, slugPrefix);
+  const context = createTenantContext(tenant);
+  const projectRepository = new ProjectRepository(client);
+  const sitePageRepository = new SitePageRepository(client);
+  const project = await projectRepository.create({
+    organizationId: tenant.organization.id,
+    name: `${slugPrefix} Project`,
+    slug: `${slugPrefix}-project-${createTestSuffix()}`
+  });
+  const page = await sitePageRepository.create(context, project.id, {
+    title: `${slugPrefix} Page`,
+    slug: `${slugPrefix}-page`
+  });
+
+  if (page === null) {
+    throw new Error("Expected page fixture.");
+  }
+
+  return {
+    context,
+    project,
+    page
+  };
 }
 
 function createTestSuffix(): string {

@@ -18,7 +18,9 @@ export const API_ERROR_CODES = {
   projectNotFound: "PROJECT_NOT_FOUND",
   pageNotFound: "PAGE_NOT_FOUND",
   projectSlugAlreadyExists: "PROJECT_SLUG_ALREADY_EXISTS",
-  pageSlugAlreadyExists: "PAGE_SLUG_ALREADY_EXISTS"
+  pageSlugAlreadyExists: "PAGE_SLUG_ALREADY_EXISTS",
+  pageDocumentInvalid: "PAGE_DOCUMENT_INVALID",
+  pageDocumentRevisionConflict: "PAGE_DOCUMENT_REVISION_CONFLICT"
 } as const;
 
 export type ApiErrorCode =
@@ -26,7 +28,12 @@ export type ApiErrorCode =
 
 export type ApiValidationIssue = {
   readonly field: string;
-  readonly code: DomainErrorCode | "FIELD_REQUIRED" | "FIELD_INVALID_TYPE";
+  readonly code:
+    | DomainErrorCode
+    | "DOCUMENT_INVALID"
+    | "FIELD_REQUIRED"
+    | "FIELD_INVALID_TYPE"
+    | "FIELD_INVALID_VALUE";
   readonly message: string;
 };
 
