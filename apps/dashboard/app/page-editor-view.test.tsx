@@ -24,10 +24,25 @@ describe("PageEditorView", () => {
     expect(html).toContain("Есть изменения");
     expect(html).toContain("Сохранить");
   });
+
+  it("renders unsaved changes preview warning", () => {
+    const html = renderEditor({
+      state: createReadyState("dirty"),
+      previewWarningOpen: true
+    });
+
+    expect(html).toContain(
+      "Предпросмотр показывает последнюю сохранённую версию"
+    );
+    expect(html).toContain("Сохранить и открыть");
+    expect(html).toContain("Открыть сохранённую версию");
+    expect(html).toContain("Отмена");
+  });
 });
 
 function renderEditor(input: {
   readonly state?: PageEditorLoadState;
+  readonly previewWarningOpen?: boolean;
 } = {}): string {
   return renderToStaticMarkup(
     React.createElement(PageEditorView, {
@@ -40,7 +55,12 @@ function renderEditor(input: {
       onUpdateText: () => undefined,
       onUpdateButton: () => undefined,
       onUpdateSpacer: () => undefined,
-      onSave: () => undefined
+      onSave: () => undefined,
+      onPreview: () => undefined,
+      previewWarningOpen: input.previewWarningOpen ?? false,
+      onSaveAndPreview: () => undefined,
+      onOpenSavedPreview: () => undefined,
+      onCancelPreview: () => undefined
     })
   );
 }

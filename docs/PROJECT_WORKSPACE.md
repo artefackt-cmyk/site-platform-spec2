@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This document describes the first internal project workspace and page editor flow.
+This document describes the first internal project workspace, page editor and page preview flow.
 
-The current implementation is intentionally limited to project navigation, page metadata and editing the current draft page document. It does not add publication, storefront rendering, production authentication, commerce or integrations.
+The current implementation is intentionally limited to project navigation, page metadata, editing the current draft page document and previewing the saved draft. It does not add publication, storefront rendering, production authentication, commerce or integrations.
 
 ## Workspace Structure
 
@@ -13,7 +13,7 @@ The dashboard project workspace opens from a project card.
 The workspace has:
 
 - a top panel with project name and status;
-- disabled `Предпросмотр` and `Опубликовать` actions;
+- disabled project-level `Предпросмотр` and `Опубликовать` actions;
 - a link back to the projects list;
 - a left navigation for `Обзор`, `Страницы`, `Дизайн`, `Настройки` and `Домен`;
 - a default `Страницы` section;
@@ -33,7 +33,7 @@ The editor route is `/projects/[projectId]/pages/[pageId]`.
 
 The editor has:
 
-- a sticky top bar with breadcrumb, page title, page status, save state, `Сохранить`, disabled `Предпросмотр` and `Назад к страницам`;
+- a sticky top bar with breadcrumb, page title, page status, save state, `Сохранить`, `Предпросмотр` and `Назад к страницам`;
 - a left panel with the current block list and add-block buttons;
 - a central canvas rendered through `packages/renderer`;
 - a right inspector for the selected block;
@@ -57,6 +57,45 @@ The user can:
 
 Inspector changes update the canvas immediately in local editor state. They are persisted only after clicking `Сохранить`.
 
+The editor preview button opens `/projects/[projectId]/pages/[pageId]/preview`.
+
+If the editor document is saved, preview opens immediately. If the editor has unsaved changes, the user sees a warning:
+
+`Предпросмотр показывает последнюю сохранённую версию`
+
+The warning offers:
+
+- `Сохранить и открыть`;
+- `Открыть сохранённую версию`;
+- `Отмена`.
+
+`Сохранить и открыть` waits for a successful document save and opens preview only after the API returns a new revision. Failed saves keep the user in the editor.
+
+## Page Preview
+
+The preview route is `/projects/[projectId]/pages/[pageId]/preview`.
+
+Preview:
+
+- loads project metadata;
+- loads page metadata;
+- loads the saved draft `PageDocument`;
+- validates the document through `packages/editor-core`;
+- renders the page through `packages/renderer` with `mode="preview"`;
+- does not show editor borders, selected state, inspector or block controls.
+
+Preview mode and editor mode use the same renderer. Editor mode adds editor chrome and selection behavior. Preview mode renders the page as a clean saved draft without editor controls.
+
+Preview has viewport modes:
+
+- `Desktop`: width `100%`, max width `1440px`;
+- `Tablet`: width `768px`;
+- `Mobile`: width `390px`.
+
+Narrow screens can horizontally scroll the preview canvas instead of breaking layout.
+
+Preview is not publication. It does not create a public URL, storefront route, custom domain or published snapshot. It shows the latest saved draft document.
+
 ## Routes
 
 Dashboard routes:
@@ -66,6 +105,7 @@ Dashboard routes:
 | `/` | Projects list. |
 | `/projects/[projectId]` | Project workspace. |
 | `/projects/[projectId]/pages/[pageId]` | Page editor. |
+| `/projects/[projectId]/pages/[pageId]/preview` | Preview of the saved draft page document. |
 
 API routes:
 
@@ -131,17 +171,17 @@ Document operations come from `packages/editor-core` and are immutable. Zustand,
 - No drag-and-drop.
 - No autosave.
 - No undo/redo.
-- No preview route.
 - No publication flow.
 - No published snapshot.
 - No storefront rendering.
+- No public preview URL.
 - No custom domains.
+- No responsive block settings.
 - No image, form, product, section, column or nested container blocks.
 - No collaborative editing.
 
 ## Next Steps
 
-1. Add preview rendering after draft editing is stable.
-2. Add publication and published snapshots.
-3. Extend the block library inside the MVP boundaries.
-4. Add JSON schema migration helpers when `schemaVersion` changes.
+1. Add publication and published snapshots after draft preview is stable.
+2. Extend the block library inside the MVP boundaries.
+3. Add JSON schema migration helpers when `schemaVersion` changes.

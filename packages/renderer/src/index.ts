@@ -162,6 +162,8 @@ function ButtonRenderer({
   readonly block: ButtonBlock;
   readonly mode: PageRendererMode;
 }): React.ReactElement {
+  const linkProps = createButtonLinkProps(block, mode);
+
   return React.createElement(
     "div",
     {
@@ -175,13 +177,7 @@ function ButtonRenderer({
       "a",
       {
         className: `sp-button sp-button-${block.props.variant}`,
-        href: block.props.href,
-        onClick:
-          mode === "editor"
-            ? (event: React.MouseEvent<HTMLAnchorElement>) => {
-                event.preventDefault();
-              }
-            : undefined,
+        ...linkProps,
         style: {
           display: "inline-flex",
           minHeight: 42,
@@ -201,6 +197,52 @@ function ButtonRenderer({
       block.props.label
     )
   );
+}
+
+function createButtonLinkProps(
+  block: ButtonBlock,
+  mode: PageRendererMode
+): {
+  readonly href: string;
+  readonly onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+  readonly target?: "_blank";
+  readonly rel?: "noreferrer";
+  readonly "data-disabled-link"?: "true";
+} {
+  if (mode === "editor") {
+    return {
+      href: block.props.href,
+      onClick: (event) => {
+        event.preventDefault();
+      }
+    };
+  }
+
+  if (block.props.href === "#") {
+    return {
+      href: block.props.href,
+      "data-disabled-link": "true",
+      onClick: (event) => {
+        event.preventDefault();
+      }
+    };
+  }
+
+  if (isExternalHref(block.props.href)) {
+    return {
+      href: block.props.href,
+      target: "_blank",
+      rel: "noreferrer"
+    };
+  }
+
+  return {
+    href: block.props.href
+  };
+}
+
+function isExternalHref(href: string): boolean {
+  return /^https?:\/\//i.test(href);
 }
 
 function SpacerRenderer({

@@ -160,6 +160,7 @@ pnpm --filter @site-platform/dashboard dev
 - dashboard: `http://localhost:3000`;
 - project workspace: `http://localhost:3000/projects/{projectId}`;
 - page editor: `http://localhost:3000/projects/{projectId}/pages/{pageId}`;
+- page preview: `http://localhost:3000/projects/{projectId}/pages/{pageId}/preview`;
 - API: `http://localhost:3002`;
 - database health: `http://localhost:3002/health/database`.
 
@@ -187,15 +188,18 @@ pnpm --filter @site-platform/dashboard dev
 - добавление блоков `heading`, `text`, `button` и `spacer`;
 - выбор, редактирование, перемещение вверх/вниз и удаление блоков;
 - сохранение документа в PostgreSQL с проверкой `revision`.
+- предпросмотр последней сохранённой draft-версии через общий `PageRenderer`;
+- переключение ширины preview canvas: Desktop, Tablet, Mobile.
 
 Пока не реализовано:
 
-- предпросмотр;
 - публикация.
 - autosave;
 - undo/redo;
 - drag-and-drop;
 - storefront rendering.
+
+Preview route `/projects/{projectId}/pages/{pageId}/preview` не является публичным storefront URL и не использует published snapshot. Он загружает сохранённый `PageDocument`, валидирует его и рендерит через `packages/renderer` в `mode="preview"` без editor chrome, inspector и block controls. Если в editor есть несохранённые изменения, кнопка `Предпросмотр` предупреждает, что preview показывает последнюю сохранённую версию.
 
 ## Команды проверки
 

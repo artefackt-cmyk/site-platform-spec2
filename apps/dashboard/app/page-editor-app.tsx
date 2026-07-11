@@ -19,6 +19,11 @@ import {
   selectBlock,
   updateSelectedBlockProps
 } from "./page-editor-state";
+import {
+  openSavedPreview,
+  saveAndOpenPreview,
+  shouldWarnBeforePreview
+} from "./page-editor-preview-flow";
 
 export function PageEditorApp({
   apiUrl,
@@ -33,6 +38,7 @@ export function PageEditorApp({
   const [state, setState] = useState<PageEditorLoadState>({
     status: "loading"
   });
+  const [previewWarningOpen, setPreviewWarningOpen] = useState(false);
 
   const loadPage = useCallback(async () => {
     setState({
@@ -80,9 +86,9 @@ export function PageEditorApp({
     []
   );
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (): Promise<boolean> => {
     if (state.status !== "ready" || !canSaveEditorState(state.editor)) {
-      return;
+      return false;
     }
 
     const snapshot = {
@@ -109,12 +115,52 @@ export function PageEditorApp({
       });
 
       updateEditor((editor) => markSaved(editor, response));
+      return true;
     } catch (error) {
       updateEditor((editor) =>
         markSaveError(editor, toSaveErrorMessage(error))
       );
+      return false;
     }
   }, [apiClient, pageId, projectId, state, updateEditor]);
+
+  const navigateToPreview = useCallback(
+    (path: string) => {
+      window.location.assign(path);
+    },
+    []
+  );
+
+  const openPreview = useCallback(() => {
+    if (state.status !== "ready") {
+      return;
+    }
+
+    if (shouldWarnBeforePreview(state.editor.saveStatus)) {
+      setPreviewWarningOpen(true);
+      return;
+    }
+
+    openSavedPreview(projectId, pageId, navigateToPreview);
+  }, [navigateToPreview, pageId, projectId, state]);
+
+  const saveBeforePreview = useCallback(async () => {
+    const opened = await saveAndOpenPreview({
+      projectId,
+      pageId,
+      save,
+      navigate: navigateToPreview
+    });
+
+    if (opened) {
+      setPreviewWarningOpen(false);
+    }
+  }, [navigateToPreview, pageId, projectId, save]);
+
+  const openSavedVersion = useCallback(() => {
+    setPreviewWarningOpen(false);
+    openSavedPreview(projectId, pageId, navigateToPreview);
+  }, [navigateToPreview, pageId, projectId]);
 
   return (
     <PageEditorView
@@ -142,6 +188,11 @@ export function PageEditorApp({
         updateEditor((editor) => updateSelectedBlockProps(editor, props))
       }
       onSave={save}
+      onPreview={openPreview}
+      previewWarningOpen={previewWarningOpen}
+      onSaveAndPreview={saveBeforePreview}
+      onOpenSavedPreview={openSavedVersion}
+      onCancelPreview={() => setPreviewWarningOpen(false)}
     />
   );
 }

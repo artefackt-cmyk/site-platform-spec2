@@ -38,7 +38,12 @@ export type PageEditorViewProps = {
   readonly onUpdateText: (props: Partial<BlockPropsByType["text"]>) => void;
   readonly onUpdateButton: (props: Partial<BlockPropsByType["button"]>) => void;
   readonly onUpdateSpacer: (props: Partial<BlockPropsByType["spacer"]>) => void;
-  readonly onSave: () => void;
+  readonly onSave: () => void | Promise<boolean>;
+  readonly onPreview: () => void;
+  readonly previewWarningOpen: boolean;
+  readonly onSaveAndPreview: () => void;
+  readonly onOpenSavedPreview: () => void;
+  readonly onCancelPreview: () => void;
 };
 
 export function PageEditorView({
@@ -51,7 +56,12 @@ export function PageEditorView({
   onUpdateText,
   onUpdateButton,
   onUpdateSpacer,
-  onSave
+  onSave,
+  onPreview,
+  previewWarningOpen,
+  onSaveAndPreview,
+  onOpenSavedPreview,
+  onCancelPreview
 }: PageEditorViewProps) {
   if (state.status === "loading") {
     return (
@@ -91,6 +101,7 @@ export function PageEditorView({
         saveStatus={state.editor.saveStatus}
         errorMessage={state.editor.errorMessage}
         onSave={onSave}
+        onPreview={onPreview}
       />
 
       <section className="editor-workbench">
@@ -132,6 +143,13 @@ export function PageEditorView({
           />
         </aside>
       </section>
+      {previewWarningOpen ? (
+        <PreviewWarningDialog
+          onSaveAndPreview={onSaveAndPreview}
+          onOpenSavedPreview={onOpenSavedPreview}
+          onCancelPreview={onCancelPreview}
+        />
+      ) : null}
     </main>
   );
 }
@@ -149,13 +167,15 @@ function EditorTopbar({
   page,
   saveStatus,
   errorMessage,
-  onSave
+  onSave,
+  onPreview
 }: {
   readonly project: ProjectSummary;
   readonly page: SitePageSummary;
   readonly saveStatus: EditorState["saveStatus"];
   readonly errorMessage: string | null;
-  readonly onSave: () => void;
+  readonly onSave: () => void | Promise<boolean>;
+  readonly onPreview: () => void;
 }) {
   return (
     <header className="editor-topbar">
@@ -181,7 +201,12 @@ function EditorTopbar({
         >
           Сохранить
         </button>
-        <button className="ghost-button" type="button" disabled>
+        <button
+          className="ghost-button"
+          type="button"
+          onClick={onPreview}
+          disabled={saveStatus === "saving"}
+        >
           Предпросмотр
         </button>
         <a className="ghost-button" href={`/projects/${project.id}`}>
@@ -194,6 +219,47 @@ function EditorTopbar({
         </p>
       )}
     </header>
+  );
+}
+
+function PreviewWarningDialog({
+  onSaveAndPreview,
+  onOpenSavedPreview,
+  onCancelPreview
+}: {
+  readonly onSaveAndPreview: () => void;
+  readonly onOpenSavedPreview: () => void;
+  readonly onCancelPreview: () => void;
+}) {
+  return (
+    <div className="preview-warning-backdrop" role="presentation">
+      <section
+        className="preview-warning-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preview-warning-title"
+      >
+        <p className="eyebrow">Предпросмотр</p>
+        <h2 id="preview-warning-title">
+          Предпросмотр показывает последнюю сохранённую версию
+        </h2>
+        <p>
+          У вас есть несохранённые изменения. Сохраните их перед открытием
+          предпросмотра или откройте последнюю сохранённую версию.
+        </p>
+        <div className="preview-warning-actions">
+          <button className="primary-button" type="button" onClick={onSaveAndPreview}>
+            Сохранить и открыть
+          </button>
+          <button className="secondary-button" type="button" onClick={onOpenSavedPreview}>
+            Открыть сохранённую версию
+          </button>
+          <button className="ghost-button" type="button" onClick={onCancelPreview}>
+            Отмена
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 

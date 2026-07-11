@@ -59,6 +59,43 @@ describe("@site-platform/renderer", () => {
     expect(html).toContain("href=\"/catalog\"");
   });
 
+  it("marks placeholder preview button links as disabled navigation", () => {
+    const html = renderDocument([
+      {
+        id: "button-1",
+        type: "button",
+        props: {
+          label: "Не переходить",
+          href: "#",
+          align: "left",
+          variant: "secondary"
+        }
+      }
+    ]);
+
+    expect(html).toContain("href=\"#\"");
+    expect(html).toContain("data-disabled-link=\"true\"");
+  });
+
+  it("renders external preview button links safely", () => {
+    const html = renderDocument([
+      {
+        id: "button-1",
+        type: "button",
+        props: {
+          label: "Открыть",
+          href: "https://example.com",
+          align: "left",
+          variant: "primary"
+        }
+      }
+    ]);
+
+    expect(html).toContain("href=\"https://example.com\"");
+    expect(html).toContain("target=\"_blank\"");
+    expect(html).toContain("rel=\"noreferrer\"");
+  });
+
   it("renders spacer blocks", () => {
     const html = renderDocument([
       {
