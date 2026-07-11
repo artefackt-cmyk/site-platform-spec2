@@ -26,6 +26,10 @@ export type AppConfig = {
     readonly developmentUrl?: string;
     readonly testUrl?: string;
   };
+  readonly media: {
+    readonly storageDir: string;
+    readonly publicBaseUrl: string;
+  };
 };
 
 export type PublicAppConfig = {
@@ -82,6 +86,8 @@ const environmentSchema = z
     DEV_USER_EMAIL: optionalEmailSchema,
     DASHBOARD_ORIGIN: publicUrlSchema.default("http://localhost:3000"),
     NEXT_PUBLIC_API_URL: publicUrlSchema.default("http://localhost:3002"),
+    MEDIA_STORAGE_DIR: z.string().trim().min(1).default(".local-media"),
+    MEDIA_PUBLIC_BASE_URL: publicUrlSchema.default("http://localhost:3002"),
     API_PORT: portSchema.default(3002),
     DASHBOARD_PORT: portSchema.default(3000),
     STOREFRONT_PORT: portSchema.default(3001)
@@ -248,6 +254,10 @@ function toAppConfig(env: ParsedEnvironment): AppConfig {
       activeUrlKind,
       ...(env.DATABASE_URL === undefined ? {} : { developmentUrl: env.DATABASE_URL }),
       ...(env.TEST_DATABASE_URL === undefined ? {} : { testUrl: env.TEST_DATABASE_URL })
+    },
+    media: {
+      storageDir: env.MEDIA_STORAGE_DIR,
+      publicBaseUrl: env.MEDIA_PUBLIC_BASE_URL
     }
   };
 }

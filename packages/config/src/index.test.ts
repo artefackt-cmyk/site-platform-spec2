@@ -33,6 +33,10 @@ describe("loadConfig", () => {
         dashboardOrigin: "http://localhost:3000",
         publicApiUrl: "http://localhost:3002"
       },
+      media: {
+        storageDir: ".local-media",
+        publicBaseUrl: "http://localhost:3002"
+      },
       development: {
         devUserEmail: "Owner@Example.COM"
       },

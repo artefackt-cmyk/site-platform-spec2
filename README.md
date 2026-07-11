@@ -25,9 +25,12 @@ TEST_DATABASE_URL=postgresql://site_platform:site_platform_local_password@localh
 DEV_USER_EMAIL=owner@example.com
 DASHBOARD_ORIGIN=http://localhost:3000
 NEXT_PUBLIC_API_URL=http://localhost:3002
+MEDIA_STORAGE_DIR=.local-media
+MEDIA_PUBLIC_BASE_URL=http://localhost:3002
 ```
 
 `DEV_USER_EMAIL` используется только в `NODE_ENV=development`. Это не production-auth, не session, не cookie и не token.
+`MEDIA_STORAGE_DIR` используется только локальным storage adapter для development uploads. Не указывайте production bucket credentials в `.env`.
 
 ## PostgreSQL
 
@@ -77,6 +80,7 @@ pnpm db:migrate:test
 - `Project`;
 - `SitePage`;
 - `PageDocument`;
+- `MediaAsset`;
 - `AuditLog`.
 
 Открыть Prisma Studio:
@@ -149,6 +153,11 @@ API endpoints:
 - `GET /api/projects/:projectId/pages/:pageId` - данные страницы проекта.
 - `GET /api/projects/:projectId/pages/:pageId/document` - draft-документ страницы; если документа нет, API создает пустой документ.
 - `PUT /api/projects/:projectId/pages/:pageId/document` - сохранение draft-документа с optimistic concurrency по `revision`.
+- `GET /api/projects/:projectId/media` - изображения проекта;
+- `POST /api/projects/:projectId/media` - загрузка JPEG, PNG или WebP до 10 MB;
+- `PATCH /api/projects/:projectId/media/:assetId` - обновление media metadata;
+- `DELETE /api/projects/:projectId/media/:assetId` - удаление неиспользуемого media asset;
+- `GET /api/projects/:projectId/media/:assetId/content` - project-scoped выдача файла.
 
 Для раздельного запуска:
 
@@ -161,6 +170,7 @@ pnpm --filter @site-platform/dashboard dev
 
 - dashboard: `http://localhost:3000`;
 - project workspace: `http://localhost:3000/projects/{projectId}`;
+- media library: `http://localhost:3000/projects/{projectId}/media`;
 - page editor: `http://localhost:3000/projects/{projectId}/pages/{pageId}`;
 - page preview: `http://localhost:3000/projects/{projectId}/pages/{pageId}/preview`;
 - API: `http://localhost:3002`;
@@ -183,6 +193,7 @@ pnpm --filter @site-platform/dashboard dev
 - просмотр активной организации;
 - просмотр и создание проектов;
 - открытие рабочей области проекта;
+- открытие медиабиблиотеки проекта;
 - просмотр страниц проекта;
 - создание страниц проекта;
 - открытие редактора страницы;
@@ -192,6 +203,10 @@ pnpm --filter @site-platform/dashboard dev
 - изменение соотношения колонок;
 - добавление блоков `heading`, `text`, `button`, `image` и `spacer` в выбранную секцию или колонку;
 - редактирование свойств секций, колонок, текстовых блоков, кнопок, изображений и отступов;
+- загрузка JPEG, PNG и WebP изображений в локальную project media library;
+- выбор изображения из медиабиблиотеки для `ImageBlock`;
+- обновление alt text media asset;
+- удаление неиспользуемых media assets;
 - выбор, редактирование, перемещение вверх/вниз и удаление секций и leaf-блоков;
 - сохранение документа в PostgreSQL с проверкой `revision`.
 - предпросмотр последней сохранённой draft-версии через общий `PageRenderer`;
@@ -203,7 +218,7 @@ pnpm --filter @site-platform/dashboard dev
 - autosave;
 - undo/redo;
 - drag-and-drop;
-- загрузка файлов и S3;
+- S3, CDN и image resize pipeline;
 - storefront rendering.
 
 Preview route `/projects/{projectId}/pages/{pageId}/preview` не является публичным storefront URL и не использует published snapshot. Он загружает сохранённый `PageDocument`, валидирует его и рендерит через `packages/renderer` в `mode="preview"` без editor chrome, inspector и block controls. Если в editor есть несохранённые изменения, кнопка `Предпросмотр` предупреждает, что preview показывает последнюю сохранённую версию.
@@ -242,6 +257,10 @@ pnpm --filter @site-platform/database... test
 
 `PageDocument` всегда связан с одной `SitePage` и дополнительно хранит `organizationId` и `projectId`. Репозиторий документов не предоставляет lookup только по `id`: чтение и сохранение выполняются через `TenantContext`, `projectId` и `pageId`. Сохранение использует optimistic concurrency через `revision`; stale revision возвращает conflict.
 
+`MediaAsset` всегда связан с одной `Organization` и одним `Project`. Репозиторий media assets не предоставляет project-less lookup: список, чтение, обновление и удаление выполняются через `TenantContext` и `projectId`. API сохранения PageDocument проверяет, что каждый `ImageBlock.props.assetId` принадлежит тому же проекту. Чужие или неизвестные media assets возвращаются как invalid document/not found, без раскрытия существования объекта в другом tenant.
+
+Локальные файлы лежат под `MEDIA_STORAGE_DIR`, но dashboard получает только API URL вида `/api/projects/:projectId/media/:assetId/content`. Удаление media asset блокируется, если asset используется в сохранённых PageDocuments проекта.
+
 Обычные запросы к `Organization` и `Project` исключают записи с `deletedAt`. `AuditLog` считается append-only: repository предоставляет только create/read методы.
 
 ## Структура monorepo
@@ -258,6 +277,7 @@ packages/
   config/      Zod env validation и typed config
   database/    Prisma/PostgreSQL foundation, repositories и tenant-aware tests
   domain/      tenant context, RBAC permissions, validators и domain errors
+  media-storage/ local MediaStorage adapter и image upload validation
   editor-core/ схема PageDocument v1 и immutable document commands
   integrations/
   renderer/    общий React renderer для editor/preview/future storefront

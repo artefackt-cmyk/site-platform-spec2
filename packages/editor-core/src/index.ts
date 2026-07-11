@@ -88,6 +88,7 @@ export const SpacerBlockPropsSchema = z
 
 export const ImageBlockPropsSchema = z
   .object({
+    assetId: z.string().trim().min(1).optional(),
     src: z.string(),
     alt: z.string(),
     caption: z.string().optional(),
@@ -552,6 +553,91 @@ export function validatePageDocument(
   return {
     ok: false,
     errors: toValidationErrors(result.error)
+  };
+}
+
+export function collectPageDocumentImageAssetIds(
+  document: PageDocumentV2
+): readonly string[] {
+  return collectPageDocumentImageAssetReferences(document).map(
+    (reference) => reference.assetId
+  );
+}
+
+export type ImageAssetReference = {
+  readonly blockId: string;
+  readonly assetId: string;
+  readonly src: string;
+};
+
+export function collectPageDocumentImageAssetReferences(
+  document: PageDocumentV2
+): readonly ImageAssetReference[] {
+  return collectV2Nodes(document)
+    .filter((node): node is ImageBlock => node.type === "image")
+    .flatMap((node) =>
+      node.props.assetId === undefined
+        ? []
+        : [
+            {
+              blockId: node.id,
+              assetId: node.props.assetId,
+              src: node.props.src
+            }
+          ]
+    );
+}
+
+export function updateImageBlockExternalUrl(
+  document: PageDocumentV2,
+  blockId: string,
+  src: string
+): PageDocumentV2 {
+  return updateNode(document, blockId, (node) =>
+    node.type === "image" ? updateImageNodeExternalUrl(node, src) : node
+  );
+}
+
+export function updateImageBlockAsset(
+  document: PageDocumentV2,
+  blockId: string,
+  input: {
+    readonly assetId: string;
+    readonly src: string;
+    readonly alt?: string | null;
+  }
+): PageDocumentV2 {
+  return updateNode(document, blockId, (node) =>
+    node.type === "image"
+      ? {
+          ...node,
+          props: ImageBlockPropsSchema.parse({
+            ...node.props,
+            assetId: input.assetId,
+            src: input.src,
+            alt:
+              node.props.alt.trim() === ""
+                ? input.alt?.trim() || node.props.alt
+                : node.props.alt
+          })
+        }
+      : node
+  );
+}
+
+function updateImageNodeExternalUrl(node: ImageBlock, src: string): ImageBlock {
+  const props = {
+    ...node.props
+  };
+
+  delete props.assetId;
+
+  return {
+    ...node,
+    props: ImageBlockPropsSchema.parse({
+      ...props,
+      src
+    })
   };
 }
 

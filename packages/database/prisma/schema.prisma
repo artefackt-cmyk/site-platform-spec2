@@ -35,6 +35,7 @@ model User {
   updatedAt   DateTime     @updatedAt @map("updated_at")
   memberships Membership[]
   auditLogs   AuditLog[]   @relation("AuditActor")
+  mediaAssets MediaAsset[] @relation("MediaAssetCreator")
 
   @@map("users")
 }
@@ -50,6 +51,7 @@ model Organization {
   projects    Project[]
   sitePages   SitePage[]
   pageDocuments PageDocument[]
+  mediaAssets MediaAsset[]
   auditLogs   AuditLog[]
 
   @@map("organizations")
@@ -82,6 +84,7 @@ model Project {
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   sitePages      SitePage[]
   pageDocuments  PageDocument[]
+  mediaAssets    MediaAsset[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -125,6 +128,30 @@ model PageDocument {
 
   @@index([organizationId, projectId, pageId])
   @@map("page_documents")
+}
+
+model MediaAsset {
+  id               String       @id @default(cuid())
+  organizationId   String       @map("organization_id")
+  projectId        String       @map("project_id")
+  storageKey       String       @unique @map("storage_key")
+  originalFilename String       @map("original_filename")
+  mimeType         String       @map("mime_type")
+  sizeBytes        Int          @map("size_bytes")
+  width            Int?
+  height           Int?
+  altText          String?      @map("alt_text")
+  createdByUserId  String       @map("created_by_user_id")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  createdByUser    User         @relation("MediaAssetCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([projectId, createdAt])
+  @@map("media_assets")
 }
 
 model AuditLog {

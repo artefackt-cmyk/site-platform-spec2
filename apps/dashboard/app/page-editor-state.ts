@@ -15,6 +15,8 @@ import {
   moveSectionDown,
   moveSectionUp,
   removeNode,
+  updateImageBlockAsset,
+  updateImageBlockExternalUrl,
   updateNodeProps,
   validatePageDocument,
   type BlockNode,
@@ -136,6 +138,42 @@ export function updateSelectedBlockProps<TType extends BlockType>(
     state,
     props as Partial<NodePropsByType[TType]>
   );
+}
+
+export function updateSelectedImageExternalUrl(
+  state: EditorState,
+  src: string
+): EditorState {
+  if (state.selectedNodeId === null) {
+    return state;
+  }
+
+  return markDirty({
+    ...state,
+    document: updateImageBlockExternalUrl(state.document, state.selectedNodeId, src)
+  });
+}
+
+export function selectImageAssetForSelectedBlock(
+  state: EditorState,
+  input: {
+    readonly assetId: string;
+    readonly url: string;
+    readonly altText: string | null;
+  }
+): EditorState {
+  if (state.selectedNodeId === null) {
+    return state;
+  }
+
+  return markDirty({
+    ...state,
+    document: updateImageBlockAsset(state.document, state.selectedNodeId, {
+      assetId: input.assetId,
+      src: input.url,
+      alt: input.altText
+    })
+  });
 }
 
 export function convertSelectedSection(

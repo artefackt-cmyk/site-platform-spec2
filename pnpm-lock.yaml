@@ -56,6 +56,9 @@ importers:
       '@site-platform/editor-core':
         specifier: workspace:*
         version: link:../../packages/editor-core
+      '@site-platform/media-storage':
+        specifier: workspace:*
+        version: link:../../packages/media-storage
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -168,6 +171,8 @@ importers:
         version: 4.4.3
 
   packages/integrations: {}
+
+  packages/media-storage: {}
 
   packages/renderer:
     dependencies:

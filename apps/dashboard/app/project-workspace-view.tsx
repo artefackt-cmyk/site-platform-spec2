@@ -133,6 +133,9 @@ function ProjectWorkspaceTopbar({
         <h1>{project.name}</h1>
       </div>
       <div className="workspace-actions">
+        <a className="ghost-button" href={`/projects/${project.id}/media`}>
+          Медиа
+        </a>
         <span className="project-status">{project.status}</span>
         <button className="ghost-button" disabled>
           Предпросмотр

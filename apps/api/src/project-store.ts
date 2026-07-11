@@ -1,10 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   AuditLogRepository,
+  MediaAssetRepository,
   PageDocumentRepository,
   ProjectRepository,
   SitePageRepository,
   type DatabasePrismaClient,
+  type MediaAsset,
   type PageDocumentRecord,
   type Project,
   type SitePage
@@ -67,6 +69,11 @@ export type ProjectStore = {
     projectId: string,
     pageId: string
   ) => Promise<PageDocumentRecord | null>;
+  readonly findMediaAssetById: (
+    tenantContext: TenantContext,
+    projectId: string,
+    assetId: string
+  ) => Promise<MediaAsset | null>;
   readonly savePageDocumentWithAudit: (
     input: SavePageDocumentInput
   ) => Promise<PageDocumentRecord | null>;
@@ -256,6 +263,18 @@ export class PrismaProjectStore implements ProjectStore {
 
       return pageDocument;
     });
+  }
+
+  async findMediaAssetById(
+    tenantContext: TenantContext,
+    projectId: string,
+    assetId: string
+  ): Promise<MediaAsset | null> {
+    return new MediaAssetRepository(this.client).findByIdForProject(
+      tenantContext,
+      projectId,
+      assetId
+    );
   }
 }
 

@@ -4,7 +4,7 @@
 
 `PageDocument` stores the editable draft content for one `SitePage`.
 
-Version 2 is the current write schema. It adds real page structure while keeping the MVP bounded to sections, columns, leaf blocks and externally referenced images.
+Version 2 is the current write schema. It adds real page structure while keeping the MVP bounded to sections, columns, leaf blocks, external images and project media-library image references.
 
 ## JSON Structure
 
@@ -78,6 +78,7 @@ type ImageBlock = {
   id: string;
   type: "image";
   props: {
+    assetId?: string;
     src: string;
     alt: string;
     caption?: string;
@@ -91,6 +92,8 @@ type ImageBlock = {
 ```
 
 `src` can be empty while a draft image is not configured. A non-empty `src` must be an `http` or `https` URL, and `alt` is required. `data:`, `javascript:` and other protocols are rejected. The renderer shows a placeholder for empty or failed image URLs and never fetches images on the server.
+
+`assetId` is optional. When present, it points to a `MediaAsset` inside the same project. The corresponding `src` is the project-scoped media content API URL. The API rejects saved documents that reference unknown, cross-project or cross-tenant media assets. Setting an external URL clears `assetId`.
 
 ## Nesting Rules
 

@@ -32,7 +32,7 @@ PageDocument V2 supports nested nodes:
 - maximum tree depth is fixed and validated by `packages/editor-core`;
 - duplicate ids are rejected across the whole tree.
 
-`ImageBlock` stores an external `http` or `https` URL. Empty `src` is valid for a draft placeholder. Non-empty `src` must not use `data:` or `javascript:` and must have non-empty `alt`. File upload, S3 and server-side fetching are deferred.
+`ImageBlock` stores either an external `http` or `https` URL, or a project media-library reference. Empty `src` is valid for a draft placeholder. Non-empty `src` must not use `data:` or `javascript:` and must have non-empty `alt`. When `assetId` is present, the API validates that the media asset belongs to the same project. S3 and server-side remote fetching are deferred.
 
 The current document is the draft document. A published snapshot is intentionally not implemented in this step.
 
@@ -62,7 +62,8 @@ Zustand is not introduced in this step. Editor state is kept in a small local re
 - Published page snapshots.
 - Storefront rendering.
 - Drag-and-drop editing.
-- File uploads and S3.
+- S3-backed uploads.
+- Image resizing and optimization.
 - Absolute positioning.
 - Autosave.
 - Undo/redo.

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import type { AppConfig } from "@site-platform/config";
 import {
   PageDocumentInvalidError,
   PageDocumentRevisionConflictError,
@@ -8,6 +9,7 @@ import {
 } from "@site-platform/database";
 import {
   PAGE_DOCUMENT_SCHEMA_VERSION,
+  collectPageDocumentImageAssetReferences,
   validatePageDocument,
   type PageDocumentV2
 } from "@site-platform/editor-core";
@@ -29,6 +31,7 @@ import {
   notFound,
   type ApiValidationIssue
 } from "./api-errors";
+import { APP_CONFIG } from "./app-config.provider";
 import {
   CURRENT_IDENTITY_RESOLVER,
   type CurrentIdentityResolver
@@ -39,6 +42,7 @@ import {
   isProjectSlugUniqueError,
   type ProjectStore
 } from "./project-store";
+import { createMediaAssetUrl } from "./media.service";
 
 export type ProjectResponse = {
   readonly id: string;
@@ -87,7 +91,8 @@ export class ProjectsService {
   constructor(
     @Inject(CURRENT_IDENTITY_RESOLVER)
     private readonly currentIdentityResolver: CurrentIdentityResolver,
-    @Inject(PROJECT_STORE) private readonly projectStore: ProjectStore
+    @Inject(PROJECT_STORE) private readonly projectStore: ProjectStore,
+    @Inject(APP_CONFIG) private readonly config: AppConfig
   ) {}
 
   async listProjects(): Promise<ProjectsListResponse> {
@@ -289,6 +294,21 @@ export class ProjectsService {
     await this.getPageOrThrow(identity.tenantContext, projectId, pageId);
 
     const payload = parseSavePageDocumentPayload(body);
+    const mediaIssues = await validatePageDocumentMediaAssets({
+      tenantContext: identity.tenantContext,
+      projectId,
+      document: payload.document,
+      projectStore: this.projectStore,
+      config: this.config
+    });
+
+    if (mediaIssues.length > 0) {
+      throw badRequest(
+        API_ERROR_CODES.pageDocumentInvalid,
+        "Page document is invalid.",
+        mediaIssues
+      );
+    }
 
     try {
       const pageDocument = await this.projectStore.savePageDocumentWithAudit({
@@ -357,6 +377,46 @@ export class ProjectsService {
 
     return page;
   }
+}
+
+async function validatePageDocumentMediaAssets(input: {
+  readonly tenantContext: TenantContext;
+  readonly projectId: string;
+  readonly document: PageDocumentV2;
+  readonly projectStore: ProjectStore;
+  readonly config: AppConfig;
+}): Promise<readonly ApiValidationIssue[]> {
+  const issues: ApiValidationIssue[] = [];
+  const references = collectPageDocumentImageAssetReferences(input.document);
+
+  for (const reference of references) {
+    const asset = await input.projectStore.findMediaAssetById(
+      input.tenantContext,
+      input.projectId,
+      reference.assetId
+    );
+
+    if (asset === null) {
+      issues.push({
+        field: `document.image.${reference.blockId}.assetId`,
+        code: "DOCUMENT_INVALID",
+        message: "Image asset was not found in this project."
+      });
+      continue;
+    }
+
+    const expectedUrl = createMediaAssetUrl(input.config, input.projectId, asset.id);
+
+    if (reference.src !== expectedUrl) {
+      issues.push({
+        field: `document.image.${reference.blockId}.src`,
+        code: "DOCUMENT_INVALID",
+        message: "Image asset URL does not match the selected asset."
+      });
+    }
+  }
+
+  return issues;
 }
 
 export function toProjectResponse(project: Project): ProjectResponse {

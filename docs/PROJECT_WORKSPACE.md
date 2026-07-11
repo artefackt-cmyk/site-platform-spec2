@@ -15,6 +15,7 @@ The workspace has:
 - a top panel with project name and status;
 - disabled project-level `Предпросмотр` and `Опубликовать` actions;
 - a link back to the projects list;
+- a link to project media;
 - a left navigation for `Обзор`, `Страницы`, `Дизайн`, `Настройки` and `Домен`;
 - a default `Страницы` section;
 - placeholder sections for `Обзор`, `Дизайн`, `Настройки` and `Домен`.
@@ -68,6 +69,9 @@ The user can:
 - move sections and leaf blocks up or down inside their parent;
 - delete sections and leaf blocks;
 - save the whole draft document.
+- open the media picker for image blocks;
+- upload JPEG, PNG and WebP images through the project media library;
+- select a media asset for an image block.
 
 Inspector changes update the canvas immediately in local editor state. They are persisted only after clicking `Сохранить`.
 
@@ -110,6 +114,21 @@ Narrow screens can horizontally scroll the preview canvas instead of breaking la
 
 Preview is not publication. It does not create a public URL, storefront route, custom domain or published snapshot. It shows the latest saved draft document.
 
+## Media Library
+
+The media library route is `/projects/[projectId]/media`.
+
+It supports project-scoped image uploads for local development:
+
+- JPEG, PNG and WebP;
+- maximum 10 MB per file;
+- optional asset alt text;
+- grid listing with image metadata;
+- alt text updates;
+- deleting unused assets.
+
+Media files are served through project-scoped API content URLs. The dashboard does not expose local filesystem paths. A single media asset can be used by multiple ImageBlocks. Deletion is blocked while a saved PageDocument references the asset.
+
 ## Routes
 
 Dashboard routes:
@@ -118,6 +137,7 @@ Dashboard routes:
 | --- | --- |
 | `/` | Projects list. |
 | `/projects/[projectId]` | Project workspace. |
+| `/projects/[projectId]/media` | Project media library. |
 | `/projects/[projectId]/pages/[pageId]` | Page editor. |
 | `/projects/[projectId]/pages/[pageId]/preview` | Preview of the saved draft page document. |
 
@@ -131,6 +151,11 @@ API routes:
 | `GET /api/projects/:projectId/pages/:pageId` | Return one active project page. |
 | `GET /api/projects/:projectId/pages/:pageId/document` | Return the current draft page document, creating an empty document when missing. |
 | `PUT /api/projects/:projectId/pages/:pageId/document` | Save the current draft page document with optimistic concurrency. |
+| `GET /api/projects/:projectId/media` | List media assets for the project. |
+| `POST /api/projects/:projectId/media` | Upload a project image asset. |
+| `PATCH /api/projects/:projectId/media/:assetId` | Update media metadata. |
+| `DELETE /api/projects/:projectId/media/:assetId` | Delete an unused media asset. |
+| `GET /api/projects/:projectId/media/:assetId/content` | Serve project-scoped media content. |
 
 All project, page and document queries are tenant-aware. Cross-tenant access returns `not found`.
 
@@ -163,6 +188,8 @@ It includes:
 
 `pageId` is unique, so there is one current draft document per page. `organizationId` and `projectId` are stored directly on `PageDocument` for tenant isolation and repository query constraints.
 
+`MediaAsset` stores project image metadata and points to binary content through a storage key. The storage key is internal and is not used directly by the dashboard.
+
 ## Editor State
 
 Editor state is kept outside React component rendering details in `apps/dashboard/app/page-editor-state.ts`.
@@ -191,7 +218,8 @@ Document operations come from `packages/editor-core` and are immutable. Zustand,
 - No public preview URL.
 - No custom domains.
 - No responsive block settings beyond renderer column stacking.
-- No file uploads or S3.
+- No S3 or CDN-backed media storage.
+- No image resize, optimization or transformations.
 - No form, product or custom code blocks.
 - No collaborative editing.
 

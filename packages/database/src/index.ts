@@ -15,6 +15,12 @@ export {
   type MembershipWithOrganization
 } from "./repositories/membership-repository";
 export {
+  MediaAssetRepository,
+  type CreateMediaAssetInput,
+  type MediaAssetUsage,
+  type UpdateMediaAssetMetadataInput
+} from "./repositories/media-asset-repository";
+export {
   OrganizationRepository,
   type CreateOrganizationInput
 } from "./repositories/organization-repository";
@@ -56,6 +62,7 @@ export {
 } from "./types";
 export type {
   PageDocument,
+  MediaAsset,
   Project,
   ProjectStatus,
   SitePage,

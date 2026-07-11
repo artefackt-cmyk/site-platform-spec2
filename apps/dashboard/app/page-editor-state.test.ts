@@ -11,6 +11,8 @@ import {
   markSaved,
   removeSelectedNode,
   selectNode,
+  selectImageAssetForSelectedBlock,
+  updateSelectedImageExternalUrl,
   updateSelectedNodeProps
 } from "./page-editor-state";
 
@@ -58,6 +60,39 @@ describe("page editor state", () => {
       }
     });
   });
+
+  it("selects image asset and clears assetId for external URL", () => {
+    const state = addBlock(addSection(createState()), "image");
+    const selected = selectImageAssetForSelectedBlock(state, {
+      assetId: "asset-1",
+      url: "http://localhost:3002/api/projects/project-a/media/asset-1/content",
+      altText: "Uploaded image"
+    });
+
+    expect(selected.document.root.children[0]?.children[0]).toMatchObject({
+      type: "image",
+      props: {
+        assetId: "asset-1",
+        src: "http://localhost:3002/api/projects/project-a/media/asset-1/content",
+        alt: "Uploaded image"
+      }
+    });
+
+    const external = updateSelectedImageExternalUrl(
+      selected,
+      "https://example.com/image.png"
+    );
+    const image = external.document.root.children[0]?.children[0];
+
+    expect(image).toMatchObject({
+      type: "image",
+      props: {
+        src: "https://example.com/image.png"
+      }
+    });
+    expect(image?.type === "image" ? image.props.assetId : undefined).toBeUndefined();
+  });
+
 
   it("converts selected section and can add into a selected column", () => {
     const sectionState = addSection(createState());

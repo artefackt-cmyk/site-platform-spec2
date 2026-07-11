@@ -58,6 +58,35 @@ export type PageDocumentResponse = {
   readonly document: PageDocumentV2;
 };
 
+export type MediaAssetSummary = {
+  readonly id: string;
+  readonly originalFilename: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly altText: string | null;
+  readonly url: string;
+  readonly createdAt: string;
+  readonly usageCount: number;
+};
+
+export type MediaAssetsListResponse = {
+  readonly assets: readonly MediaAssetSummary[];
+};
+
+export type UploadMediaAssetResponse = {
+  readonly asset: MediaAssetSummary;
+};
+
+export type UpdateMediaAssetResponse = {
+  readonly asset: MediaAssetSummary;
+};
+
+export type DeleteMediaAssetResponse = {
+  readonly deleted: true;
+};
+
 export type SavePageDocumentRequest = {
   readonly schemaVersion: 2;
   readonly revision: number;

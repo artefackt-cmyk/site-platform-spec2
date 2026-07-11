@@ -7,13 +7,15 @@ import {
   DevelopmentIdentityService
 } from "./current-identity";
 import { HealthController } from "./health.controller";
+import { MediaController } from "./media.controller";
+import { MediaService } from "./media.service";
 import { MeController } from "./me.controller";
 import { PROJECT_STORE, PrismaProjectStore } from "./project-store";
 import { ProjectsController } from "./projects.controller";
 import { ProjectsService } from "./projects.service";
 
 @Module({
-  controllers: [HealthController, MeController, ProjectsController],
+  controllers: [HealthController, MeController, ProjectsController, MediaController],
   providers: [
     appConfigProvider,
     databaseClientProvider,
@@ -28,7 +30,8 @@ import { ProjectsService } from "./projects.service";
       provide: PROJECT_STORE,
       useExisting: PrismaProjectStore
     },
-    ProjectsService
+    ProjectsService,
+    MediaService
   ]
 })
 export class AppModule {}

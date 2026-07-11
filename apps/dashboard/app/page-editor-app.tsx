@@ -7,6 +7,7 @@ import type {
   NodePropsByType,
   SectionLayout
 } from "@site-platform/editor-core";
+import type { MediaAssetSummary } from "./dashboard-types";
 import {
   DashboardApiError,
   createDashboardApiClient
@@ -26,6 +27,8 @@ import {
   moveNode,
   removeNodeById,
   selectNode,
+  selectImageAssetForSelectedBlock,
+  updateSelectedImageExternalUrl,
   updateSelectedNodeProps
 } from "./page-editor-state";
 import {
@@ -48,6 +51,13 @@ export function PageEditorApp({
     status: "loading"
   });
   const [previewWarningOpen, setPreviewWarningOpen] = useState(false);
+  const [mediaPicker, setMediaPicker] = useState({
+    open: false,
+    assets: [] as readonly MediaAssetSummary[],
+    loading: false,
+    uploading: false,
+    errorMessage: null as string | null
+  });
 
   const loadPage = useCallback(async () => {
     setState({
@@ -153,6 +163,84 @@ export function PageEditorApp({
     openSavedPreview(projectId, pageId, navigateToPreview);
   }, [navigateToPreview, pageId, projectId, state]);
 
+  const loadMediaAssets = useCallback(async () => {
+    setMediaPicker((current) => ({
+      ...current,
+      loading: true,
+      errorMessage: null
+    }));
+
+    try {
+      const response = await apiClient.listProjectMedia(projectId);
+
+      setMediaPicker((current) => ({
+        ...current,
+        assets: response.assets,
+        loading: false
+      }));
+    } catch (error) {
+      setMediaPicker((current) => ({
+        ...current,
+        loading: false,
+        errorMessage: toUserFacingError(error)
+      }));
+    }
+  }, [apiClient, projectId]);
+
+  const openImagePicker = useCallback(() => {
+    setMediaPicker((current) => ({
+      ...current,
+      open: true
+    }));
+    void loadMediaAssets();
+  }, [loadMediaAssets]);
+
+  const uploadImageAsset = useCallback(
+    async (file: File) => {
+      setMediaPicker((current) => ({
+        ...current,
+        uploading: true,
+        errorMessage: null
+      }));
+
+      try {
+        const response = await apiClient.uploadProjectMedia(projectId, {
+          file
+        });
+
+        setMediaPicker((current) => ({
+          ...current,
+          assets: [response.asset, ...current.assets],
+          uploading: false
+        }));
+      } catch (error) {
+        setMediaPicker((current) => ({
+          ...current,
+          uploading: false,
+          errorMessage: toUserFacingError(error)
+        }));
+      }
+    },
+    [apiClient, projectId]
+  );
+
+  const selectImageAsset = useCallback(
+    (asset: MediaAssetSummary) => {
+      updateEditor((editor) =>
+        selectImageAssetForSelectedBlock(editor, {
+          assetId: asset.id,
+          url: asset.url,
+          altText: asset.altText ?? asset.originalFilename
+        })
+      );
+      setMediaPicker((current) => ({
+        ...current,
+        open: false
+      }));
+    },
+    [updateEditor]
+  );
+
   const saveBeforePreview = useCallback(async () => {
     const opened = await saveAndOpenPreview({
       projectId,
@@ -206,8 +294,22 @@ export function PageEditorApp({
         updateEditor((editor) => updateSelectedNodeProps(editor, props))
       }
       onUpdateImage={(props: Partial<BlockPropsByType["image"]>) =>
-        updateEditor((editor) => updateSelectedNodeProps(editor, props))
+        updateEditor((editor) =>
+          props.src === undefined
+            ? updateSelectedNodeProps(editor, props)
+            : updateSelectedImageExternalUrl(editor, props.src)
+        )
       }
+      mediaPicker={mediaPicker}
+      onOpenImagePicker={openImagePicker}
+      onCloseImagePicker={() =>
+        setMediaPicker((current) => ({
+          ...current,
+          open: false
+        }))
+      }
+      onUploadImageAsset={uploadImageAsset}
+      onSelectImageAsset={selectImageAsset}
       onUpdateSpacer={(props: Partial<BlockPropsByType["spacer"]>) =>
         updateEditor((editor) => updateSelectedNodeProps(editor, props))
       }

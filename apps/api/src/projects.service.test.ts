@@ -1,7 +1,9 @@
 import "reflect-metadata";
 import { HttpException } from "@nestjs/common";
+import type { AppConfig } from "@site-platform/config";
 import {
   PageDocumentRevisionConflictError,
+  type MediaAsset,
   type PageDocumentRecord,
   type Project,
   type SitePage
@@ -435,6 +437,76 @@ describe("PUT /api/projects/:projectId/pages/:pageId/document", () => {
     );
   });
 
+  it("saves a document that references a media asset from the same project", async () => {
+    const document = insertBlock(
+      createEmptyPageDocument(),
+      {
+        ...createDefaultBlock("image"),
+        id: "image-1",
+        props: {
+          ...createDefaultBlock("image").props,
+          assetId: "asset-a",
+          src: "http://localhost:3002/api/projects/project-a/media/asset-a/content",
+          alt: "Asset alt"
+        }
+      }
+    );
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })],
+      pages: [createPage({ id: "page-a", projectId: "project-a" })],
+      documents: [createPageDocument({ pageId: "page-a", revision: 1 })],
+      mediaAssets: [createMediaAsset({ id: "asset-a", projectId: "project-a" })]
+    });
+
+    await expect(
+      service.saveProjectPageDocument("project-a", "page-a", {
+        schemaVersion: 2,
+        revision: 1,
+        document
+      })
+    ).resolves.toMatchObject({
+      revision: 2
+    });
+  });
+
+  it("rejects a document that references a media asset outside the project", async () => {
+    const document = insertBlock(
+      createEmptyPageDocument(),
+      {
+        ...createDefaultBlock("image"),
+        id: "image-1",
+        props: {
+          ...createDefaultBlock("image").props,
+          assetId: "asset-b",
+          src: "http://localhost:3002/api/projects/project-a/media/asset-b/content",
+          alt: "Foreign asset"
+        }
+      }
+    );
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })],
+      pages: [createPage({ id: "page-a", projectId: "project-a" })],
+      documents: [createPageDocument({ pageId: "page-a", revision: 1 })],
+      mediaAssets: [
+        createMediaAsset({
+          id: "asset-b",
+          organizationId: "org-b",
+          projectId: "project-b"
+        })
+      ]
+    });
+
+    await expectHttpError(
+      service.saveProjectPageDocument("project-a", "page-a", {
+        schemaVersion: 2,
+        revision: 1,
+        document
+      }),
+      400,
+      API_ERROR_CODES.pageDocumentInvalid
+    );
+  });
+
   it("returns not found for a cross-tenant page", async () => {
     const { service } = createProjectsService({
       projects: [createProject({ id: "project-b", organizationId: "org-b" })],
@@ -460,6 +532,7 @@ type CreateProjectsServiceOptions = {
   readonly projects?: readonly Project[];
   readonly pages?: readonly SitePage[];
   readonly documents?: readonly PageDocumentRecord[];
+  readonly mediaAssets?: readonly MediaAsset[];
 };
 
 function createProjectsService(options: CreateProjectsServiceOptions = {}): {
@@ -473,11 +546,12 @@ function createProjectsService(options: CreateProjectsServiceOptions = {}): {
   const projectStore = new InMemoryProjectStore(
     options.projects ?? [],
     options.pages ?? [],
-    options.documents ?? []
+    options.documents ?? [],
+    options.mediaAssets ?? []
   );
 
   return {
-    service: new ProjectsService(currentIdentityResolver, projectStore),
+    service: new ProjectsService(currentIdentityResolver, projectStore, appConfig),
     projectStore
   };
 }
@@ -507,17 +581,20 @@ class InMemoryProjectStore implements ProjectStore {
   private readonly projects: Project[];
   private readonly pages: SitePage[];
   private readonly documents: PageDocumentRecord[];
+  private readonly mediaAssets: MediaAsset[];
   private createdProjects = 0;
   private createdPages = 0;
 
   constructor(
     projects: readonly Project[],
     pages: readonly SitePage[],
-    documents: readonly PageDocumentRecord[]
+    documents: readonly PageDocumentRecord[],
+    mediaAssets: readonly MediaAsset[]
   ) {
     this.projects = [...projects];
     this.pages = [...pages];
     this.documents = [...documents];
+    this.mediaAssets = [...mediaAssets];
   }
 
   get createdProjectCount(): number {
@@ -737,7 +814,53 @@ class InMemoryProjectStore implements ProjectStore {
 
     return nextDocument;
   }
+
+  async findMediaAssetById(
+    activeTenantContext: TenantContext,
+    projectId: string,
+    assetId: string
+  ): Promise<MediaAsset | null> {
+    const project = await this.findByTenantAndId(activeTenantContext, projectId);
+
+    if (project === null) {
+      return null;
+    }
+
+    return (
+      this.mediaAssets.find(
+        (asset) =>
+          asset.id === assetId &&
+          asset.organizationId === activeTenantContext.organizationId &&
+          asset.projectId === projectId
+      ) ?? null
+    );
+  }
 }
+
+const appConfig: AppConfig = {
+  nodeEnv: "test",
+  ports: {
+    api: 3002,
+    dashboard: 3000,
+    storefront: 3001
+  },
+  web: {
+    dashboardOrigin: "http://localhost:3000",
+    publicApiUrl: "http://localhost:3002"
+  },
+  media: {
+    storageDir: ".local-media-test",
+    publicBaseUrl: "http://localhost:3002"
+  },
+  development: {
+    devUserEmail: undefined
+  },
+  database: {
+    url: "postgresql://site_platform:local@localhost:5432/site_platform_test?schema=public",
+    activeUrlKind: "test",
+    developmentUrl: undefined
+  }
+};
 
 function createProject(input: {
   readonly id?: string;
@@ -797,6 +920,33 @@ function createPageDocument(input: {
     schemaVersion: 2,
     document: input.document ?? createEmptyPageDocument(),
     revision: input.revision ?? 1,
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z")
+  };
+}
+
+function createMediaAsset(input: {
+  readonly id?: string;
+  readonly organizationId?: string;
+  readonly projectId?: string;
+  readonly storageKey?: string;
+  readonly originalFilename?: string;
+  readonly altText?: string | null;
+}): MediaAsset {
+  return {
+    id: input.id ?? "asset",
+    organizationId: input.organizationId ?? "org-a",
+    projectId: input.projectId ?? "project-a",
+    storageKey:
+      input.storageKey ??
+      "organizations/org-a/projects/project-a/00000000-0000-4000-8000-000000000000.png",
+    originalFilename: input.originalFilename ?? "image.png",
+    mimeType: "image/png",
+    sizeBytes: 67,
+    width: 1,
+    height: 1,
+    altText: input.altText ?? "Image",
+    createdByUserId: "user-a",
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-01T00:00:00.000Z")
   };

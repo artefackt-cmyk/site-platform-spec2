@@ -20,7 +20,11 @@ export const API_ERROR_CODES = {
   projectSlugAlreadyExists: "PROJECT_SLUG_ALREADY_EXISTS",
   pageSlugAlreadyExists: "PAGE_SLUG_ALREADY_EXISTS",
   pageDocumentInvalid: "PAGE_DOCUMENT_INVALID",
-  pageDocumentRevisionConflict: "PAGE_DOCUMENT_REVISION_CONFLICT"
+  pageDocumentRevisionConflict: "PAGE_DOCUMENT_REVISION_CONFLICT",
+  mediaAssetNotFound: "MEDIA_ASSET_NOT_FOUND",
+  mediaAssetInvalid: "MEDIA_ASSET_INVALID",
+  mediaAssetInUse: "MEDIA_ASSET_IN_USE",
+  mediaUploadFailed: "MEDIA_UPLOAD_FAILED"
 } as const;
 
 export type ApiErrorCode =
@@ -31,6 +35,7 @@ export type ApiValidationIssue = {
   readonly code:
     | DomainErrorCode
     | "DOCUMENT_INVALID"
+    | "MEDIA_INVALID"
     | "FIELD_REQUIRED"
     | "FIELD_INVALID_TYPE"
     | "FIELD_INVALID_VALUE";

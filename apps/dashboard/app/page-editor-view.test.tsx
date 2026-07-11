@@ -69,6 +69,17 @@ function renderEditor(input: {
       onUpdateText: () => undefined,
       onUpdateButton: () => undefined,
       onUpdateImage: () => undefined,
+      mediaPicker: {
+        open: false,
+        assets: [],
+        loading: false,
+        uploading: false,
+        errorMessage: null
+      },
+      onOpenImagePicker: () => undefined,
+      onCloseImagePicker: () => undefined,
+      onUploadImageAsset: () => undefined,
+      onSelectImageAsset: () => undefined,
       onUpdateSpacer: () => undefined,
       onSave: () => undefined,
       onPreview: () => undefined,

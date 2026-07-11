@@ -23,6 +23,9 @@ import {
   moveSectionUp,
   removeNode,
   removeSection,
+  collectPageDocumentImageAssetIds,
+  updateImageBlockAsset,
+  updateImageBlockExternalUrl,
   updateBlockProps,
   updateNodeProps,
   updateSectionProps,
@@ -192,6 +195,62 @@ describe("@site-platform/editor-core", () => {
       )
     ).toMatchObject({
       ok: false
+    });
+  });
+
+  it("collects image asset ids and clears assetId when switching to external URL", () => {
+    const document = insertBlock(createEmptyPageDocument(), {
+      ...createDefaultBlock("image"),
+      id: "image-1",
+      props: {
+        ...createDefaultBlock("image").props,
+        assetId: "asset-1",
+        src: "https://api.example.test/api/projects/project-a/media/asset-1/content",
+        alt: "Library asset"
+      }
+    });
+
+    expect(collectPageDocumentImageAssetIds(document)).toEqual(["asset-1"]);
+
+    const updated = updateImageBlockExternalUrl(
+      document,
+      "image-1",
+      "https://example.com/image.png"
+    );
+    const image = findBlockById(updated, "image-1");
+
+    expect(image).toMatchObject({
+      type: "image",
+      props: {
+        src: "https://example.com/image.png"
+      }
+    });
+    expect(image?.type === "image" ? image.props.assetId : undefined).toBeUndefined();
+  });
+
+  it("sets image asset data and preserves existing alt text", () => {
+    const document = insertBlock(createEmptyPageDocument(), {
+      ...createDefaultBlock("image"),
+      id: "image-1",
+      props: {
+        ...createDefaultBlock("image").props,
+        alt: "Existing alt"
+      }
+    });
+
+    const updated = updateImageBlockAsset(document, "image-1", {
+      assetId: "asset-1",
+      src: "https://api.example.test/api/projects/project-a/media/asset-1/content",
+      alt: "Asset alt"
+    });
+    const image = findBlockById(updated, "image-1");
+
+    expect(image).toMatchObject({
+      type: "image",
+      props: {
+        assetId: "asset-1",
+        alt: "Existing alt"
+      }
     });
   });
 

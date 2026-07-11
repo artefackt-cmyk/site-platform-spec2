@@ -5,12 +5,16 @@ import type {
   CreateProjectFormValues,
   CreateProjectResponse,
   CurrentUserResponse,
+  DeleteMediaAssetResponse,
+  MediaAssetsListResponse,
   ProjectPagesListResponse,
   ProjectSummary,
   PageDocumentResponse,
   SavePageDocumentRequest,
   SitePageSummary,
-  ProjectsListResponse
+  ProjectsListResponse,
+  UpdateMediaAssetResponse,
+  UploadMediaAssetResponse
 } from "./dashboard-types";
 
 export class DashboardApiError extends Error {
@@ -54,6 +58,25 @@ export type DashboardApiClient = {
     pageId: string,
     input: SavePageDocumentRequest
   ) => Promise<PageDocumentResponse>;
+  readonly listProjectMedia: (projectId: string) => Promise<MediaAssetsListResponse>;
+  readonly uploadProjectMedia: (
+    projectId: string,
+    input: {
+      readonly file: File;
+      readonly altText?: string;
+    }
+  ) => Promise<UploadMediaAssetResponse>;
+  readonly updateProjectMedia: (
+    projectId: string,
+    assetId: string,
+    input: {
+      readonly altText: string | null;
+    }
+  ) => Promise<UpdateMediaAssetResponse>;
+  readonly deleteProjectMedia: (
+    projectId: string,
+    assetId: string
+  ) => Promise<DeleteMediaAssetResponse>;
 };
 
 export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
@@ -119,6 +142,53 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
             "Content-Type": "application/json"
           },
           body: JSON.stringify(input)
+        }
+      ),
+    listProjectMedia: (projectId) =>
+      request<MediaAssetsListResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/media`
+      ),
+    uploadProjectMedia: (projectId, input) => {
+      const formData = new FormData();
+
+      formData.append("file", input.file);
+
+      if (input.altText !== undefined) {
+        formData.append("altText", input.altText);
+      }
+
+      return request<UploadMediaAssetResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/media`,
+        {
+          method: "POST",
+          body: formData
+        }
+      );
+    },
+    updateProjectMedia: (projectId, assetId, input) =>
+      request<UpdateMediaAssetResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/media/${encodeURIComponent(
+          assetId
+        )}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    deleteProjectMedia: (projectId, assetId) =>
+      request<DeleteMediaAssetResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/media/${encodeURIComponent(
+          assetId
+        )}`,
+        {
+          method: "DELETE"
         }
       )
   };

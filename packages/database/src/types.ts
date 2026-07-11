@@ -4,6 +4,7 @@ export type RepositoryPrismaClient = Pick<
   Prisma.TransactionClient,
   | "auditLog"
   | "membership"
+  | "mediaAsset"
   | "organization"
   | "pageDocument"
   | "project"

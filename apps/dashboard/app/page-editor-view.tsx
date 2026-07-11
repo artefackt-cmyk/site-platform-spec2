@@ -16,7 +16,11 @@ import {
   type TextBlock
 } from "@site-platform/editor-core";
 import { PageRenderer } from "@site-platform/renderer";
-import type { ProjectSummary, SitePageSummary } from "./dashboard-types";
+import type {
+  MediaAssetSummary,
+  ProjectSummary,
+  SitePageSummary
+} from "./dashboard-types";
 import type { EditorState } from "./page-editor-state";
 
 export type PageEditorLoadState =
@@ -50,6 +54,11 @@ export type PageEditorViewProps = {
   readonly onUpdateText: (props: Partial<BlockPropsByType["text"]>) => void;
   readonly onUpdateButton: (props: Partial<BlockPropsByType["button"]>) => void;
   readonly onUpdateImage: (props: Partial<BlockPropsByType["image"]>) => void;
+  readonly mediaPicker: ImageAssetPickerState;
+  readonly onOpenImagePicker: () => void;
+  readonly onCloseImagePicker: () => void;
+  readonly onUploadImageAsset: (file: File) => void;
+  readonly onSelectImageAsset: (asset: MediaAssetSummary) => void;
   readonly onUpdateSpacer: (props: Partial<BlockPropsByType["spacer"]>) => void;
   readonly onSave: () => void | Promise<boolean>;
   readonly onPreview: () => void;
@@ -57,6 +66,14 @@ export type PageEditorViewProps = {
   readonly onSaveAndPreview: () => void;
   readonly onOpenSavedPreview: () => void;
   readonly onCancelPreview: () => void;
+};
+
+export type ImageAssetPickerState = {
+  readonly open: boolean;
+  readonly assets: readonly MediaAssetSummary[];
+  readonly loading: boolean;
+  readonly uploading: boolean;
+  readonly errorMessage: string | null;
 };
 
 export function PageEditorView({
@@ -75,6 +92,11 @@ export function PageEditorView({
   onUpdateText,
   onUpdateButton,
   onUpdateImage,
+  mediaPicker,
+  onOpenImagePicker,
+  onCloseImagePicker,
+  onUploadImageAsset,
+  onSelectImageAsset,
   onUpdateSpacer,
   onSave,
   onPreview,
@@ -166,6 +188,11 @@ export function PageEditorView({
             onUpdateText={onUpdateText}
             onUpdateButton={onUpdateButton}
             onUpdateImage={onUpdateImage}
+            mediaPicker={mediaPicker}
+            onOpenImagePicker={onOpenImagePicker}
+            onCloseImagePicker={onCloseImagePicker}
+            onUploadImageAsset={onUploadImageAsset}
+            onSelectImageAsset={onSelectImageAsset}
             onUpdateSpacer={onUpdateSpacer}
           />
         </aside>
@@ -586,6 +613,11 @@ function Inspector({
   onUpdateText,
   onUpdateButton,
   onUpdateImage,
+  mediaPicker,
+  onOpenImagePicker,
+  onCloseImagePicker,
+  onUploadImageAsset,
+  onSelectImageAsset,
   onUpdateSpacer
 }: {
   readonly node: ReturnType<typeof findNodeById>;
@@ -596,6 +628,11 @@ function Inspector({
   readonly onUpdateText: (props: Partial<BlockPropsByType["text"]>) => void;
   readonly onUpdateButton: (props: Partial<BlockPropsByType["button"]>) => void;
   readonly onUpdateImage: (props: Partial<BlockPropsByType["image"]>) => void;
+  readonly mediaPicker: ImageAssetPickerState;
+  readonly onOpenImagePicker: () => void;
+  readonly onCloseImagePicker: () => void;
+  readonly onUploadImageAsset: (file: File) => void;
+  readonly onSelectImageAsset: (asset: MediaAssetSummary) => void;
   readonly onUpdateSpacer: (props: Partial<BlockPropsByType["spacer"]>) => void;
 }) {
   if (node === null || node.type === "page") {
@@ -628,7 +665,17 @@ function Inspector({
     case "button":
       return <ButtonInspector block={node} onUpdateButton={onUpdateButton} />;
     case "image":
-      return <ImageInspector block={node} onUpdateImage={onUpdateImage} />;
+      return (
+        <ImageInspector
+          block={node}
+          onUpdateImage={onUpdateImage}
+          mediaPicker={mediaPicker}
+          onOpenImagePicker={onOpenImagePicker}
+          onCloseImagePicker={onCloseImagePicker}
+          onUploadImageAsset={onUploadImageAsset}
+          onSelectImageAsset={onSelectImageAsset}
+        />
+      );
     case "spacer":
       return <SpacerInspector block={node} onUpdateSpacer={onUpdateSpacer} />;
   }
@@ -881,15 +928,31 @@ function ButtonInspector({
 
 function ImageInspector({
   block,
-  onUpdateImage
+  onUpdateImage,
+  mediaPicker,
+  onOpenImagePicker,
+  onCloseImagePicker,
+  onUploadImageAsset,
+  onSelectImageAsset
 }: {
   readonly block: ImageBlock;
   readonly onUpdateImage: (props: Partial<BlockPropsByType["image"]>) => void;
+  readonly mediaPicker: ImageAssetPickerState;
+  readonly onOpenImagePicker: () => void;
+  readonly onCloseImagePicker: () => void;
+  readonly onUploadImageAsset: (file: File) => void;
+  readonly onSelectImageAsset: (asset: MediaAssetSummary) => void;
 }) {
   return (
     <section className="editor-panel-section">
       <p className="eyebrow">Инспектор</p>
       <h2>Изображение</h2>
+      <button className="secondary-button" type="button" onClick={onOpenImagePicker}>
+        Выбрать изображение
+      </button>
+      {block.props.assetId === undefined ? null : (
+        <p className="editor-muted">Выбрано из медиабиблиотеки.</p>
+      )}
       <InspectorTextInput
         label="URL"
         value={block.props.src}
@@ -983,7 +1046,85 @@ function ImageInspector({
         value={block.props.align}
         onChange={(align) => onUpdateImage({ align })}
       />
+      {mediaPicker.open ? (
+        <ImageAssetPicker
+          state={mediaPicker}
+          onClose={onCloseImagePicker}
+          onUpload={onUploadImageAsset}
+          onSelect={onSelectImageAsset}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function ImageAssetPicker({
+  state,
+  onClose,
+  onUpload,
+  onSelect
+}: {
+  readonly state: ImageAssetPickerState;
+  readonly onClose: () => void;
+  readonly onUpload: (file: File) => void;
+  readonly onSelect: (asset: MediaAssetSummary) => void;
+}) {
+  return (
+    <div className="preview-warning-backdrop" role="presentation">
+      <section className="preview-warning-dialog media-picker-dialog" role="dialog" aria-modal="true">
+        <div className="workspace-section-heading">
+          <div>
+            <p className="eyebrow">Медиабиблиотека</p>
+            <h2>Выберите изображение</h2>
+          </div>
+          <button className="ghost-button" type="button" onClick={onClose}>
+            Закрыть
+          </button>
+        </div>
+        <label className="inspector-field">
+          Загрузить новое
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={state.uploading}
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+
+              if (file !== undefined) {
+                onUpload(file);
+              }
+            }}
+          />
+        </label>
+        {state.errorMessage === null ? null : (
+          <p className="editor-save-error" role="alert">
+            {state.errorMessage}
+          </p>
+        )}
+        {state.loading ? (
+          <p className="editor-muted">Загрузка...</p>
+        ) : state.assets.length === 0 ? (
+          <p className="editor-muted">В медиабиблиотеке пока нет изображений.</p>
+        ) : (
+          <div className="media-grid">
+            {state.assets.map((asset) => (
+              <article className="media-card" key={asset.id}>
+                <img src={asset.url} alt={asset.altText ?? asset.originalFilename} />
+                <strong>{asset.originalFilename}</strong>
+                <span>{formatDimensions(asset)}</span>
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => onSelect(asset)}
+                >
+                  Выбрать
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -1138,6 +1279,12 @@ function getBlockSummary(block: BlockNode): string {
     case "spacer":
       return `Размер: ${block.props.size}`;
   }
+}
+
+function formatDimensions(asset: MediaAssetSummary): string {
+  return asset.width === null || asset.height === null
+    ? "Размеры неизвестны"
+    : `${asset.width} x ${asset.height}`;
 }
 
 function toSaveStatusLabel(status: EditorState["saveStatus"]): string {

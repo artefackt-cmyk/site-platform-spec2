@@ -17,6 +17,7 @@
     "@site-platform/database": "workspace:*",
     "@site-platform/domain": "workspace:*",
     "@site-platform/editor-core": "workspace:*",
+    "@site-platform/media-storage": "workspace:*",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },

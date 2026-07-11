@@ -10,6 +10,7 @@ import {
   checkDatabaseConnection,
   createPrismaClient,
   disconnectPrismaClient,
+  MediaAssetRepository,
   MembershipRepository,
   OrganizationCreationService,
   PageDocumentInvalidError,
@@ -581,6 +582,88 @@ describe.skipIf(integrationConfig === undefined)(
         )
       ).rejects.toBeInstanceOf(PageDocumentInvalidError);
     });
+
+    it("lists media assets only inside the active tenant project", async () => {
+      const currentClient = getClient(client);
+      const tenantAFixture = await createPageFixture(currentClient, "tenant-a");
+      const tenantBFixture = await createPageFixture(currentClient, "tenant-b");
+      const mediaAssetRepository = new MediaAssetRepository(currentClient);
+      const tenantAAsset = await createMediaAssetFixture(
+        currentClient,
+        tenantAFixture.context,
+        tenantAFixture.project.id,
+        "tenant-a"
+      );
+
+      const tenantBAsset = await createMediaAssetFixture(
+        currentClient,
+        tenantBFixture.context,
+        tenantBFixture.project.id,
+        "tenant-b"
+      );
+
+      await expect(
+        mediaAssetRepository.listByProject(
+          tenantAFixture.context,
+          tenantAFixture.project.id
+        )
+      ).resolves.toEqual([expect.objectContaining({ id: tenantAAsset.id })]);
+
+      await expect(
+        mediaAssetRepository.findByIdForProject(
+          tenantAFixture.context,
+          tenantAFixture.project.id,
+          tenantBAsset.id
+        )
+      ).resolves.toBeNull();
+    });
+
+    it("counts media usage in saved page documents", async () => {
+      const currentClient = getClient(client);
+      const { context, project, page } = await createPageFixture(currentClient);
+      const mediaAssetRepository = new MediaAssetRepository(currentClient);
+      const pageDocumentRepository = new PageDocumentRepository(currentClient);
+      const asset = await createMediaAssetFixture(
+        currentClient,
+        context,
+        project.id,
+        "used"
+      );
+      const pageDocument = await pageDocumentRepository.createDefault(
+        context,
+        project.id,
+        page.id
+      );
+
+      if (pageDocument === null) {
+        throw new Error("Expected page document fixture.");
+      }
+
+      const documentWithImage = insertBlock(pageDocument.document, {
+        ...createDefaultBlock("image"),
+        props: {
+          ...createDefaultBlock("image").props,
+          assetId: asset.id,
+          src: "http://localhost:3002/api/projects/project/media/asset/content",
+          alt: "Used image"
+        }
+      });
+
+      await pageDocumentRepository.save(
+        context,
+        project.id,
+        page.id,
+        documentWithImage,
+        pageDocument.revision
+      );
+
+      await expect(
+        mediaAssetRepository.countUsage(context, project.id, asset.id)
+      ).resolves.toEqual({
+        usageCount: 1,
+        pageIds: [page.id]
+      });
+    });
   }
 );
 
@@ -655,12 +738,51 @@ async function createOrganizationFixture(
 
 async function clearDatabase(client: DatabasePrismaClient): Promise<void> {
   await client.auditLog.deleteMany();
+  await client.mediaAsset.deleteMany();
   await client.pageDocument.deleteMany();
   await client.sitePage.deleteMany();
   await client.project.deleteMany();
   await client.membership.deleteMany();
   await client.organization.deleteMany();
   await client.user.deleteMany();
+}
+
+async function createMediaAssetFixture(
+  client: DatabasePrismaClient,
+  context: ReturnType<typeof createTenantContext>,
+  projectId: string,
+  prefix: string
+) {
+  const mediaAssetRepository = new MediaAssetRepository(client);
+  const asset = await mediaAssetRepository.create({
+    tenantContext: context,
+    projectId,
+    storageKey: `organizations/${context.organizationId}/projects/${projectId}/${createDeterministicUuid(
+      prefix
+    )}.png`,
+    originalFilename: `${prefix}.png`,
+    mimeType: "image/png",
+    sizeBytes: 67,
+    width: 1,
+    height: 1,
+    altText: `${prefix} image`,
+    createdByUserId: context.userId
+  });
+
+  if (asset === null) {
+    throw new Error("Expected media asset fixture.");
+  }
+
+  return asset;
+}
+
+function createDeterministicUuid(prefix: string): string {
+  const hex = Buffer.from(prefix).toString("hex").padEnd(32, "0").slice(0, 32);
+
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(
+    13,
+    16
+  )}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
 function createTenantContext(fixture: OrganizationFixture) {
