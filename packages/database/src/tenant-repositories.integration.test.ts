@@ -8,6 +8,7 @@ import {
   MembershipRepository,
   OrganizationCreationService,
   ProjectRepository,
+  SitePageRepository,
   UserRepository,
   type DatabasePrismaClient
 } from "./index";
@@ -192,6 +193,166 @@ describe.skipIf(integrationConfig === undefined)(
         projectRepository.listByOrganization(tenantA.organization.id)
       ).resolves.toEqual([]);
     });
+
+    it("allows the same page slug in different projects", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const sitePageRepository = new SitePageRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const firstProject = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "First Project",
+        slug: "first-project"
+      });
+      const secondProject = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Second Project",
+        slug: "second-project"
+      });
+
+      await expect(
+        sitePageRepository.create(context, firstProject.id, {
+          title: "Shared Page",
+          slug: "shared"
+        })
+      ).resolves.toMatchObject({
+        slug: "shared"
+      });
+
+      await expect(
+        sitePageRepository.create(context, secondProject.id, {
+          title: "Shared Page",
+          slug: "shared"
+        })
+      ).resolves.toMatchObject({
+        slug: "shared"
+      });
+    });
+
+    it("rejects duplicate page slugs inside one project", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const sitePageRepository = new SitePageRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const project = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Tenant Project",
+        slug: "tenant-project"
+      });
+
+      await sitePageRepository.create(context, project.id, {
+        title: "First Page",
+        slug: "duplicate"
+      });
+
+      await expect(
+        sitePageRepository.create(context, project.id, {
+          title: "Second Page",
+          slug: "duplicate"
+        })
+      ).rejects.toThrow();
+    });
+
+    it("does not let tenant A read tenant B page", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const sitePageRepository = new SitePageRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const tenantB = await createOrganizationFixture(currentClient, "tenant-b");
+      const tenantBContext = createTenantContext(tenantB);
+      const projectB = await projectRepository.create({
+        organizationId: tenantB.organization.id,
+        name: "Tenant B Project",
+        slug: "tenant-b-project"
+      });
+      const pageB = await sitePageRepository.create(tenantBContext, projectB.id, {
+        title: "Tenant B Page",
+        slug: "tenant-b-page"
+      });
+
+      if (pageB === null) {
+        throw new Error("Expected tenant B page fixture.");
+      }
+
+      await expect(
+        sitePageRepository.findById(
+          createTenantContext(tenantA),
+          projectB.id,
+          pageB.id
+        )
+      ).resolves.toBeNull();
+    });
+
+    it("keeps only one home page when setting a new home page", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const sitePageRepository = new SitePageRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const project = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Home Project",
+        slug: "home-project"
+      });
+      await sitePageRepository.create(context, project.id, {
+        title: "Home",
+        slug: "home",
+        isHome: true
+      });
+      const catalogPage = await sitePageRepository.create(context, project.id, {
+        title: "Catalog",
+        slug: "catalog"
+      });
+
+      if (catalogPage === null) {
+        throw new Error("Expected catalog page fixture.");
+      }
+
+      await expect(
+        sitePageRepository.setHomePage(context, project.id, catalogPage.id)
+      ).resolves.toMatchObject({
+        id: catalogPage.id,
+        isHome: true
+      });
+
+      const pages = await sitePageRepository.listByProject(context, project.id);
+      const homePages = pages.filter((page) => page.isHome);
+
+      expect(homePages).toHaveLength(1);
+      expect(homePages[0]?.id).toBe(catalogPage.id);
+    });
+
+    it("hides soft-deleted pages from normal queries", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const sitePageRepository = new SitePageRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const project = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Soft Delete Project",
+        slug: "soft-delete-project"
+      });
+      const page = await sitePageRepository.create(context, project.id, {
+        title: "Hidden Page",
+        slug: "hidden-page"
+      });
+
+      if (page === null) {
+        throw new Error("Expected page fixture.");
+      }
+
+      await sitePageRepository.softDelete(context, project.id, page.id);
+
+      await expect(
+        sitePageRepository.findById(context, project.id, page.id)
+      ).resolves.toBeNull();
+      await expect(
+        sitePageRepository.listByProject(context, project.id)
+      ).resolves.toEqual([]);
+    });
   }
 );
 
@@ -266,10 +427,20 @@ async function createOrganizationFixture(
 
 async function clearDatabase(client: DatabasePrismaClient): Promise<void> {
   await client.auditLog.deleteMany();
+  await client.sitePage.deleteMany();
   await client.project.deleteMany();
   await client.membership.deleteMany();
   await client.organization.deleteMany();
   await client.user.deleteMany();
+}
+
+function createTenantContext(fixture: OrganizationFixture) {
+  return {
+    organizationId: fixture.organization.id,
+    userId: fixture.user.id,
+    membershipId: "integration-test-membership",
+    role: "OWNER"
+  } as const;
 }
 
 function createTestSuffix(): string {

@@ -21,6 +21,12 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+enum SitePageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 model User {
   id          String       @id @default(cuid())
   email       String       @unique
@@ -42,6 +48,7 @@ model Organization {
   deletedAt   DateTime?    @map("deleted_at")
   memberships Membership[]
   projects    Project[]
+  sitePages   SitePage[]
   auditLogs   AuditLog[]
 
   @@map("organizations")
@@ -72,10 +79,31 @@ model Project {
   updatedAt      DateTime      @updatedAt @map("updated_at")
   deletedAt      DateTime?     @map("deleted_at")
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  sitePages      SitePage[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
   @@map("projects")
+}
+
+model SitePage {
+  id             String         @id @default(cuid())
+  organizationId String         @map("organization_id")
+  projectId      String         @map("project_id")
+  title          String
+  slug           String
+  status         SitePageStatus @default(DRAFT)
+  isHome         Boolean        @default(false) @map("is_home")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  deletedAt      DateTime?      @map("deleted_at")
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, slug])
+  @@index([organizationId, projectId])
+  @@index([projectId])
+  @@map("site_pages")
 }
 
 model AuditLog {

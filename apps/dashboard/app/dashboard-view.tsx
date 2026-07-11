@@ -218,9 +218,9 @@ function ProjectGrid({
               <dd>{formatDate(project.createdAt)}</dd>
             </div>
           </dl>
-          <button className="ghost-button" disabled>
+          <a className="ghost-button" href={`/projects/${project.id}`}>
             Открыть
-          </button>
+          </a>
         </article>
       ))}
     </section>

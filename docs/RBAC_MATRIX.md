@@ -28,6 +28,10 @@ It is a product and architecture contract only. It does not add authentication, 
 | `project.create` | Create projects in the organization. |
 | `project.update` | Update project settings only. |
 | `project.delete` | Soft-delete projects. |
+| `page.read` | View project pages. |
+| `page.create` | Create project pages. |
+| `page.update` | Update project page metadata and future page content. |
+| `page.delete` | Soft-delete project pages. |
 | `content.read` | View project content, including pages, blocks, text and images. |
 | `content.update` | Change project content, including pages, blocks, text and images. |
 | `design.update` | Change project visual design and structural layout. |
@@ -46,6 +50,10 @@ It is a product and architecture contract only. It does not add authentication, 
 | `project.create` | Yes | Yes | No | No | No |
 | `project.update` | Yes | Yes | No | No | No |
 | `project.delete` | Yes | Yes | No | No | No |
+| `page.read` | Yes | Yes | Yes | Yes | Yes |
+| `page.create` | Yes | Yes | Yes | No | No |
+| `page.update` | Yes | Yes | Yes | No | No |
+| `page.delete` | Yes | Yes | No | No | No |
 | `content.read` | Yes | Yes | Yes | Yes | Yes |
 | `content.update` | Yes | Yes | Yes | No | No |
 | `design.update` | Yes | Yes | Yes | No | No |
@@ -70,13 +78,13 @@ Ownership transfer is intentionally not represented by a permission in this matr
 
 ### EDITOR
 
-`EDITOR` can read the organization and projects, view content, update content and change project design through `organization.read`, `project.read`, `content.read`, `content.update` and `design.update`.
+`EDITOR` can read the organization and projects, read/create/update pages, view content, update content and change project design through `organization.read`, `project.read`, `page.read`, `page.create`, `page.update`, `content.read`, `content.update` and `design.update`.
 
-`EDITOR` cannot update project settings, delete projects, manage members, manage integrations, read audit logs or update organization settings.
+`EDITOR` cannot update project settings, delete projects, delete pages, manage members, manage integrations, read audit logs or update organization settings.
 
 ### STORE_MANAGER
 
-`STORE_MANAGER` currently has `organization.read`, `project.read` and `content.read` only.
+`STORE_MANAGER` currently has `organization.read`, `project.read`, `page.read` and `content.read` only.
 
 Future commerce permissions should be added separately, for example:
 
@@ -89,13 +97,13 @@ Future commerce permissions should be added separately, for example:
 
 Those commerce permissions are intentionally not part of the current stable permission set because commerce models and workflows are not implemented yet.
 
-`STORE_MANAGER` must not update project settings, edit project content, edit project design, update organization settings, manage memberships or manage integrations through the current permissions.
+`STORE_MANAGER` must not update project settings, create/update/delete pages, edit project content, edit project design, update organization settings, manage memberships or manage integrations through the current permissions.
 
 ### VIEWER
 
 `VIEWER` is read-only.
 
-In the current permission set, `VIEWER` may read organization-level information, projects and project content, but cannot perform mutations, manage members, manage integrations or read audit log.
+In the current permission set, `VIEWER` may read organization-level information, projects, pages and project content, but cannot perform mutations, manage members, manage integrations or read audit log.
 
 ## Enforcement Rules
 

@@ -8,6 +8,8 @@ import {
   normalizeEmail,
   packageName,
   validateOrganizationName,
+  validatePageSlug,
+  validatePageTitle,
   validateProjectSlug
 } from "./index";
 
@@ -47,6 +49,25 @@ describe("@site-platform/domain", () => {
     expect(validateProjectSlug("a")).toEqual({
       ok: false,
       code: DOMAIN_ERROR_CODES.projectSlugTooShort
+    });
+  });
+
+  it("validates page titles and slugs", () => {
+    expect(validatePageTitle("  Главная   страница  ")).toEqual({
+      ok: true,
+      value: "Главная страница"
+    });
+    expect(validatePageTitle(" ")).toEqual({
+      ok: false,
+      code: DOMAIN_ERROR_CODES.pageTitleRequired
+    });
+    expect(validatePageSlug("about")).toEqual({
+      ok: true,
+      value: "about"
+    });
+    expect(validatePageSlug("About page")).toEqual({
+      ok: false,
+      code: DOMAIN_ERROR_CODES.pageSlugInvalidFormat
     });
   });
 

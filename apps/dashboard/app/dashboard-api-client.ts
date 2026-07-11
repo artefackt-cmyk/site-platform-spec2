@@ -1,8 +1,13 @@
 import type {
   ApiErrorResponse,
+  CreatePageFormValues,
+  CreateProjectPageResponse,
   CreateProjectFormValues,
   CreateProjectResponse,
   CurrentUserResponse,
+  ProjectPagesListResponse,
+  ProjectSummary,
+  SitePageSummary,
   ProjectsListResponse
 } from "./dashboard-types";
 
@@ -26,6 +31,18 @@ export type DashboardApiClient = {
   readonly createProject: (
     input: CreateProjectFormValues
   ) => Promise<CreateProjectResponse>;
+  readonly getProject: (projectId: string) => Promise<ProjectSummary>;
+  readonly listProjectPages: (
+    projectId: string
+  ) => Promise<ProjectPagesListResponse>;
+  readonly createProjectPage: (
+    projectId: string,
+    input: CreatePageFormValues
+  ) => Promise<CreateProjectPageResponse>;
+  readonly getProjectPage: (
+    projectId: string,
+    pageId: string
+  ) => Promise<SitePageSummary>;
 };
 
 export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
@@ -42,7 +59,36 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
           "Content-Type": "application/json"
         },
         body: JSON.stringify(input)
-      })
+      }),
+    getProject: (projectId) =>
+      request<ProjectSummary>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}`
+      ),
+    listProjectPages: (projectId) =>
+      request<ProjectPagesListResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/pages`
+      ),
+    createProjectPage: (projectId, input) =>
+      request<CreateProjectPageResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/pages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    getProjectPage: (projectId, pageId) =>
+      request<SitePageSummary>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
+          pageId
+        )}`
+      )
   };
 }
 

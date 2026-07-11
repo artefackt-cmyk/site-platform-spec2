@@ -1,11 +1,15 @@
 import "reflect-metadata";
 import { HttpException } from "@nestjs/common";
-import type { Project } from "@site-platform/database";
+import type { Project, SitePage } from "@site-platform/database";
 import type { OrganizationRole, TenantContext } from "@site-platform/domain";
 import { describe, expect, it } from "vitest";
 import { API_ERROR_CODES } from "./api-errors";
 import type { ActiveIdentity, CurrentIdentityResolver } from "./current-identity";
-import type { CreateDraftProjectInput, ProjectStore } from "./project-store";
+import type {
+  CreateDraftProjectInput,
+  CreateProjectPageInput,
+  ProjectStore
+} from "./project-store";
 import { ProjectsService } from "./projects.service";
 
 const tenantContext: TenantContext = {
@@ -47,6 +51,33 @@ describe("GET /api/projects", () => {
     await expect(service.listProjects()).resolves.toEqual({
       projects: []
     });
+  });
+});
+
+describe("GET /api/projects/:projectId", () => {
+  it("returns project details inside the active organization", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a", organizationId: "org-a" })]
+    });
+
+    await expect(service.getProject("project-a")).resolves.toMatchObject({
+      id: "project-a",
+      name: "Demo Store",
+      slug: "demo-store",
+      status: "DRAFT"
+    });
+  });
+
+  it("returns not found for a project outside the active organization", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-b", organizationId: "org-b" })]
+    });
+
+    await expectHttpError(
+      service.getProject("project-b"),
+      404,
+      API_ERROR_CODES.projectNotFound
+    );
   });
 });
 
@@ -119,9 +150,131 @@ describe("POST /api/projects", () => {
   });
 });
 
+describe("GET /api/projects/:projectId/pages", () => {
+  it("returns only pages from the requested project", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" }), createProject({ id: "project-b" })],
+      pages: [
+        createPage({ id: "page-a", projectId: "project-a" }),
+        createPage({ id: "page-b", projectId: "project-b", slug: "other" })
+      ]
+    });
+
+    await expect(service.listProjectPages("project-a")).resolves.toEqual({
+      pages: [
+        expect.objectContaining({
+          id: "page-a"
+        })
+      ]
+    });
+  });
+
+  it("returns not found for a foreign project", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-b", organizationId: "org-b" })]
+    });
+
+    await expectHttpError(
+      service.listProjectPages("project-b"),
+      404,
+      API_ERROR_CODES.projectNotFound
+    );
+  });
+
+  it("does not return soft-deleted pages", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })],
+      pages: [
+        createPage({
+          id: "page-deleted",
+          projectId: "project-a",
+          deletedAt: new Date("2026-01-01T00:00:00.000Z")
+        })
+      ]
+    });
+
+    await expect(service.listProjectPages("project-a")).resolves.toEqual({
+      pages: []
+    });
+  });
+});
+
+describe("POST /api/projects/:projectId/pages", () => {
+  it("creates a page", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })]
+    });
+
+    await expect(
+      service.createProjectPage("project-a", {
+        title: "Landing",
+        slug: "landing",
+        isHome: true
+      })
+    ).resolves.toEqual({
+      page: expect.objectContaining({
+        title: "Landing",
+        slug: "landing",
+        isHome: true,
+        status: "DRAFT"
+      })
+    });
+  });
+
+  it("returns a stable duplicate slug error", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })],
+      pages: [createPage({ projectId: "project-a", slug: "duplicate" })]
+    });
+
+    await expectHttpError(
+      service.createProjectPage("project-a", {
+        title: "Duplicate",
+        slug: "duplicate"
+      }),
+      409,
+      API_ERROR_CODES.pageSlugAlreadyExists
+    );
+  });
+
+  it("rejects organizationId in the payload", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })]
+    });
+
+    await expectHttpError(
+      service.createProjectPage("project-a", {
+        title: "Wrong Tenant",
+        slug: "wrong-tenant",
+        organizationId: "org-b"
+      }),
+      400,
+      API_ERROR_CODES.organizationIdNotAllowed
+    );
+  });
+});
+
+describe("GET /api/projects/:projectId/pages/:pageId", () => {
+  it("returns page details", async () => {
+    const { service } = createProjectsService({
+      projects: [createProject({ id: "project-a" })],
+      pages: [createPage({ id: "page-a", projectId: "project-a" })]
+    });
+
+    await expect(
+      service.getProjectPage("project-a", "page-a")
+    ).resolves.toMatchObject({
+      id: "page-a",
+      title: "Главная",
+      slug: "home"
+    });
+  });
+});
+
 type CreateProjectsServiceOptions = {
   readonly role?: OrganizationRole;
   readonly projects?: readonly Project[];
+  readonly pages?: readonly SitePage[];
 };
 
 function createProjectsService(options: CreateProjectsServiceOptions = {}): {
@@ -132,7 +285,10 @@ function createProjectsService(options: CreateProjectsServiceOptions = {}): {
   const currentIdentityResolver: CurrentIdentityResolver = {
     getCurrentIdentity: async () => createIdentity(role)
   };
-  const projectStore = new InMemoryProjectStore(options.projects ?? []);
+  const projectStore = new InMemoryProjectStore(
+    options.projects ?? [],
+    options.pages ?? []
+  );
 
   return {
     service: new ProjectsService(currentIdentityResolver, projectStore),
@@ -163,10 +319,13 @@ function createIdentity(role: OrganizationRole): ActiveIdentity {
 
 class InMemoryProjectStore implements ProjectStore {
   private readonly projects: Project[];
+  private readonly pages: SitePage[];
   private createdProjects = 0;
+  private createdPages = 0;
 
-  constructor(projects: readonly Project[]) {
+  constructor(projects: readonly Project[], pages: readonly SitePage[]) {
     this.projects = [...projects];
+    this.pages = [...pages];
   }
 
   get createdProjectCount(): number {
@@ -180,6 +339,20 @@ class InMemoryProjectStore implements ProjectStore {
       (project) =>
         project.organizationId === activeTenantContext.organizationId &&
         project.deletedAt === null
+    );
+  }
+
+  async findByTenantAndId(
+    activeTenantContext: TenantContext,
+    projectId: string
+  ): Promise<Project | null> {
+    return (
+      this.projects.find(
+        (project) =>
+          project.id === projectId &&
+          project.organizationId === activeTenantContext.organizationId &&
+          project.deletedAt === null
+      ) ?? null
     );
   }
 
@@ -210,6 +383,82 @@ class InMemoryProjectStore implements ProjectStore {
 
     return project;
   }
+
+  async listPagesByProject(
+    activeTenantContext: TenantContext,
+    projectId: string
+  ): Promise<readonly SitePage[]> {
+    const project = await this.findByTenantAndId(activeTenantContext, projectId);
+
+    if (project === null) {
+      return [];
+    }
+
+    return this.pages.filter(
+      (page) =>
+        page.organizationId === activeTenantContext.organizationId &&
+        page.projectId === projectId &&
+        page.deletedAt === null
+    );
+  }
+
+  async findPageById(
+    activeTenantContext: TenantContext,
+    projectId: string,
+    pageId: string
+  ): Promise<SitePage | null> {
+    const pages = await this.listPagesByProject(activeTenantContext, projectId);
+
+    return pages.find((page) => page.id === pageId) ?? null;
+  }
+
+  async createPageWithAudit(
+    input: CreateProjectPageInput
+  ): Promise<SitePage | null> {
+    const project = await this.findByTenantAndId(
+      input.tenantContext,
+      input.projectId
+    );
+
+    if (project === null) {
+      return null;
+    }
+
+    const existingPage = this.pages.find(
+      (page) => page.projectId === input.projectId && page.slug === input.slug
+    );
+
+    if (existingPage !== undefined) {
+      throw Object.assign(new Error("Unique constraint failed"), {
+        code: "P2002" as const
+      });
+    }
+
+    if (input.isHome) {
+      for (const page of this.pages) {
+        if (
+          page.organizationId === input.tenantContext.organizationId &&
+          page.projectId === input.projectId
+        ) {
+          page.isHome = false;
+        }
+      }
+    }
+
+    const page = createPage({
+      id: `created-page-${this.createdPages + 1}`,
+      organizationId: input.tenantContext.organizationId,
+      projectId: input.projectId,
+      title: input.title,
+      slug: input.slug,
+      isHome: input.isHome
+    });
+
+    this.createdPages += 1;
+    this.pages.push(page);
+
+    return page;
+  }
 }
 
 function createProject(input: {
@@ -225,6 +474,29 @@ function createProject(input: {
     name: input.name ?? "Demo Store",
     slug: input.slug ?? "demo-store",
     status: "DRAFT",
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    deletedAt: input.deletedAt ?? null
+  };
+}
+
+function createPage(input: {
+  readonly id?: string;
+  readonly organizationId?: string;
+  readonly projectId?: string;
+  readonly title?: string;
+  readonly slug?: string;
+  readonly isHome?: boolean;
+  readonly deletedAt?: Date | null;
+}): SitePage {
+  return {
+    id: input.id ?? "page",
+    organizationId: input.organizationId ?? "org-a",
+    projectId: input.projectId ?? "project-a",
+    title: input.title ?? "Главная",
+    slug: input.slug ?? "home",
+    status: "DRAFT",
+    isHome: input.isHome ?? false,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),
     deletedAt: input.deletedAt ?? null

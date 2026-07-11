@@ -15,7 +15,10 @@ export const API_ERROR_CODES = {
   permissionDenied: "PERMISSION_DENIED",
   validationFailed: "VALIDATION_FAILED",
   organizationIdNotAllowed: "ORGANIZATION_ID_NOT_ALLOWED",
-  projectSlugAlreadyExists: "PROJECT_SLUG_ALREADY_EXISTS"
+  projectNotFound: "PROJECT_NOT_FOUND",
+  pageNotFound: "PAGE_NOT_FOUND",
+  projectSlugAlreadyExists: "PROJECT_SLUG_ALREADY_EXISTS",
+  pageSlugAlreadyExists: "PAGE_SLUG_ALREADY_EXISTS"
 } as const;
 
 export type ApiErrorCode =

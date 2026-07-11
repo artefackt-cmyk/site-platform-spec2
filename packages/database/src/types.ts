@@ -2,7 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 export type RepositoryPrismaClient = Pick<
   Prisma.TransactionClient,
-  "auditLog" | "membership" | "organization" | "project" | "user"
+  "auditLog" | "membership" | "organization" | "project" | "sitePage" | "user"
 >;
 
 export type DatabasePrismaClient = PrismaClient;

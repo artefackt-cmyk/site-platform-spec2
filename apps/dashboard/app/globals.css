@@ -21,6 +21,11 @@ input {
   font: inherit;
 }
 
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 button {
   cursor: pointer;
 }
@@ -102,6 +107,9 @@ button:disabled {
 .primary-button,
 .secondary-button,
 .ghost-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 40px;
   border-radius: 6px;
   border: 1px solid transparent;
@@ -227,12 +235,187 @@ button:disabled {
   outline: 3px solid rgba(37, 99, 235, 0.14);
 }
 
+.checkbox-row {
+  display: flex !important;
+  align-items: center;
+  gap: 10px !important;
+}
+
+.checkbox-row input {
+  min-height: 18px;
+  width: 18px;
+}
+
 .form-error {
   margin: 0;
   border-radius: 6px;
   background: #fef2f2;
   padding: 12px;
   color: #b42318;
+  font-weight: 700;
+}
+
+.back-link,
+.breadcrumb a {
+  display: inline-flex;
+  margin-bottom: 12px;
+  color: #1d4ed8;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.workspace-topbar {
+  align-items: flex-end;
+}
+
+.workspace-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.workspace-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px;
+  padding-top: 28px;
+}
+
+.workspace-nav {
+  display: grid;
+  align-self: start;
+  gap: 6px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.workspace-nav-item {
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0 12px;
+  color: #475467;
+  font-weight: 700;
+  text-align: left;
+}
+
+.workspace-nav-item-active {
+  background: #eef4ff;
+  color: #1d4ed8;
+}
+
+.workspace-main {
+  min-width: 0;
+}
+
+.workspace-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.workspace-section-heading h2,
+.workspace-placeholder h2,
+.page-row h3,
+.editor-side-panel h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.page-list {
+  display: grid;
+  gap: 12px;
+}
+
+.page-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.page-title-line,
+.page-row-meta,
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-row-meta {
+  color: #667085;
+  font-size: 14px;
+}
+
+.home-badge {
+  display: inline-flex;
+  border-radius: 999px;
+  background: #ecfdf3;
+  padding: 4px 8px;
+  color: #047857;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.workspace-placeholder {
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 32px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.workspace-placeholder p {
+  color: #667085;
+}
+
+.breadcrumb {
+  margin-bottom: 12px;
+  color: #667085;
+  font-size: 14px;
+}
+
+.breadcrumb a {
+  margin-bottom: 0;
+}
+
+.editor-placeholder-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 260px;
+  gap: 16px;
+  padding-top: 28px;
+}
+
+.editor-side-panel,
+.editor-canvas-placeholder {
+  min-height: 540px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.editor-side-panel {
+  padding: 18px;
+}
+
+.editor-canvas-placeholder {
+  display: grid;
+  place-items: center;
+  background: #fbfcfe;
+  color: #667085;
+  font-size: 18px;
   font-weight: 700;
 }
 
@@ -243,7 +426,8 @@ button:disabled {
 
   .topbar,
   .section-heading,
-  .form-header {
+  .form-header,
+  .workspace-section-heading {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -259,5 +443,26 @@ button:disabled {
   .empty-state,
   .center-state {
     padding: 28px;
+  }
+
+  .workspace-actions,
+  .page-row-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workspace-layout,
+  .editor-placeholder-layout,
+  .page-row {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editor-side-panel,
+  .editor-canvas-placeholder {
+    min-height: 220px;
   }
 }

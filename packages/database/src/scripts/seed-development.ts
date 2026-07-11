@@ -12,6 +12,23 @@ const DEMO_ORGANIZATION_NAME = "Demo Brand";
 const DEMO_ORGANIZATION_SLUG = "demo-brand";
 const DEMO_PROJECT_NAME = "Demo Store";
 const DEMO_PROJECT_SLUG = "demo-store";
+const DEMO_PAGES = [
+  {
+    title: "Главная",
+    slug: "home",
+    isHome: true
+  },
+  {
+    title: "Каталог",
+    slug: "catalog",
+    isHome: false
+  },
+  {
+    title: "О бренде",
+    slug: "about",
+    isHome: false
+  }
+] as const;
 
 export async function seedDevelopmentDatabase(
   client: DatabasePrismaClient
@@ -100,6 +117,11 @@ export async function seedDevelopmentDatabase(
       seed: "development"
     }
   });
+
+  await seedDemoPages(client, {
+    organizationId: organization.id,
+    projectId: project.id
+  });
 }
 
 async function createAuditLogIfMissing(
@@ -130,6 +152,52 @@ async function createAuditLogIfMissing(
 
   await client.auditLog.create({
     data: input
+  });
+}
+
+async function seedDemoPages(
+  client: DatabasePrismaClient,
+  input: {
+    readonly organizationId: string;
+    readonly projectId: string;
+  }
+): Promise<void> {
+  await client.$transaction(async (transaction) => {
+    await transaction.sitePage.updateMany({
+      where: {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        deletedAt: null
+      },
+      data: {
+        isHome: false
+      }
+    });
+
+    for (const page of DEMO_PAGES) {
+      await transaction.sitePage.upsert({
+        where: {
+          projectId_slug: {
+            projectId: input.projectId,
+            slug: page.slug
+          }
+        },
+        create: {
+          organizationId: input.organizationId,
+          projectId: input.projectId,
+          title: page.title,
+          slug: page.slug,
+          status: "DRAFT",
+          isHome: page.isHome
+        },
+        update: {
+          title: page.title,
+          status: "DRAFT",
+          isHome: page.isHome,
+          deletedAt: null
+        }
+      });
+    }
   });
 }
 

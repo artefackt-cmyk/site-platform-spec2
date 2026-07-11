@@ -25,6 +25,10 @@ export {
   type ProjectTenantSlugLookupInput,
   type UpdateProjectSettingsInput
 } from "./repositories/project-repository";
+export {
+  SitePageRepository,
+  type CreateSitePageInput
+} from "./repositories/site-page-repository";
 export { UserRepository, type CreateUserInput } from "./repositories/user-repository";
 export {
   OrganizationCreationService,
@@ -41,4 +45,4 @@ export {
   type PrismaJsonInput,
   type RepositoryPrismaClient
 } from "./types";
-export type { Project, ProjectStatus } from "@prisma/client";
+export type { Project, ProjectStatus, SitePage, SitePageStatus } from "@prisma/client";

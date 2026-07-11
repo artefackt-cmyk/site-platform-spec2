@@ -69,12 +69,13 @@ pnpm db:migrate
 pnpm db:migrate:test
 ```
 
-Миграции находятся в `packages/database/prisma/migrations`. Текущая миграция добавляет только foundation-модели:
+Миграции находятся в `packages/database/prisma/migrations`. Текущие миграции добавляют foundation-модели и первый каркас страниц проекта:
 
 - `User`;
 - `Organization`;
 - `Membership`;
 - `Project`;
+- `SitePage`;
 - `AuditLog`.
 
 Открыть Prisma Studio:
@@ -107,9 +108,16 @@ Seed работает только вне production и идемпотентно
 - организацию `Demo Brand`;
 - `OWNER` membership;
 - проект `Demo Store` со slug `demo-store`;
+- страницы проекта `Главная`, `Каталог` и `О бренде`;
 - audit log записи для создания организации и проекта.
 
 Повторный запуск не создает дубликаты и не удаляет существующие данные.
+
+Для повторного запуска seed после изменения локальных данных выполните:
+
+```bash
+pnpm db:seed
+```
 
 ## Запуск
 
@@ -130,7 +138,11 @@ API endpoints:
 - `GET /health/database` - проверяет PostgreSQL и возвращает стабильную ошибку без раскрытия connection string.
 - `GET /api/me` - development-only текущий пользователь и активная организация;
 - `GET /api/projects` - проекты активной организации;
-- `POST /api/projects` - создание проекта в активной организации.
+- `POST /api/projects` - создание проекта в активной организации;
+- `GET /api/projects/:projectId` - данные проекта активной организации;
+- `GET /api/projects/:projectId/pages` - страницы проекта;
+- `POST /api/projects/:projectId/pages` - создание страницы проекта;
+- `GET /api/projects/:projectId/pages/:pageId` - данные страницы проекта.
 
 Для раздельного запуска:
 
@@ -142,6 +154,8 @@ pnpm --filter @site-platform/dashboard dev
 Адреса для браузера и API:
 
 - dashboard: `http://localhost:3000`;
+- project workspace: `http://localhost:3000/projects/{projectId}`;
+- page editor placeholder: `http://localhost:3000/projects/{projectId}/pages/{pageId}`;
 - API: `http://localhost:3002`;
 - database health: `http://localhost:3002/health/database`.
 
@@ -156,6 +170,23 @@ pnpm --filter @site-platform/dashboard dev
 ```
 
 Если `DEV_USER_EMAIL` отсутствует или пользователь не найден в таблицах `User`/`Membership`, API вернет понятную JSON-ошибку, а dashboard покажет сообщение конфигурации.
+
+Сейчас в dashboard уже работает:
+
+- просмотр активной организации;
+- просмотр и создание проектов;
+- открытие рабочей области проекта;
+- просмотр страниц проекта;
+- создание страниц проекта;
+- открытие placeholder будущего редактора страницы.
+
+Пока placeholder:
+
+- визуальный редактор;
+- структура блоков;
+- настройки блока;
+- предпросмотр;
+- публикация.
 
 ## Команды проверки
 
@@ -184,6 +215,8 @@ pnpm --filter @site-platform/database... test
 `Organization` является верхней границей tenant. `User` является глобальной identity-сущностью, а доступ пользователя к организации задается через `Membership`.
 
 `Project` всегда принадлежит одной `Organization`. Репозитории не предоставляют публичный `ProjectRepository.findById(id)`: чтение проекта выполняется только через `organizationId` или `TenantContext`. Если проект принадлежит другой организации, обычный query возвращает `null`, то есть прикладной слой должен отдавать `not found`.
+
+`SitePage` всегда принадлежит одному `Project` и содержит `organizationId` для tenant isolation. Репозиторий страниц не предоставляет lookup только по `pageId`: каждый query включает `TenantContext` и `projectId`. Обычные query скрывают soft-deleted страницы.
 
 Обычные запросы к `Organization` и `Project` исключают записи с `deletedAt`. `AuditLog` считается append-only: repository предоставляет только create/read методы.
 
@@ -232,3 +265,4 @@ docs/
 - `ROADMAP.md`
 - `AGENTS.md`
 - `docs/TECHNICAL_FOUNDATION_PROPOSAL.md`
+- `docs/PROJECT_WORKSPACE.md`

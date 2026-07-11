@@ -10,6 +10,10 @@ export const ORGANIZATION_ROLES = [
 
 export type OrganizationRole = (typeof ORGANIZATION_ROLES)[number];
 
+export const PAGE_STATUSES = ["DRAFT", "PUBLISHED", "ARCHIVED"] as const;
+
+export type PageStatus = (typeof PAGE_STATUSES)[number];
+
 export type TenantContext = {
   readonly organizationId: string;
   readonly userId: string;
@@ -26,6 +30,10 @@ export const PERMISSIONS = {
   projectCreate: "project.create",
   projectUpdate: "project.update",
   projectDelete: "project.delete",
+  pageRead: "page.read",
+  pageCreate: "page.create",
+  pageUpdate: "page.update",
+  pageDelete: "page.delete",
   contentRead: "content.read",
   contentUpdate: "content.update",
   designUpdate: "design.update",
@@ -44,6 +52,10 @@ export const ALL_PERMISSIONS = [
   PERMISSIONS.projectCreate,
   PERMISSIONS.projectUpdate,
   PERMISSIONS.projectDelete,
+  PERMISSIONS.pageRead,
+  PERMISSIONS.pageCreate,
+  PERMISSIONS.pageUpdate,
+  PERMISSIONS.pageDelete,
   PERMISSIONS.contentRead,
   PERMISSIONS.contentUpdate,
   PERMISSIONS.designUpdate,
@@ -57,6 +69,9 @@ export const MUTATION_PERMISSIONS = [
   PERMISSIONS.projectCreate,
   PERMISSIONS.projectUpdate,
   PERMISSIONS.projectDelete,
+  PERMISSIONS.pageCreate,
+  PERMISSIONS.pageUpdate,
+  PERMISSIONS.pageDelete,
   PERMISSIONS.contentUpdate,
   PERMISSIONS.designUpdate,
   PERMISSIONS.integrationManage
@@ -68,6 +83,9 @@ export const ROLE_PERMISSIONS = {
   EDITOR: [
     PERMISSIONS.organizationRead,
     PERMISSIONS.projectRead,
+    PERMISSIONS.pageRead,
+    PERMISSIONS.pageCreate,
+    PERMISSIONS.pageUpdate,
     PERMISSIONS.contentRead,
     PERMISSIONS.contentUpdate,
     PERMISSIONS.designUpdate
@@ -75,11 +93,13 @@ export const ROLE_PERMISSIONS = {
   STORE_MANAGER: [
     PERMISSIONS.organizationRead,
     PERMISSIONS.projectRead,
+    PERMISSIONS.pageRead,
     PERMISSIONS.contentRead
   ],
   VIEWER: [
     PERMISSIONS.organizationRead,
     PERMISSIONS.projectRead,
+    PERMISSIONS.pageRead,
     PERMISSIONS.contentRead
   ]
 } as const satisfies Record<OrganizationRole, readonly Permission[]>;
@@ -95,6 +115,13 @@ export const DOMAIN_ERROR_CODES = {
   projectSlugTooShort: "PROJECT_SLUG_TOO_SHORT",
   projectSlugTooLong: "PROJECT_SLUG_TOO_LONG",
   projectSlugInvalidFormat: "PROJECT_SLUG_INVALID_FORMAT",
+  pageTitleRequired: "PAGE_TITLE_REQUIRED",
+  pageTitleTooShort: "PAGE_TITLE_TOO_SHORT",
+  pageTitleTooLong: "PAGE_TITLE_TOO_LONG",
+  pageSlugRequired: "PAGE_SLUG_REQUIRED",
+  pageSlugTooShort: "PAGE_SLUG_TOO_SHORT",
+  pageSlugTooLong: "PAGE_SLUG_TOO_LONG",
+  pageSlugInvalidFormat: "PAGE_SLUG_INVALID_FORMAT",
   tenantContextRequired: "TENANT_CONTEXT_REQUIRED",
   tenantScopedEntityNotFound: "TENANT_SCOPED_ENTITY_NOT_FOUND"
 } as const;
@@ -119,6 +146,11 @@ const PROJECT_NAME_MAX_LENGTH = 120;
 const PROJECT_SLUG_MIN_LENGTH = 2;
 const PROJECT_SLUG_MAX_LENGTH = 80;
 const PROJECT_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const PAGE_TITLE_MIN_LENGTH = 2;
+const PAGE_TITLE_MAX_LENGTH = 120;
+const PAGE_SLUG_MIN_LENGTH = 1;
+const PAGE_SLUG_MAX_LENGTH = 80;
+const PAGE_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export function hasPermission(
   role: OrganizationRole,
@@ -188,6 +220,46 @@ export function validateProjectSlug(slug: string): ValidationResult<string> {
 
   if (!PROJECT_SLUG_PATTERN.test(normalizedSlug)) {
     return invalid(DOMAIN_ERROR_CODES.projectSlugInvalidFormat);
+  }
+
+  return valid(normalizedSlug);
+}
+
+export function validatePageTitle(title: string): ValidationResult<string> {
+  const normalizedTitle = title.trim().replace(/\s+/g, " ");
+
+  if (normalizedTitle.length === 0) {
+    return invalid(DOMAIN_ERROR_CODES.pageTitleRequired);
+  }
+
+  if (normalizedTitle.length < PAGE_TITLE_MIN_LENGTH) {
+    return invalid(DOMAIN_ERROR_CODES.pageTitleTooShort);
+  }
+
+  if (normalizedTitle.length > PAGE_TITLE_MAX_LENGTH) {
+    return invalid(DOMAIN_ERROR_CODES.pageTitleTooLong);
+  }
+
+  return valid(normalizedTitle);
+}
+
+export function validatePageSlug(slug: string): ValidationResult<string> {
+  const normalizedSlug = slug.trim();
+
+  if (normalizedSlug.length === 0) {
+    return invalid(DOMAIN_ERROR_CODES.pageSlugRequired);
+  }
+
+  if (normalizedSlug.length < PAGE_SLUG_MIN_LENGTH) {
+    return invalid(DOMAIN_ERROR_CODES.pageSlugTooShort);
+  }
+
+  if (normalizedSlug.length > PAGE_SLUG_MAX_LENGTH) {
+    return invalid(DOMAIN_ERROR_CODES.pageSlugTooLong);
+  }
+
+  if (!PAGE_SLUG_PATTERN.test(normalizedSlug)) {
+    return invalid(DOMAIN_ERROR_CODES.pageSlugInvalidFormat);
   }
 
   return valid(normalizedSlug);
