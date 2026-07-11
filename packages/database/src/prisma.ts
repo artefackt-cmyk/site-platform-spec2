@@ -1,13 +1,8 @@
 import { createRequire } from "node:module";
 import { loadConfig, type AppConfig } from "@site-platform/config";
+import type { DatabasePrismaClient } from "./types";
 
-export type PrismaClientLike = {
-  readonly $queryRaw: (
-    query: TemplateStringsArray,
-    ...values: readonly unknown[]
-  ) => Promise<unknown>;
-  readonly $disconnect: () => Promise<void>;
-};
+export type PrismaClientLike = DatabasePrismaClient;
 
 type PrismaClientConstructor = new (options: {
   readonly datasources: {
@@ -32,7 +27,7 @@ export type DatabaseConnectionResult =
 
 type CachedPrismaClient = {
   readonly url: string;
-  readonly client: PrismaClientLike;
+  readonly client: DatabasePrismaClient;
 };
 
 type GlobalWithPrisma = typeof globalThis & {
@@ -44,7 +39,7 @@ const requireFromCurrentFile = createRequire(__filename);
 
 export function createPrismaClient(
   config: AppConfig = loadConfig()
-): PrismaClientLike {
+): DatabasePrismaClient {
   const PrismaClient = getPrismaClientConstructor();
 
   return new PrismaClient({
@@ -56,7 +51,9 @@ export function createPrismaClient(
   });
 }
 
-export function getPrismaClient(config: AppConfig = loadConfig()): PrismaClientLike {
+export function getPrismaClient(
+  config: AppConfig = loadConfig()
+): DatabasePrismaClient {
   if (config.nodeEnv !== "development") {
     return createPrismaClient(config);
   }
@@ -77,7 +74,7 @@ export function getPrismaClient(config: AppConfig = loadConfig()): PrismaClientL
 }
 
 export async function disconnectPrismaClient(
-  client?: PrismaClientLike
+  client?: DatabasePrismaClient
 ): Promise<void> {
   if (client !== undefined) {
     await client.$disconnect();
@@ -93,7 +90,7 @@ export async function disconnectPrismaClient(
 }
 
 export async function checkDatabaseConnection(
-  client: PrismaClientLike = getPrismaClient()
+  client: DatabasePrismaClient = getPrismaClient()
 ): Promise<DatabaseConnectionResult> {
   try {
     await client.$queryRaw`SELECT 1`;

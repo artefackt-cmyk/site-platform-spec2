@@ -11,19 +11,20 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "pnpm db:generate && tsc -p tsconfig.json",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:migrate": "tsx src/scripts/migrate-database.ts",
     "db:migrate:test": "tsx src/scripts/migrate-test-database.ts",
     "db:reset:test": "tsx src/scripts/reset-test-database.ts",
     "db:studio": "tsx src/scripts/open-studio.ts",
     "lint": "eslint . --max-warnings=0",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "typecheck": "pnpm db:generate && tsc --noEmit -p tsconfig.json",
+    "test": "pnpm db:generate && vitest run --passWithNoTests"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
-    "@site-platform/config": "workspace:*"
+    "@site-platform/config": "workspace:*",
+    "@site-platform/domain": "workspace:*"
   },
   "devDependencies": {
     "prisma": "^6.19.0"

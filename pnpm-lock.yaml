@@ -116,6 +116,9 @@ importers:
       '@site-platform/config':
         specifier: workspace:*
         version: link:../config
+      '@site-platform/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       prisma:
         specifier: ^6.19.0

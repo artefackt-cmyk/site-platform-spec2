@@ -7,7 +7,90 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// This schema intentionally contains no product models yet.
-// Business entities such as User, Organization, Project, AuditLog, commerce,
-// editor and integration models are out of scope for this foundation task.
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  EDITOR
+  STORE_MANAGER
+  VIEWER
+}
 
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model User {
+  id          String       @id @default(cuid())
+  email       String       @unique
+  displayName String?      @map("display_name")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  memberships Membership[]
+  auditLogs   AuditLog[]   @relation("AuditActor")
+
+  @@map("users")
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  memberships Membership[]
+  projects    Project[]
+  auditLogs   AuditLog[]
+
+  @@map("organizations")
+}
+
+model Membership {
+  id             String           @id @default(cuid())
+  userId         String           @map("user_id")
+  organizationId String           @map("organization_id")
+  role           OrganizationRole
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  user           User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("memberships")
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  organizationId String        @map("organization_id")
+  name           String
+  slug           String
+  status         ProjectStatus @default(DRAFT)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@map("projects")
+}
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  actorUserId    String?      @map("actor_user_id")
+  action         String
+  entityType     String       @map("entity_type")
+  entityId       String?      @map("entity_id")
+  metadata       Json?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorUser      User?        @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([actorUserId])
+  @@map("audit_logs")
+}

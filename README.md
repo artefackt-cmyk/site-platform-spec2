@@ -1,6 +1,6 @@
 # Site Platform Spec 2
 
-Минимальный технический каркас monorepo для будущей SaaS-платформы. В репозитории пока нет продуктовых сущностей, авторизации, редактора, commerce, очередей и реальных интеграций.
+Минимальный технический каркас monorepo для будущей SaaS-платформы. В репозитории есть первые foundation-модели для организаций, участников, проектов и audit log. Авторизации, редактора, commerce, очередей и реальных интеграций пока нет.
 
 ## Требования к окружению
 
@@ -57,6 +57,14 @@ pnpm db:migrate
 pnpm db:migrate:test
 ```
 
+Миграции находятся в `packages/database/prisma/migrations`. Текущая миграция добавляет только foundation-модели:
+
+- `User`;
+- `Organization`;
+- `Membership`;
+- `Project`;
+- `AuditLog`.
+
 Открыть Prisma Studio:
 
 ```bash
@@ -71,7 +79,7 @@ pnpm db:reset:test
 
 `db:reset:test` откажется выполняться, если активное окружение не `test`, если `TEST_DATABASE_URL` совпадает с `DATABASE_URL`, или если URL не распознан как тестовая база.
 
-Текущая Prisma schema намеренно не содержит продуктовых моделей. `User`, `Organization`, `Project`, `AuditLog`, editor, commerce и integration-модели добавляются только отдельными задачами и миграциями.
+Editor, commerce и integration-модели пока намеренно не добавлены.
 
 ## Запуск
 
@@ -102,6 +110,25 @@ pnpm build
 
 Integration tests с PostgreSQL запускаются только когда настроены безопасные test database переменные. Если Docker или база недоступны, unit/smoke tests остаются рабочими, а database integration test пропускается.
 
+Для запуска database integration tests с реальной PostgreSQL:
+
+```bash
+cp .env.example .env
+pnpm db:up
+pnpm db:migrate:test
+pnpm --filter @site-platform/database... test
+```
+
+Тесты используют `TEST_DATABASE_URL`, проверяют safety rules перед подключением и очищают только таблицы тестовой базы.
+
+## Tenant Isolation
+
+`Organization` является верхней границей tenant. `User` является глобальной identity-сущностью, а доступ пользователя к организации задается через `Membership`.
+
+`Project` всегда принадлежит одной `Organization`. Репозитории не предоставляют публичный `ProjectRepository.findById(id)`: чтение проекта выполняется только через `organizationId` или `TenantContext`. Если проект принадлежит другой организации, обычный query возвращает `null`, то есть прикладной слой должен отдавать `not found`.
+
+Обычные запросы к `Organization` и `Project` исключают записи с `deletedAt`. `AuditLog` считается append-only: repository предоставляет только create/read методы.
+
 ## Структура monorepo
 
 ```text
@@ -114,8 +141,8 @@ apps/
 packages/
   block-library/
   config/      Zod env validation и typed config
-  database/    Prisma/PostgreSQL foundation без продуктовых моделей
-  domain/
+  database/    Prisma/PostgreSQL foundation, repositories и tenant-aware tests
+  domain/      tenant context, RBAC permissions, validators и domain errors
   editor-core/
   integrations/
   renderer/
