@@ -16,6 +16,10 @@ import {
   PageDocumentInvalidError,
   PageDocumentRepository,
   PageDocumentRevisionConflictError,
+  ProductMediaRepository,
+  ProductMediaRepositoryError,
+  ProductRepository,
+  ProductVariantRepository,
   ProjectPublicationSettingsRepository,
   ProjectRepository,
   PublishedPageSnapshotRepository,
@@ -366,6 +370,377 @@ describe.skipIf(integrationConfig === undefined)(
       ).resolves.toEqual([]);
     });
 
+    it("enforces tenant-aware product and variant repository rules", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const productRepository = new ProductRepository(currentClient);
+      const variantRepository = new ProductVariantRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const tenantB = await createOrganizationFixture(currentClient, "tenant-b");
+      const tenantAContext = createTenantContext(tenantA);
+      const tenantBContext = createTenantContext(tenantB);
+      const projectA = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Tenant A Product Project",
+        slug: "tenant-a-product-project"
+      });
+      const projectB = await projectRepository.create({
+        organizationId: tenantB.organization.id,
+        name: "Tenant B Product Project",
+        slug: "tenant-b-product-project"
+      });
+      const productA = await productRepository.create({
+        tenantContext: tenantAContext,
+        projectId: projectA.id,
+        title: "Tenant A Product",
+        slug: "shared-product",
+        createdByUserId: tenantA.user.id,
+        updatedByUserId: tenantA.user.id
+      });
+      const productB = await productRepository.create({
+        tenantContext: tenantBContext,
+        projectId: projectB.id,
+        title: "Tenant B Product",
+        slug: "shared-product",
+        createdByUserId: tenantB.user.id,
+        updatedByUserId: tenantB.user.id
+      });
+
+      if (productA === null || productB === null) {
+        throw new Error("Expected product fixtures.");
+      }
+
+      await expect(
+        productRepository.findByIdForProject(
+          tenantAContext,
+          projectA.id,
+          productA.id
+        )
+      ).resolves.toMatchObject({
+        id: productA.id
+      });
+      await expect(
+        productRepository.findByIdForProject(
+          tenantAContext,
+          projectB.id,
+          productB.id
+        )
+      ).resolves.toBeNull();
+      await expect(
+        productRepository.create({
+          tenantContext: tenantAContext,
+          projectId: projectA.id,
+          title: "Duplicate Product",
+          slug: "shared-product",
+          createdByUserId: tenantA.user.id,
+          updatedByUserId: tenantA.user.id
+        })
+      ).rejects.toThrow();
+
+      const variantA = await variantRepository.create({
+        tenantContext: tenantAContext,
+        projectId: projectA.id,
+        productId: productA.id,
+        title: "Default",
+        sku: "SKU-001",
+        priceMinor: 129900,
+        stockQuantity: 5,
+        trackInventory: true,
+        allowBackorder: false,
+        isDefault: true
+      });
+
+      if (variantA === null) {
+        throw new Error("Expected variant fixture.");
+      }
+
+      await expect(
+        variantRepository.create({
+          tenantContext: tenantAContext,
+          projectId: projectA.id,
+          productId: productA.id,
+          title: "Duplicate SKU",
+          sku: "SKU-001",
+          priceMinor: 9900,
+          stockQuantity: 1,
+          trackInventory: true,
+          allowBackorder: false
+        })
+      ).rejects.toThrow();
+
+      await productRepository.softDelete(
+        tenantAContext,
+        projectA.id,
+        productA.id,
+        tenantA.user.id
+      );
+      await expect(
+        productRepository.findByIdForProject(
+          tenantAContext,
+          projectA.id,
+          productA.id
+        )
+      ).resolves.toBeNull();
+    });
+
+    it("manages product media with tenant and project isolation", async () => {
+      const currentClient = getClient(client);
+      const tenantAFixture = await createPageFixture(currentClient, "tenant-a");
+      const tenantBFixture = await createPageFixture(currentClient, "tenant-b");
+      const productRepository = new ProductRepository(currentClient);
+      const productMediaRepository = new ProductMediaRepository(currentClient);
+      const mediaAssetRepository = new MediaAssetRepository(currentClient);
+      const product = await productRepository.create({
+        tenantContext: tenantAFixture.context,
+        projectId: tenantAFixture.project.id,
+        title: "Gallery Product",
+        slug: "gallery-product",
+        createdByUserId: tenantAFixture.context.userId,
+        updatedByUserId: tenantAFixture.context.userId
+      });
+      const firstAsset = await createMediaAssetFixture(
+        currentClient,
+        tenantAFixture.context,
+        tenantAFixture.project.id,
+        "gallery-first"
+      );
+      const secondAsset = await createMediaAssetFixture(
+        currentClient,
+        tenantAFixture.context,
+        tenantAFixture.project.id,
+        "gallery-second"
+      );
+      const thirdAsset = await createMediaAssetFixture(
+        currentClient,
+        tenantAFixture.context,
+        tenantAFixture.project.id,
+        "gallery-third"
+      );
+      const foreignAsset = await createMediaAssetFixture(
+        currentClient,
+        tenantBFixture.context,
+        tenantBFixture.project.id,
+        "gallery-foreign"
+      );
+
+      if (product === null) {
+        throw new Error("Expected product fixture.");
+      }
+
+      const firstImage = await productMediaRepository.add({
+        tenantContext: tenantAFixture.context,
+        projectId: tenantAFixture.project.id,
+        productId: product.id,
+        mediaAssetId: firstAsset.id
+      });
+      const secondImage = await productMediaRepository.add({
+        tenantContext: tenantAFixture.context,
+        projectId: tenantAFixture.project.id,
+        productId: product.id,
+        mediaAssetId: secondAsset.id
+      });
+      const thirdImage = await productMediaRepository.add({
+        tenantContext: tenantAFixture.context,
+        projectId: tenantAFixture.project.id,
+        productId: product.id,
+        mediaAssetId: thirdAsset.id
+      });
+
+      await expect(
+        productMediaRepository.add({
+          tenantContext: tenantAFixture.context,
+          projectId: tenantAFixture.project.id,
+          productId: product.id,
+          mediaAssetId: firstAsset.id
+        })
+      ).rejects.toBeInstanceOf(ProductMediaRepositoryError);
+      await expect(
+        productMediaRepository.add({
+          tenantContext: tenantAFixture.context,
+          projectId: tenantAFixture.project.id,
+          productId: product.id,
+          mediaAssetId: foreignAsset.id
+        })
+      ).rejects.toBeInstanceOf(ProductMediaRepositoryError);
+
+      await productMediaRepository.setPrimary(
+        tenantAFixture.context,
+        tenantAFixture.project.id,
+        product.id,
+        secondImage.id
+      );
+      await expect(
+        productMediaRepository.listByProduct(
+          tenantAFixture.context,
+          tenantAFixture.project.id,
+          product.id
+        )
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: firstImage.id,
+          isPrimary: false
+        }),
+        expect.objectContaining({
+          id: secondImage.id,
+          isPrimary: true
+        }),
+        expect.objectContaining({
+          id: thirdImage.id,
+          isPrimary: false
+        })
+      ]);
+
+      await productMediaRepository.remove(
+        tenantAFixture.context,
+        tenantAFixture.project.id,
+        product.id,
+        secondImage.id
+      );
+      await expect(
+        productMediaRepository.listByProduct(
+          tenantAFixture.context,
+          tenantAFixture.project.id,
+          product.id
+        )
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: firstImage.id,
+          isPrimary: true,
+          position: 0
+        }),
+        expect.objectContaining({
+          id: thirdImage.id,
+          position: 1
+        })
+      ]);
+
+      await productMediaRepository.reorder(
+        tenantAFixture.context,
+        tenantAFixture.project.id,
+        product.id,
+        [thirdImage.id, firstImage.id]
+      );
+      await expect(
+        productMediaRepository.listByProduct(
+          tenantAFixture.context,
+          tenantAFixture.project.id,
+          product.id
+        )
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: thirdImage.id,
+          position: 0
+        }),
+        expect.objectContaining({
+          id: firstImage.id,
+          position: 1
+        })
+      ]);
+
+      await expect(
+        mediaAssetRepository.countUsage(
+          tenantAFixture.context,
+          tenantAFixture.project.id,
+          firstAsset.id
+        )
+      ).resolves.toMatchObject({
+        usageCount: 1,
+        productIds: [product.id]
+      });
+      await expect(
+        mediaAssetRepository.delete(
+          tenantAFixture.context,
+          tenantAFixture.project.id,
+          firstAsset.id
+        )
+      ).rejects.toThrow();
+    });
+
+    it("rejects product media above the MVP limit", async () => {
+      const currentClient = getClient(client);
+      const fixture = await createPageFixture(currentClient, "tenant-limit");
+      const product = await new ProductRepository(currentClient).create({
+        tenantContext: fixture.context,
+        projectId: fixture.project.id,
+        title: "Limited Gallery Product",
+        slug: "limited-gallery-product",
+        createdByUserId: fixture.context.userId,
+        updatedByUserId: fixture.context.userId
+      });
+      const productMediaRepository = new ProductMediaRepository(currentClient);
+
+      if (product === null) {
+        throw new Error("Expected product fixture.");
+      }
+
+      for (let index = 0; index < 10; index += 1) {
+        const asset = await createMediaAssetFixture(
+          currentClient,
+          fixture.context,
+          fixture.project.id,
+          `limit-${index}`
+        );
+
+        await productMediaRepository.add({
+          tenantContext: fixture.context,
+          projectId: fixture.project.id,
+          productId: product.id,
+          mediaAssetId: asset.id
+        });
+      }
+
+      const extraAsset = await createMediaAssetFixture(
+        currentClient,
+        fixture.context,
+        fixture.project.id,
+        "limit-extra"
+      );
+
+      await expect(
+        productMediaRepository.add({
+          tenantContext: fixture.context,
+          projectId: fixture.project.id,
+          productId: product.id,
+          mediaAssetId: extraAsset.id
+        })
+      ).rejects.toBeInstanceOf(ProductMediaRepositoryError);
+    });
+
+    it("counts legacy primary media as migration compatibility", async () => {
+      const currentClient = getClient(client);
+      const fixture = await createPageFixture(currentClient, "tenant-legacy");
+      const asset = await createMediaAssetFixture(
+        currentClient,
+        fixture.context,
+        fixture.project.id,
+        "legacy-primary"
+      );
+      const product = await new ProductRepository(currentClient).create({
+        tenantContext: fixture.context,
+        projectId: fixture.project.id,
+        title: "Legacy Product",
+        slug: "legacy-product",
+        primaryMediaAssetId: asset.id,
+        createdByUserId: fixture.context.userId,
+        updatedByUserId: fixture.context.userId
+      });
+
+      if (product === null) {
+        throw new Error("Expected product fixture.");
+      }
+
+      await expect(
+        new MediaAssetRepository(currentClient).countUsage(
+          fixture.context,
+          fixture.project.id,
+          asset.id
+        )
+      ).resolves.toMatchObject({
+        usageCount: 1,
+        productIds: [product.id]
+      });
+    });
+
     it("creates a page document for the correct page", async () => {
       const currentClient = getClient(client);
       const { context, project, page } = await createPageFixture(currentClient);
@@ -664,7 +1039,8 @@ describe.skipIf(integrationConfig === undefined)(
         mediaAssetRepository.countUsage(context, project.id, asset.id)
       ).resolves.toEqual({
         usageCount: 1,
-        pageIds: [page.id]
+        pageIds: [page.id],
+        productIds: []
       });
     });
 
@@ -882,6 +1258,9 @@ async function clearDatabase(client: DatabasePrismaClient): Promise<void> {
   await client.publishedPageState.deleteMany();
   await client.publishedPageSnapshot.deleteMany();
   await client.projectPublicationSettings.deleteMany();
+  await client.productMedia.deleteMany();
+  await client.productVariant.deleteMany();
+  await client.product.deleteMany();
   await client.mediaAsset.deleteMany();
   await client.pageDocument.deleteMany();
   await client.sitePage.deleteMany();

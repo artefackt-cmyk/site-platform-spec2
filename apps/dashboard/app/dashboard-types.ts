@@ -3,6 +3,7 @@ import type { PageDocumentV2 } from "@site-platform/editor-core";
 
 export type ProjectStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 export type SitePageStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+export type ProductStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 
 export type CurrentUserResponse = {
   readonly id: string;
@@ -77,6 +78,82 @@ export type MediaAssetSummary = {
 
 export type MediaAssetsListResponse = {
   readonly assets: readonly MediaAssetSummary[];
+};
+
+export type ProductMoneyResponse = {
+  readonly amountMinor: number;
+  readonly currency: "RUB";
+  readonly formatted: string;
+};
+
+export type ProductAvailabilityResponse =
+  | "in-stock"
+  | "out-of-stock"
+  | "preorder";
+
+export type ProductImageResponse = {
+  readonly assetId: string;
+  readonly url: string;
+  readonly altText: string | null;
+  readonly width: number | null;
+  readonly height: number | null;
+};
+
+export type ProductGalleryImage = ProductImageResponse & {
+  readonly id: string;
+  readonly position: number;
+  readonly isPrimary: boolean;
+};
+
+export type ProductSummary = {
+  readonly id: string;
+  readonly title: string;
+  readonly slug: string;
+  readonly status: ProductStatus;
+  readonly primaryImage: ProductImageResponse | null;
+  readonly defaultPrice: ProductMoneyResponse | null;
+  readonly variantsCount: number;
+  readonly stockSummary: ProductAvailabilityResponse;
+  readonly updatedAt: string;
+};
+
+export type ProductVariant = {
+  readonly id: string;
+  readonly title: string;
+  readonly sku: string;
+  readonly price: ProductMoneyResponse;
+  readonly compareAtPrice: ProductMoneyResponse | null;
+  readonly stockQuantity: number;
+  readonly trackInventory: boolean;
+  readonly allowBackorder: boolean;
+  readonly availability: ProductAvailabilityResponse;
+  readonly isDefault: boolean;
+  readonly position: number;
+};
+
+export type ProductDetail = {
+  readonly id: string;
+  readonly title: string;
+  readonly slug: string;
+  readonly shortDescription: string | null;
+  readonly description: string | null;
+  readonly status: ProductStatus;
+  readonly primaryImage: ProductImageResponse | null;
+  readonly images: readonly ProductGalleryImage[];
+  readonly updatedAt: string;
+};
+
+export type ProductsListResponse = {
+  readonly products: readonly ProductSummary[];
+};
+
+export type ProductDetailResponse = {
+  readonly product: ProductDetail;
+  readonly variants: readonly ProductVariant[];
+};
+
+export type ProductMediaListResponse = {
+  readonly images: readonly ProductGalleryImage[];
 };
 
 export type UploadMediaAssetResponse = {

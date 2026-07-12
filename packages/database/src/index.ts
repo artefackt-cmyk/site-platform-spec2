@@ -38,6 +38,27 @@ export {
   type UpdateProjectSettingsInput
 } from "./repositories/project-repository";
 export {
+  ProductRepository,
+  type CreateProductInput,
+  type ListProductsInput,
+  type ProductWithPrimaryMedia,
+  type UpdateProductInput
+} from "./repositories/product-repository";
+export {
+  PRODUCT_MEDIA_LIMIT,
+  PRODUCT_MEDIA_REPOSITORY_ERROR_CODES,
+  ProductMediaRepository,
+  ProductMediaRepositoryError,
+  type AddProductMediaInput,
+  type ProductMediaRepositoryErrorCode,
+  type ProductMediaWithAsset
+} from "./repositories/product-media-repository";
+export {
+  ProductVariantRepository,
+  type CreateProductVariantInput,
+  type UpdateProductVariantInput
+} from "./repositories/product-variant-repository";
+export {
   PAGE_DOCUMENT_REPOSITORY_ERROR_CODES,
   PageDocumentInvalidError,
   PageDocumentRepository,
@@ -78,6 +99,11 @@ export {
 export type {
   PageDocument,
   MediaAsset,
+  Product,
+  ProductCurrency,
+  ProductMedia,
+  ProductStatus,
+  ProductVariant,
   Project,
   ProjectPublicationSettings,
   ProjectStatus,

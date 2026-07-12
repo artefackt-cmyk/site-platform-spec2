@@ -8,7 +8,11 @@ import {
   updateSectionProps,
   type BlockNode
 } from "@site-platform/editor-core";
-import { PageRenderer, type PageRendererMode } from "./index";
+import {
+  PageRenderer,
+  type PageRendererContext,
+  type PageRendererMode
+} from "./index";
 
 describe("@site-platform/renderer", () => {
   it("renders heading blocks", () => {
@@ -339,6 +343,48 @@ describe("@site-platform/renderer", () => {
     expect(html).not.toContain("sp-editor-block-selected");
   });
 
+  it("renders product card and grid from renderer context", () => {
+    const context = createProductContext();
+    const html = renderDocument(
+      [
+        {
+          id: "product-card-1",
+          type: "product-card",
+          props: {
+            productId: "product-1",
+            showImage: true,
+            showDescription: true,
+            showPrice: true,
+            buttonLabel: "Подробнее",
+            layout: "vertical"
+          }
+        },
+        {
+          id: "product-grid-1",
+          type: "product-grid",
+          props: {
+            selection: "all-active",
+            productIds: [],
+            columns: 3,
+            showDescription: false,
+            showPrice: true,
+            buttonLabel: "Открыть",
+            limit: 4
+          }
+        }
+      ],
+      {
+        mode: "storefront",
+        context
+      }
+    );
+
+    expect(html).toContain("Demo Product");
+    expect(html).toContain("1 299");
+    expect(html).toContain("href=\"/s/demo-store/products/demo-product\"");
+    expect(html).not.toContain("onClick");
+  });
+
   it("prefixes internal storefront button links with the site base path", () => {
     const html = renderButton("/catalog", {
       mode: "storefront",
@@ -401,6 +447,7 @@ function renderDocument(
     readonly mode?: PageRendererMode;
     readonly selectedBlockId?: string;
     readonly siteBasePath?: string;
+    readonly context?: PageRendererContext;
   } = {}
 ): string {
   const document = blocks.reduce(
@@ -413,9 +460,34 @@ function renderDocument(
       document,
       mode: options.mode ?? "preview",
       selectedBlockId: options.selectedBlockId,
-      siteBasePath: options.siteBasePath
+      siteBasePath: options.siteBasePath,
+      context: options.context
     })
   );
+}
+
+function createProductContext(): PageRendererContext {
+  const product = {
+    id: "product-1",
+    title: "Demo Product",
+    slug: "demo-product",
+    shortDescription: "Short product copy",
+    primaryImage: null,
+    price: {
+      amountMinor: 129900,
+      currency: "RUB" as const,
+      formatted: "1 299 ₽"
+    },
+    availability: "in-stock" as const
+  };
+
+  return {
+    siteBasePath: "/s/demo-store",
+    products: {
+      [product.id]: product
+    },
+    productList: [product]
+  };
 }
 
 function assertNoFunctionDomProps(node: React.ReactNode): void {

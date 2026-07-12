@@ -104,7 +104,11 @@ export default async function Page({ params }: StorefrontPageProps) {
         <PageRenderer
           document={validation.document}
           mode="storefront"
-          siteBasePath={siteBasePath}
+          context={{
+            siteBasePath,
+            products: response.page.products,
+            productList: response.page.productList
+          }}
         />
       </main>
       <footer style={footerStyle}>{response.page.projectName}</footer>

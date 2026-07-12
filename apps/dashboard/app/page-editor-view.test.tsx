@@ -78,6 +78,8 @@ function renderEditor(input: {
       onUpdateText: () => undefined,
       onUpdateButton: () => undefined,
       onUpdateImage: () => undefined,
+      onUpdateProductCard: () => undefined,
+      onUpdateProductGrid: () => undefined,
       mediaPicker: {
         open: false,
         assets: [],
@@ -155,6 +157,7 @@ function createReadyState(
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z"
     },
+    products: [],
     publicationStatus: {
       status: "never-published",
       publicUrl: null,

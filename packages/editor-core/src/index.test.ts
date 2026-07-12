@@ -198,6 +198,24 @@ describe("@site-platform/editor-core", () => {
     });
   });
 
+  it("validates product card and draft product grid blocks", () => {
+    const document = createDocumentWithSingleSection([
+      createDefaultBlock("product-card"),
+      {
+        ...createDefaultBlock("product-grid"),
+        props: {
+          ...createDefaultBlock("product-grid").props,
+          selection: "selected",
+          productIds: []
+        }
+      }
+    ]);
+
+    expect(validatePageDocument(document)).toMatchObject({
+      ok: true
+    });
+  });
+
   it("collects image asset ids and clears assetId when switching to external URL", () => {
     const document = insertBlock(createEmptyPageDocument(), {
       ...createDefaultBlock("image"),

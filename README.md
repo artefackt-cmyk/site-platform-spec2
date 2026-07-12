@@ -83,6 +83,9 @@ pnpm db:migrate:test
 - `SitePage`;
 - `PageDocument`;
 - `MediaAsset`;
+- `Product`;
+- `ProductMedia`;
+- `ProductVariant`;
 - `ProjectPublicationSettings`;
 - `PublishedPageSnapshot`;
 - `PublishedPageState`;
@@ -120,6 +123,7 @@ Seed работает только вне production и идемпотентно
 - проект `Demo Store` со slug `demo-store`;
 - страницы проекта `Главная`, `Каталог` и `О бренде`;
 - draft-документы страниц в PageDocument V2 с начальными секциями, если документа еще нет;
+- demo products `Демо футболка` и `Демо худи` с default variants;
 - publication settings с handle `demo-store`, если settings отсутствует;
 - audit log записи для создания организации и проекта.
 
@@ -166,6 +170,22 @@ API endpoints:
 - `PATCH /api/projects/:projectId/media/:assetId` - обновление media metadata;
 - `DELETE /api/projects/:projectId/media/:assetId` - удаление неиспользуемого media asset;
 - `GET /api/projects/:projectId/media/:assetId/content` - project-scoped выдача файла.
+- `GET /api/projects/:projectId/products` - товары проекта;
+- `POST /api/projects/:projectId/products` - создание draft-товара с default variant;
+- `GET /api/projects/:projectId/products/:productId` - товар и варианты;
+- `PATCH /api/projects/:projectId/products/:productId` - обновление маркетинговых полей;
+- `DELETE /api/projects/:projectId/products/:productId` - soft delete товара;
+- `POST /api/projects/:projectId/products/:productId/activate` - показать товар в storefront;
+- `POST /api/projects/:projectId/products/:productId/archive` - скрыть товар из storefront без удаления;
+- `GET /api/projects/:projectId/products/:productId/media` - галерея изображений товара;
+- `POST /api/projects/:projectId/products/:productId/media` - добавить media asset в галерею;
+- `DELETE /api/projects/:projectId/products/:productId/media/:productMediaId` - удалить изображение из галереи;
+- `POST /api/projects/:projectId/products/:productId/media/:productMediaId/set-primary` - назначить основное изображение;
+- `PATCH /api/projects/:projectId/products/:productId/media/reorder` - сохранить порядок изображений;
+- `POST /api/projects/:projectId/products/:productId/variants` - добавить variant;
+- `PATCH /api/projects/:projectId/products/:productId/variants/:variantId` - обновить variant;
+- `DELETE /api/projects/:projectId/products/:productId/variants/:variantId` - soft delete variant;
+- `POST /api/projects/:projectId/products/:productId/variants/:variantId/set-default` - назначить default variant;
 - `GET /api/projects/:projectId/publication-settings` - project public handle и URL;
 - `PATCH /api/projects/:projectId/publication-settings` - изменение public handle;
 - `GET /api/projects/:projectId/pages/:pageId/publication-status` - вычисленный статус публикации;
@@ -175,7 +195,9 @@ API endpoints:
 - `POST /api/projects/:projectId/pages/:pageId/publications/:snapshotId/rollback` - rollback публичной версии;
 - `GET /api/public/sites/:publicHandle` - публичная home page;
 - `GET /api/public/sites/:publicHandle/pages/:pageSlug` - публичная опубликованная страница;
-- `GET /api/public/media/:assetId/content` - публичная выдача media asset, если он используется active snapshot.
+- `GET /api/public/sites/:publicHandle/products` - публичный active catalog;
+- `GET /api/public/sites/:publicHandle/products/:productSlug` - публичная страница active product;
+- `GET /api/public/media/:assetId/content` - публичная выдача media asset, если он используется active snapshot или active product.
 
 Для раздельного запуска:
 
@@ -190,9 +212,13 @@ pnpm --filter @site-platform/storefront dev
 - dashboard: `http://localhost:3000`;
 - project workspace: `http://localhost:3000/projects/{projectId}`;
 - media library: `http://localhost:3000/projects/{projectId}/media`;
+- products: `http://localhost:3000/projects/{projectId}/products`;
+- product editor: `http://localhost:3000/projects/{projectId}/products/{productId}`;
 - page editor: `http://localhost:3000/projects/{projectId}/pages/{pageId}`;
 - page preview: `http://localhost:3000/projects/{projectId}/pages/{pageId}/preview`;
 - storefront: `http://localhost:3001/s/{publicHandle}/{pageSlug}`;
+- storefront catalog: `http://localhost:3001/s/{publicHandle}/products`;
+- storefront product: `http://localhost:3001/s/{publicHandle}/products/{productSlug}`;
 - API: `http://localhost:3002`;
 - database health: `http://localhost:3002/health/database`.
 
@@ -215,6 +241,10 @@ pnpm --filter @site-platform/storefront dev
 - просмотр и создание проектов;
 - открытие рабочей области проекта;
 - открытие медиабиблиотеки проекта;
+- открытие раздела товаров;
+- создание товара с title, slug, SKU, ценой и остатком;
+- редактирование описания, primary image, variants и статуса товара;
+- activation/archive/soft delete товара;
 - просмотр страниц проекта;
 - создание страниц проекта;
 - открытие редактора страницы;
@@ -222,7 +252,7 @@ pnpm --filter @site-platform/storefront dev
 - добавление пустых секций, Hero-секции и текстовой секции;
 - переключение секции между одной и двумя колонками;
 - изменение соотношения колонок;
-- добавление блоков `heading`, `text`, `button`, `image` и `spacer` в выбранную секцию или колонку;
+- добавление блоков `heading`, `text`, `button`, `image`, `spacer`, `product-card` и `product-grid` в выбранную секцию или колонку;
 - редактирование свойств секций, колонок, текстовых блоков, кнопок, изображений и отступов;
 - загрузка JPEG, PNG и WebP изображений в локальную project media library;
 - выбор изображения из медиабиблиотеки для `ImageBlock`;
@@ -245,6 +275,7 @@ pnpm --filter @site-platform/storefront dev
 - drag-and-drop;
 - S3, CDN и image resize pipeline;
 - custom domains, redirects, sitemap, robots UI и custom SEO fields.
+- cart, checkout, orders, payments, delivery, taxes, promotions, warehouses and external commerce integrations.
 
 Preview route `/projects/{projectId}/pages/{pageId}/preview` не является публичным storefront URL и не использует published snapshot. Он загружает сохранённый `PageDocument`, валидирует его и рендерит через `packages/renderer` в `mode="preview"` без editor chrome, inspector и block controls. Если в editor есть несохранённые изменения, кнопка `Предпросмотр` предупреждает, что preview показывает последнюю сохранённую версию.
 
@@ -305,9 +336,11 @@ pnpm --filter @site-platform/database... test
 
 `MediaAsset` всегда связан с одной `Organization` и одним `Project`. Репозиторий media assets не предоставляет project-less lookup: список, чтение, обновление и удаление выполняются через `TenantContext` и `projectId`. API сохранения PageDocument проверяет, что каждый `ImageBlock.props.assetId` принадлежит тому же проекту. Чужие или неизвестные media assets возвращаются как invalid document/not found, без раскрытия существования объекта в другом tenant.
 
+`ProductMedia` связывает `Product` только с `MediaAsset` из той же `Organization` и того же `Project`. Галерея товара читается и меняется только через `TenantContext`, `projectId` и `productId`; чужие assets отклоняются. Обычная выдача товаров возвращает stable order, максимум 10 изображений и одно optional primary image.
+
 `PublishedPageSnapshot` хранит immutable опубликованную копию PageDocument V2 и metadata страницы. `PublishedPageState` хранит активный snapshot для page. Authenticated publication endpoints используют `TenantContext`, а public storefront lookup идет только через `publicHandle` и active published state. Draft-only content and draft-only media assets are not public.
 
-Локальные файлы лежат под `MEDIA_STORAGE_DIR`, но dashboard получает только API URL вида `/api/projects/:projectId/media/:assetId/content`. Удаление media asset блокируется, если asset используется в сохранённых PageDocuments проекта.
+Локальные файлы лежат под `MEDIA_STORAGE_DIR`, но dashboard получает только API URL вида `/api/projects/:projectId/media/:assetId/content`. Удаление media asset блокируется, если asset используется в сохранённых PageDocuments проекта или в `ProductMedia` любого не удалённого товара.
 
 Обычные запросы к `Organization` и `Project` исключают записи с `deletedAt`. `AuditLog` считается append-only: repository предоставляет только create/read методы.
 

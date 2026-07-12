@@ -5,6 +5,8 @@ import {
   AuditLogRepository,
   MediaAssetRepository,
   PageDocumentRepository,
+  ProductMediaRepository,
+  ProductRepository,
   ProjectPublicationSettingsRepository,
   ProjectRepository,
   PublishedPageSnapshotRepository,
@@ -13,6 +15,8 @@ import {
   type DatabasePrismaClient,
   type MediaAsset,
   type PageDocumentRecord,
+  type ProductVariant,
+  type ProductWithPrimaryMedia,
   type PublishedPageSnapshot,
   type RepositoryPrismaClient,
   type SitePage
@@ -28,6 +32,8 @@ import {
 import {
   DOMAIN_ERROR_CODES,
   PERMISSIONS,
+  formatRubMoney,
+  getProductAvailability,
   hasPermission,
   type Permission,
   type TenantContext,
@@ -108,11 +114,40 @@ export type PublicSitePageResponse = {
   readonly publishedAt: string;
   readonly canonicalPath: string;
   readonly navigation: readonly PublicSiteNavigationItem[];
+  readonly products: Readonly<Record<string, PublicProductRenderModel>>;
+  readonly productList: readonly PublicProductRenderModel[];
 };
 
 export type PublicSiteNavigationItem = {
   readonly title: string;
   readonly slug: string;
+  readonly publicUrl: string;
+};
+
+export type PublicProductRenderModel = {
+  readonly id: string;
+  readonly title: string;
+  readonly slug: string;
+  readonly shortDescription: string | null;
+  readonly primaryImage: {
+    readonly url: string;
+    readonly altText: string | null;
+  } | null;
+  readonly images: readonly {
+    readonly id: string;
+    readonly url: string;
+    readonly altText: string | null;
+    readonly width: number | null;
+    readonly height: number | null;
+    readonly position: number;
+    readonly isPrimary: boolean;
+  }[];
+  readonly price: {
+    readonly amountMinor: number;
+    readonly currency: "RUB";
+    readonly formatted: string;
+  } | null;
+  readonly availability: "in-stock" | "out-of-stock" | "preorder";
   readonly publicUrl: string;
 };
 
@@ -873,6 +908,10 @@ export class PublicSiteService {
     const navigation = await new PublishedPageSnapshotRepository(
       this.client
     ).listActivePagesForNavigation(publicHandle);
+    const productList = await this.getPublicProductRenderModels(publicHandle);
+    const products = Object.fromEntries(
+      productList.map((product) => [product.id, product])
+    );
 
     return {
       projectName: activePage.project.name,
@@ -890,7 +929,9 @@ export class PublicSiteService {
           publicHandle,
           item.snapshot.pageSlug
         )
-      }))
+      })),
+      products,
+      productList
     };
   }
 
@@ -914,7 +955,7 @@ export class PublicSiteService {
       }
     });
 
-    return states.some((state) => {
+    const usedBySnapshot = states.some((state) => {
       if (state.activeSnapshot === null) {
         return false;
       }
@@ -926,6 +967,129 @@ export class PublicSiteService {
         collectPageDocumentImageAssetIds(validation.document).includes(asset.id)
       );
     });
+
+    if (usedBySnapshot) {
+      return true;
+    }
+
+    const productMediaUsage = await this.client.productMedia.count({
+      where: {
+        organizationId: asset.organizationId,
+        projectId: asset.projectId,
+        mediaAssetId: asset.id,
+        product: {
+          status: "ACTIVE",
+          deletedAt: null,
+          project: {
+            deletedAt: null,
+            publicationSettings: {
+              publicHandle: {
+                not: ""
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (productMediaUsage > 0) {
+      return true;
+    }
+
+    const legacyProductUsage = await this.client.product.count({
+      where: {
+        organizationId: asset.organizationId,
+        projectId: asset.projectId,
+        primaryMediaAssetId: asset.id,
+        status: "ACTIVE",
+        deletedAt: null,
+        media: {
+          none: {}
+        },
+        project: {
+          deletedAt: null,
+          publicationSettings: {
+            publicHandle: {
+              not: ""
+            }
+          }
+        }
+      }
+    });
+
+    return legacyProductUsage > 0;
+  }
+
+  private async getPublicProductRenderModels(
+    publicHandle: string
+  ): Promise<readonly PublicProductRenderModel[]> {
+    const products = await new ProductRepository(
+      this.client
+    ).listActivePublicByHandle(publicHandle);
+
+    return Promise.all(
+      products.map((product) => this.toPublicProductRenderModel(publicHandle, product))
+    );
+  }
+
+  private async toPublicProductRenderModel(
+    publicHandle: string,
+    product: ProductWithPrimaryMedia
+  ): Promise<PublicProductRenderModel> {
+    const defaultVariant = await this.client.productVariant.findFirst({
+      where: {
+        organizationId: product.organizationId,
+        projectId: product.projectId,
+        productId: product.id,
+        deletedAt: null,
+        isDefault: true
+      }
+    });
+    const publicContext = {
+      organizationId: product.organizationId,
+      userId: "public",
+      membershipId: "public",
+      role: "VIEWER"
+    } as const;
+    const images = await new ProductMediaRepository(this.client).listByProduct(
+      publicContext,
+      product.projectId,
+      product.id
+    );
+    const imageResponses = images.map((image) => ({
+      id: image.id,
+      url: createPublicMediaUrl(this.config, image.mediaAsset.id),
+      altText: image.mediaAsset.altText,
+      width: image.mediaAsset.width,
+      height: image.mediaAsset.height,
+      position: image.position,
+      isPrimary: image.isPrimary
+    }));
+    const compatibilityPrimary =
+      imageResponses.length > 0 || product.primaryMediaAsset === null
+        ? null
+        : {
+            url: createPublicMediaUrl(this.config, product.primaryMediaAsset.id),
+            altText: product.primaryMediaAsset.altText
+          };
+
+    return {
+      id: product.id,
+      title: product.title,
+      slug: product.slug,
+      shortDescription: product.shortDescription,
+      primaryImage:
+        imageResponses.find((image) => image.isPrimary) ??
+        imageResponses[0] ??
+        compatibilityPrimary,
+      images: imageResponses,
+      price: defaultVariant === null ? null : toPublicProductMoney(defaultVariant),
+      availability:
+        defaultVariant === null
+          ? "out-of-stock"
+          : getProductAvailability(defaultVariant),
+      publicUrl: createPublicProductPath(publicHandle, product.slug)
+    };
   }
 }
 
@@ -938,6 +1102,17 @@ export function createPublicPagePath(
     : `/s/${encodeURIComponent(publicHandle)}/${encodeURIComponent(pageSlug)}`;
 }
 
+export function createPublicProductPath(
+  publicHandle: string,
+  productSlug?: string
+): string {
+  const basePath = `/s/${encodeURIComponent(publicHandle)}/products`;
+
+  return productSlug === undefined
+    ? basePath
+    : `${basePath}/${encodeURIComponent(productSlug)}`;
+}
+
 export function createPublicPageUrl(
   config: AppConfig,
   publicHandle: string,
@@ -947,6 +1122,18 @@ export function createPublicPageUrl(
     publicHandle,
     pageSlug
   )}`;
+}
+
+function toPublicProductMoney(variant: ProductVariant) {
+  const money = {
+    amountMinor: variant.priceMinor,
+    currency: "RUB" as const
+  };
+
+  return {
+    ...money,
+    formatted: formatRubMoney(money)
+  };
 }
 
 export function createPublicMediaUrl(config: AppConfig, assetId: string): string {

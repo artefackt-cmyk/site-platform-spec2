@@ -16,6 +16,7 @@ The workspace has:
 - project-level placeholder actions;
 - a link back to the projects list;
 - a link to project media;
+- a link to project products;
 - a left navigation for `Обзор`, `Страницы`, `Дизайн`, `Настройки` and `Домен`;
 - a default `Страницы` section;
 - placeholder sections for `Обзор`, `Дизайн`, `Настройки` and `Домен`.
@@ -55,6 +56,8 @@ Supported leaf blocks:
 - `button`;
 - `image`;
 - `spacer`.
+- `product-card`;
+- `product-grid`.
 
 The user can:
 
@@ -64,7 +67,7 @@ The user can:
 - select a section, column or leaf block;
 - switch a section between single and two-column layouts;
 - change column ratio for two-column sections;
-- add text, button, image and spacer blocks to the selected section or column;
+- add text, button, image, spacer, product card and product grid blocks to the selected section or column;
 - update selected node props in the inspector;
 - move sections and leaf blocks up or down inside their parent;
 - delete sections and leaf blocks;
@@ -72,7 +75,9 @@ The user can:
 - update page title, slug and home flag;
 - open the media picker for image blocks;
 - upload JPEG, PNG and WebP images through the project media library;
-- select a media asset for an image block.
+- select a media asset for an image block;
+- select a product for `ProductCardBlock`;
+- configure `ProductGridBlock` to show all active products or selected products.
 
 Inspector changes update the canvas immediately in local editor state. They are persisted only after clicking `Сохранить`.
 
@@ -156,6 +161,8 @@ The storefront app serves system public URLs:
 | --- | --- |
 | `/s/[publicHandle]` | Render the active published home page. |
 | `/s/[publicHandle]/[pageSlug]` | Render an active published page. |
+| `/s/[publicHandle]/products` | Render the active public catalog. |
+| `/s/[publicHandle]/products/[productSlug]` | Render an active product detail page. |
 
 Storefront pages:
 
@@ -167,6 +174,8 @@ Storefront pages:
 - use title, first text block fallback description, canonical URL and Open Graph title for published pages.
 
 Published media URLs are materialized by the public API response. The immutable snapshot keeps the original PageDocument V2; the public DTO rewrites media-library image `src` values to `/api/public/media/:assetId/content`.
+
+Product blocks are rendered from public product DTOs prepared by the API. The renderer does not query the database. Product visibility is independent from page snapshot publication: active products can appear in product blocks and product routes without republishing a page.
 
 ## Media Library
 
@@ -181,7 +190,7 @@ It supports project-scoped image uploads for local development:
 - alt text updates;
 - deleting unused assets.
 
-Media files are served through project-scoped API content URLs. The dashboard does not expose local filesystem paths. A single media asset can be used by multiple ImageBlocks. Deletion is blocked while a saved PageDocument references the asset.
+Media files are served through project-scoped API content URLs. The dashboard does not expose local filesystem paths. A single media asset can be used by multiple ImageBlocks. Deletion is blocked while a saved PageDocument references the asset or while a product uses the asset as `primaryMediaAssetId`. Public media serving allows an asset when it is used by an active product in a published project.
 
 ## Routes
 
@@ -192,10 +201,14 @@ Dashboard routes:
 | `/` | Projects list. |
 | `/projects/[projectId]` | Project workspace. |
 | `/projects/[projectId]/media` | Project media library. |
+| `/projects/[projectId]/products` | Project product catalog. |
+| `/projects/[projectId]/products/[productId]` | Product editor. |
 | `/projects/[projectId]/pages/[pageId]` | Page editor. |
 | `/projects/[projectId]/pages/[pageId]/preview` | Preview of the saved draft page document. |
 | `http://localhost:3001/s/[publicHandle]` | Public published home page. |
 | `http://localhost:3001/s/[publicHandle]/[pageSlug]` | Public published page. |
+| `http://localhost:3001/s/[publicHandle]/products` | Public product catalog. |
+| `http://localhost:3001/s/[publicHandle]/products/[productSlug]` | Public product detail page. |
 
 API routes:
 
@@ -213,6 +226,17 @@ API routes:
 | `PATCH /api/projects/:projectId/media/:assetId` | Update media metadata. |
 | `DELETE /api/projects/:projectId/media/:assetId` | Delete an unused media asset. |
 | `GET /api/projects/:projectId/media/:assetId/content` | Serve project-scoped media content. |
+| `GET /api/projects/:projectId/products` | List project products. |
+| `POST /api/projects/:projectId/products` | Create a draft product and default variant. |
+| `GET /api/projects/:projectId/products/:productId` | Return a product with variants. |
+| `PATCH /api/projects/:projectId/products/:productId` | Update product marketing fields and primary image. |
+| `DELETE /api/projects/:projectId/products/:productId` | Soft delete a product. |
+| `POST /api/projects/:projectId/products/:productId/activate` | Activate a product for storefront. |
+| `POST /api/projects/:projectId/products/:productId/archive` | Archive a product. |
+| `POST /api/projects/:projectId/products/:productId/variants` | Create a product variant. |
+| `PATCH /api/projects/:projectId/products/:productId/variants/:variantId` | Update a product variant. |
+| `DELETE /api/projects/:projectId/products/:productId/variants/:variantId` | Soft delete a product variant. |
+| `POST /api/projects/:projectId/products/:productId/variants/:variantId/set-default` | Set the default variant. |
 | `GET /api/projects/:projectId/publication-settings` | Return public handle and system public URLs. |
 | `PATCH /api/projects/:projectId/publication-settings` | Update public handle. |
 | `GET /api/projects/:projectId/pages/:pageId/publication-status` | Return computed publication status. |
@@ -222,7 +246,9 @@ API routes:
 | `POST /api/projects/:projectId/pages/:pageId/publications/:snapshotId/rollback` | Roll back public page to a historical snapshot by creating a new snapshot version. |
 | `GET /api/public/sites/:publicHandle` | Return active published home page. |
 | `GET /api/public/sites/:publicHandle/pages/:pageSlug` | Return active published page. |
-| `GET /api/public/media/:assetId/content` | Serve media only when used by an active published snapshot. |
+| `GET /api/public/sites/:publicHandle/products` | Return active public catalog. |
+| `GET /api/public/sites/:publicHandle/products/:productSlug` | Return an active public product. |
+| `GET /api/public/media/:assetId/content` | Serve media only when used by an active published snapshot or active product. |
 
 All project, page and document queries are tenant-aware. Cross-tenant access returns `not found`.
 

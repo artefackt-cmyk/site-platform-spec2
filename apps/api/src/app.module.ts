@@ -15,6 +15,11 @@ import {
   PublicSiteController
 } from "./publication.controller";
 import { PublicationService, PublicSiteService } from "./publication.service";
+import {
+  ProductController,
+  PublicProductController
+} from "./product.controller";
+import { ProductService, PublicCatalogService } from "./product.service";
 import { PROJECT_STORE, PrismaProjectStore } from "./project-store";
 import { ProjectsController } from "./projects.controller";
 import { ProjectsService } from "./projects.service";
@@ -26,7 +31,9 @@ import { ProjectsService } from "./projects.service";
     ProjectsController,
     MediaController,
     PublicationController,
-    PublicSiteController
+    PublicSiteController,
+    ProductController,
+    PublicProductController
   ],
   providers: [
     appConfigProvider,
@@ -45,7 +52,9 @@ import { ProjectsService } from "./projects.service";
     ProjectsService,
     MediaService,
     PublicationService,
-    PublicSiteService
+    PublicSiteService,
+    ProductService,
+    PublicCatalogService
   ]
 })
 export class AppModule {}

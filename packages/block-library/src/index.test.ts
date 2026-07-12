@@ -13,7 +13,9 @@ describe("@site-platform/block-library", () => {
       "text",
       "button",
       "image",
-      "spacer"
+      "spacer",
+      "product-card",
+      "product-grid"
     ]);
   });
 

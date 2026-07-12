@@ -36,7 +36,27 @@ export const API_ERROR_CODES = {
   publicationSnapshotNotFound: "PUBLICATION_SNAPSHOT_NOT_FOUND",
   publicHandleInvalid: "PUBLIC_HANDLE_INVALID",
   publicHandleConflict: "PUBLIC_HANDLE_CONFLICT",
-  publicHandleReserved: "PUBLIC_HANDLE_RESERVED"
+  publicHandleReserved: "PUBLIC_HANDLE_RESERVED",
+  productNotFound: "PRODUCT_NOT_FOUND",
+  productSlugInvalid: "PRODUCT_SLUG_INVALID",
+  productSlugConflict: "PRODUCT_SLUG_CONFLICT",
+  productCannotActivate: "PRODUCT_CANNOT_ACTIVATE",
+  productHasNoVariants: "PRODUCT_HAS_NO_VARIANTS",
+  productDefaultVariantRequired: "PRODUCT_DEFAULT_VARIANT_REQUIRED",
+  productMediaAssetInvalid: "PRODUCT_MEDIA_ASSET_INVALID",
+  productMediaNotFound: "PRODUCT_MEDIA_NOT_FOUND",
+  productMediaDuplicate: "PRODUCT_MEDIA_DUPLICATE",
+  productMediaLimitReached: "PRODUCT_MEDIA_LIMIT_REACHED",
+  productMediaCrossProject: "PRODUCT_MEDIA_CROSS_PROJECT",
+  productMediaPrimaryInvalid: "PRODUCT_MEDIA_PRIMARY_INVALID",
+  variantNotFound: "VARIANT_NOT_FOUND",
+  variantSkuInvalid: "VARIANT_SKU_INVALID",
+  variantSkuConflict: "VARIANT_SKU_CONFLICT",
+  variantPriceInvalid: "VARIANT_PRICE_INVALID",
+  variantComparePriceInvalid: "VARIANT_COMPARE_PRICE_INVALID",
+  variantStockInvalid: "VARIANT_STOCK_INVALID",
+  cannotDeleteOnlyVariant: "CANNOT_DELETE_ONLY_VARIANT",
+  cannotDeleteDefaultVariant: "CANNOT_DELETE_DEFAULT_VARIANT"
 } as const;
 
 export type ApiErrorCode =

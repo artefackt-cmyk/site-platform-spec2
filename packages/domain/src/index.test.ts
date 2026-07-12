@@ -11,7 +11,13 @@ import {
   validatePublicHandle,
   validatePageSlug,
   validatePageTitle,
-  validateProjectSlug
+  validateProjectSlug,
+  validateCompareAtPriceMinor,
+  validateMoneyMinor,
+  validateProductSlug,
+  validateProductTitle,
+  validateStockQuantity,
+  validateVariantSku
 } from "./index";
 
 describe("@site-platform/domain", () => {
@@ -88,6 +94,43 @@ describe("@site-platform/domain", () => {
     expect(validatePublicHandle("-store")).toEqual({
       ok: false,
       code: DOMAIN_ERROR_CODES.publicHandleInvalidFormat
+    });
+  });
+
+  it("validates product title, slug, SKU, price and stock", () => {
+    expect(validateProductTitle("  Demo   Product  ")).toEqual({
+      ok: true,
+      value: "Demo Product"
+    });
+    expect(validateProductSlug("Demo-Product")).toEqual({
+      ok: true,
+      value: "demo-product"
+    });
+    expect(validateProductSlug("products")).toEqual({
+      ok: false,
+      code: DOMAIN_ERROR_CODES.productSlugReserved
+    });
+    expect(validateVariantSku(" sku_001 ")).toEqual({
+      ok: true,
+      value: "SKU_001"
+    });
+    expect(validateMoneyMinor(129900)).toEqual({
+      ok: true,
+      value: {
+        amountMinor: 129900,
+        currency: "RUB"
+      }
+    });
+    expect(validateCompareAtPriceMinor(10000, 12000)).toEqual({
+      ok: true,
+      value: {
+        amountMinor: 12000,
+        currency: "RUB"
+      }
+    });
+    expect(validateStockQuantity(-1)).toEqual({
+      ok: false,
+      code: DOMAIN_ERROR_CODES.stockQuantityInvalid
     });
   });
 

@@ -27,6 +27,16 @@ enum SitePageStatus {
   ARCHIVED
 }
 
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProductCurrency {
+  RUB
+}
+
 model User {
   id          String       @id @default(cuid())
   email       String       @unique
@@ -37,6 +47,8 @@ model User {
   auditLogs   AuditLog[]   @relation("AuditActor")
   mediaAssets MediaAsset[] @relation("MediaAssetCreator")
   publishedSnapshots PublishedPageSnapshot[] @relation("PublishedByUser")
+  createdProducts Product[] @relation("ProductCreator")
+  updatedProducts Product[] @relation("ProductUpdater")
 
   @@map("users")
 }
@@ -53,6 +65,9 @@ model Organization {
   sitePages   SitePage[]
   pageDocuments PageDocument[]
   mediaAssets MediaAsset[]
+  products Product[]
+  productVariants ProductVariant[]
+  productMedia ProductMedia[]
   publicationSettings ProjectPublicationSettings[]
   publishedPageSnapshots PublishedPageSnapshot[]
   publishedPageStates PublishedPageState[]
@@ -89,6 +104,9 @@ model Project {
   sitePages      SitePage[]
   pageDocuments  PageDocument[]
   mediaAssets    MediaAsset[]
+  products       Product[]
+  productVariants ProductVariant[]
+  productMedia    ProductMedia[]
   publicationSettings ProjectPublicationSettings?
   publishedPageSnapshots PublishedPageSnapshot[]
   publishedPageStates PublishedPageState[]
@@ -220,11 +238,103 @@ model MediaAsset {
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   project          Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
   createdByUser    User         @relation("MediaAssetCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  primaryForProducts Product[]
+  productMedia      ProductMedia[]
 
   @@index([organizationId])
   @@index([projectId])
   @@index([projectId, createdAt])
   @@map("media_assets")
+}
+
+model Product {
+  id                  String           @id @default(cuid())
+  organizationId      String           @map("organization_id")
+  projectId           String           @map("project_id")
+  title               String
+  slug                String
+  shortDescription    String?          @map("short_description")
+  description         String?
+  status              ProductStatus    @default(DRAFT)
+  primaryMediaAssetId String?          @map("primary_media_asset_id")
+  createdByUserId     String           @map("created_by_user_id")
+  updatedByUserId     String           @map("updated_by_user_id")
+  externalId          String?          @map("external_id")
+  externalSource      String?          @map("external_source")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  deletedAt           DateTime?        @map("deleted_at")
+  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project             Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  primaryMediaAsset   MediaAsset?      @relation(fields: [primaryMediaAssetId], references: [id], onDelete: Restrict)
+  createdByUser       User             @relation("ProductCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedByUser       User             @relation("ProductUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  variants            ProductVariant[]
+  media               ProductMedia[]
+
+  @@unique([projectId, slug])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([projectId, status])
+  @@index([projectId, createdAt])
+  @@index([primaryMediaAssetId])
+  @@map("products")
+}
+
+model ProductVariant {
+  id                  String          @id @default(cuid())
+  organizationId      String          @map("organization_id")
+  projectId           String          @map("project_id")
+  productId           String          @map("product_id")
+  title               String
+  sku                 String
+  priceMinor          Int             @map("price_minor")
+  compareAtPriceMinor Int?            @map("compare_at_price_minor")
+  currency            ProductCurrency @default(RUB)
+  stockQuantity       Int             @default(0) @map("stock_quantity")
+  trackInventory      Boolean         @default(true) @map("track_inventory")
+  allowBackorder      Boolean         @default(false) @map("allow_backorder")
+  isDefault           Boolean         @default(false) @map("is_default")
+  position            Int             @default(0)
+  externalId          String?         @map("external_id")
+  externalSource      String?         @map("external_source")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+  deletedAt           DateTime?       @map("deleted_at")
+  organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project             Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  product             Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, sku])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([productId])
+  @@index([productId, isDefault])
+  @@index([productId, position])
+  @@map("product_variants")
+}
+
+model ProductMedia {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  projectId      String       @map("project_id")
+  productId      String       @map("product_id")
+  mediaAssetId   String       @map("media_asset_id")
+  position       Int
+  isPrimary      Boolean      @default(false) @map("is_primary")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  mediaAsset     MediaAsset   @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, mediaAssetId])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([productId])
+  @@index([productId, position])
+  @@map("product_media")
 }
 
 model AuditLog {

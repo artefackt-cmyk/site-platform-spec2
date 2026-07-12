@@ -374,5 +374,9 @@ function createBlockForType(type: BlockType): BlockNode {
       return createDefaultBlock("spacer");
     case "image":
       return createDefaultBlock("image");
+    case "product-card":
+      return createDefaultBlock("product-card");
+    case "product-grid":
+      return createDefaultBlock("product-grid");
   }
 }

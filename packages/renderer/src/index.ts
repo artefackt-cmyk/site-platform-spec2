@@ -7,6 +7,8 @@ import type {
   ImageBlock,
   PageDocument,
   PageDocumentV2,
+  ProductCardBlock,
+  ProductGridBlock,
   SectionNode,
   SpacerBlock,
   TextBlock
@@ -16,12 +18,46 @@ export const packageName = "@site-platform/renderer" as const;
 
 export type PageRendererMode = "editor" | "preview" | "storefront";
 
+export type ProductRenderModel = {
+  readonly id: string;
+  readonly title: string;
+  readonly slug: string;
+  readonly shortDescription: string | null;
+  readonly primaryImage: {
+    readonly url: string;
+    readonly altText: string | null;
+  } | null;
+  readonly images?: readonly {
+    readonly id: string;
+    readonly url: string;
+    readonly altText: string | null;
+    readonly width: number | null;
+    readonly height: number | null;
+    readonly position: number;
+    readonly isPrimary: boolean;
+  }[];
+  readonly price: {
+    readonly amountMinor: number;
+    readonly currency: "RUB";
+    readonly formatted: string;
+  } | null;
+  readonly availability: "in-stock" | "out-of-stock" | "preorder";
+  readonly publicUrl?: string | undefined;
+};
+
+export type PageRendererContext = {
+  readonly siteBasePath?: string | undefined;
+  readonly products?: Readonly<Record<string, ProductRenderModel>> | undefined;
+  readonly productList?: readonly ProductRenderModel[] | undefined;
+};
+
 export type PageRendererProps = {
   readonly document: PageDocument;
   readonly mode: PageRendererMode;
   readonly selectedNodeId?: string | null | undefined;
   readonly selectedBlockId?: string | null | undefined;
   readonly siteBasePath?: string | undefined;
+  readonly context?: PageRendererContext | undefined;
 };
 
 export function PageRenderer({
@@ -29,9 +65,14 @@ export function PageRenderer({
   mode,
   selectedNodeId,
   selectedBlockId,
-  siteBasePath
+  siteBasePath,
+  context
 }: PageRendererProps): React.ReactElement {
   const selectedId = selectedNodeId ?? selectedBlockId ?? null;
+  const rendererContext = {
+    ...context,
+    siteBasePath: context?.siteBasePath ?? siteBasePath
+  };
 
   return React.createElement(
     "div",
@@ -50,7 +91,7 @@ export function PageRenderer({
         section,
         mode,
         selectedId,
-        siteBasePath
+        context: rendererContext
       })
     )
   );
@@ -60,7 +101,7 @@ function renderSection(input: {
   readonly section: SectionNode;
   readonly mode: PageRendererMode;
   readonly selectedId: string | null;
-  readonly siteBasePath?: string | undefined;
+  readonly context: PageRendererContext;
 }): React.ReactElement {
   const content = React.createElement(
     "div",
@@ -77,13 +118,13 @@ function renderSection(input: {
             column: child,
             mode: input.mode,
             selectedId: input.selectedId,
-            siteBasePath: input.siteBasePath
+            context: input.context
           })
         : renderLeafBlock({
             block: child,
             mode: input.mode,
             selectedId: input.selectedId,
-            siteBasePath: input.siteBasePath
+            context: input.context
           })
     )
   );
@@ -126,14 +167,14 @@ function renderColumn(input: {
   readonly column: ColumnNode;
   readonly mode: PageRendererMode;
   readonly selectedId: string | null;
-  readonly siteBasePath?: string | undefined;
+  readonly context: PageRendererContext;
 }): React.ReactElement {
   const content = input.column.children.map((block) =>
     renderLeafBlock({
       block,
       mode: input.mode,
       selectedId: input.selectedId,
-      siteBasePath: input.siteBasePath
+      context: input.context
     })
   );
 
@@ -183,9 +224,9 @@ function renderLeafBlock(input: {
   readonly block: BlockNode;
   readonly mode: PageRendererMode;
   readonly selectedId: string | null;
-  readonly siteBasePath?: string | undefined;
+  readonly context: PageRendererContext;
 }): React.ReactElement {
-  const content = renderBlockContent(input.block, input.mode, input.siteBasePath);
+  const content = renderBlockContent(input.block, input.mode, input.context);
 
   if (input.mode !== "editor") {
     return React.createElement(
@@ -222,7 +263,7 @@ function renderLeafBlock(input: {
 function renderBlockContent(
   block: BlockNode,
   mode: PageRendererMode,
-  siteBasePath: string | undefined
+  context: PageRendererContext
 ): React.ReactElement {
   switch (block.type) {
     case "heading":
@@ -237,7 +278,7 @@ function renderBlockContent(
       return React.createElement(ButtonRenderer, {
         block,
         mode,
-        siteBasePath
+        siteBasePath: context.siteBasePath
       });
     case "spacer":
       return React.createElement(SpacerRenderer, {
@@ -246,6 +287,16 @@ function renderBlockContent(
     case "image":
       return React.createElement(ImageRenderer, {
         block
+      });
+    case "product-card":
+      return React.createElement(ProductCardRenderer, {
+        block,
+        context
+      });
+    case "product-grid":
+      return React.createElement(ProductGridRenderer, {
+        block,
+        context
       });
   }
 }
@@ -390,6 +441,246 @@ function ImageRenderer({
   );
 }
 
+function ProductCardRenderer({
+  block,
+  context
+}: {
+  readonly block: ProductCardBlock;
+  readonly context: PageRendererContext;
+}): React.ReactElement {
+  const product =
+    block.props.productId === null
+      ? null
+      : context.products?.[block.props.productId] ?? null;
+
+  return React.createElement(ProductCardShell, {
+    product,
+    showImage: block.props.showImage,
+    showDescription: block.props.showDescription,
+    showPrice: block.props.showPrice,
+    buttonLabel: block.props.buttonLabel,
+    layout: block.props.layout,
+    siteBasePath: context.siteBasePath
+  });
+}
+
+function ProductGridRenderer({
+  block,
+  context
+}: {
+  readonly block: ProductGridBlock;
+  readonly context: PageRendererContext;
+}): React.ReactElement {
+  const products =
+    block.props.selection === "selected"
+      ? block.props.productIds
+          .map((productId) => context.products?.[productId] ?? null)
+          .filter((product): product is ProductRenderModel => product !== null)
+      : (context.productList ?? []).slice(0, block.props.limit);
+
+  if (products.length === 0) {
+    return React.createElement(ProductEmptyState, {
+      text: "Товары не выбраны"
+    });
+  }
+
+  return React.createElement(
+    "div",
+    {
+      className: "sp-product-grid",
+      style: {
+        display: "grid",
+        gridTemplateColumns: `repeat(${block.props.columns}, minmax(0, 1fr))`,
+        gap: 20,
+        margin: "0 0 24px"
+      }
+    },
+    products.map((product) =>
+      React.createElement(ProductCardShell, {
+        key: product.id,
+        product,
+        showImage: true,
+        showDescription: block.props.showDescription,
+        showPrice: block.props.showPrice,
+        buttonLabel: block.props.buttonLabel,
+        layout: "vertical",
+        siteBasePath: context.siteBasePath
+      })
+    )
+  );
+}
+
+function ProductCardShell({
+  product,
+  showImage,
+  showDescription,
+  showPrice,
+  buttonLabel,
+  layout,
+  siteBasePath
+}: {
+  readonly product: ProductRenderModel | null;
+  readonly showImage: boolean;
+  readonly showDescription: boolean;
+  readonly showPrice: boolean;
+  readonly buttonLabel: string;
+  readonly layout: "vertical" | "horizontal";
+  readonly siteBasePath?: string | undefined;
+}): React.ReactElement {
+  if (product === null) {
+    return React.createElement(ProductEmptyState, {
+      text: "Товар не выбран"
+    });
+  }
+
+  const href = createProductHref(product, siteBasePath);
+
+  return React.createElement(
+    "article",
+    {
+      className: `sp-product-card sp-product-card-${layout}`,
+      style: {
+        display: "grid",
+        gridTemplateColumns: layout === "horizontal" ? "160px minmax(0, 1fr)" : "1fr",
+        gap: 16,
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: "#d6dee9",
+        borderRadius: 8,
+        padding: 16,
+        background: "#ffffff",
+        color: "#152033"
+      }
+    },
+    showImage
+      ? React.createElement(ProductImage, {
+          product
+        })
+      : null,
+    React.createElement(
+      "div",
+      {
+        className: "sp-product-card-body",
+        style: {
+          display: "grid",
+          alignContent: "start",
+          gap: 10
+        }
+      },
+      React.createElement(
+        "h3",
+        {
+          className: "sp-product-card-title",
+          style: {
+            margin: 0,
+            fontSize: 22,
+            lineHeight: 1.2
+          }
+        },
+        product.title
+      ),
+      showDescription && product.shortDescription !== null
+        ? React.createElement(
+            "p",
+            {
+              className: "sp-product-card-description",
+              style: {
+                margin: 0,
+                color: "#667085",
+                lineHeight: 1.55
+              }
+            },
+            product.shortDescription
+          )
+        : null,
+      showPrice
+        ? React.createElement(
+            "p",
+            {
+              className: "sp-product-card-price",
+              style: {
+                margin: 0,
+                fontWeight: 800
+              }
+            },
+            product.price === null ? "Цена не указана" : product.price.formatted
+          )
+        : null,
+      React.createElement(
+        "a",
+        {
+          className: "sp-product-card-link",
+          href,
+          style: {
+            justifySelf: "start",
+            borderRadius: 6,
+            background: "#2563eb",
+            padding: "10px 14px",
+            color: "#ffffff",
+            fontWeight: 700,
+            textDecoration: "none"
+          }
+        },
+        buttonLabel.trim() === "" ? "Подробнее" : buttonLabel
+      )
+    )
+  );
+}
+
+function ProductImage({
+  product
+}: {
+  readonly product: ProductRenderModel;
+}): React.ReactElement {
+  if (product.primaryImage === null) {
+    return React.createElement(
+      "div",
+      {
+        className: "sp-product-image-placeholder",
+        style: productImagePlaceholderStyle
+      },
+      "Изображение товара"
+    );
+  }
+
+  return React.createElement("img", {
+    className: "sp-product-image",
+    src: product.primaryImage.url,
+    alt: product.primaryImage.altText ?? product.title,
+    style: {
+      width: "100%",
+      aspectRatio: "4 / 3",
+      objectFit: "cover",
+      borderRadius: 6,
+      background: "#f3f6fa"
+    }
+  });
+}
+
+function ProductEmptyState({
+  text
+}: {
+  readonly text: string;
+}): React.ReactElement {
+  return React.createElement(
+    "div",
+    {
+      className: "sp-product-empty",
+      style: {
+        borderWidth: 1,
+        borderStyle: "dashed",
+        borderColor: "#b8c4d5",
+        borderRadius: 8,
+        padding: 18,
+        background: "#f8fafc",
+        color: "#667085",
+        textAlign: "center"
+      }
+    },
+    text
+  );
+}
+
 type ButtonTarget =
   | {
       readonly element: "a";
@@ -481,6 +772,19 @@ function createButtonStyle(
 
 function isExternalHref(href: string): boolean {
   return /^https?:\/\//i.test(href);
+}
+
+function createProductHref(
+  product: ProductRenderModel,
+  siteBasePath: string | undefined
+): string {
+  if (product.publicUrl !== undefined) {
+    return product.publicUrl;
+  }
+
+  const basePath = siteBasePath?.replace(/\/$/, "") ?? "";
+
+  return `${basePath}/products/${encodeURIComponent(product.slug)}`;
 }
 
 function isAllowedImageUrl(src: string): boolean {
@@ -590,6 +894,17 @@ const emptyStateStyle: React.CSSProperties = {
   color: "#667085",
   fontSize: 14,
   textAlign: "center"
+};
+
+const productImagePlaceholderStyle: React.CSSProperties = {
+  display: "grid",
+  width: "100%",
+  aspectRatio: "4 / 3",
+  placeItems: "center",
+  borderRadius: 6,
+  background: "#f3f6fa",
+  color: "#667085",
+  fontSize: 14
 };
 
 const paddingYByName = {

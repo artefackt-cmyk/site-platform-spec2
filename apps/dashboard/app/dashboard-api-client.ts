@@ -10,9 +10,13 @@ import type {
   PublicationHistoryResponse,
   PublicationSettingsResponse,
   PublicationStatusResponse,
+  ProductDetailResponse,
+  ProductMediaListResponse,
+  ProductStatus,
   ProjectPagesListResponse,
   ProjectSummary,
   PageDocumentResponse,
+  ProductsListResponse,
   PublishPageResponse,
   SavePageDocumentRequest,
   SitePageSummary,
@@ -34,6 +38,18 @@ export class DashboardApiError extends Error {
     this.status = status;
     this.code = response.code;
     this.details = response.details;
+  }
+}
+
+export class DashboardNetworkError extends Error {
+  readonly url: string;
+
+  constructor(url: string) {
+    super(
+      "Не удалось связаться с API. Проверьте, что API запущен и адрес NEXT_PUBLIC_API_URL указан верно."
+    );
+    this.name = "DashboardNetworkError";
+    this.url = url;
   }
 }
 
@@ -88,6 +104,119 @@ export type DashboardApiClient = {
     projectId: string,
     assetId: string
   ) => Promise<DeleteMediaAssetResponse>;
+  readonly listProducts: (
+    projectId: string,
+    input?: {
+      readonly status?: ProductStatus;
+      readonly search?: string;
+    }
+  ) => Promise<ProductsListResponse>;
+  readonly createProduct: (
+    projectId: string,
+    input: {
+      readonly title: string;
+      readonly slug: string;
+      readonly priceMinor: number;
+      readonly sku: string;
+      readonly stockQuantity: number;
+      readonly shortDescription?: string | null;
+      readonly mediaAssetIds?: readonly string[];
+      readonly primaryMediaAssetId?: string | null;
+    }
+  ) => Promise<ProductDetailResponse>;
+  readonly getProduct: (
+    projectId: string,
+    productId: string
+  ) => Promise<ProductDetailResponse>;
+  readonly updateProduct: (
+    projectId: string,
+    productId: string,
+    input: {
+      readonly title?: string;
+      readonly slug?: string;
+      readonly shortDescription?: string | null;
+      readonly description?: string | null;
+      readonly primaryMediaAssetId?: string | null;
+    }
+  ) => Promise<ProductDetailResponse>;
+  readonly deleteProduct: (
+    projectId: string,
+    productId: string
+  ) => Promise<{ readonly deleted: true }>;
+  readonly activateProduct: (
+    projectId: string,
+    productId: string
+  ) => Promise<ProductDetailResponse>;
+  readonly archiveProduct: (
+    projectId: string,
+    productId: string
+  ) => Promise<ProductDetailResponse>;
+  readonly createProductVariant: (
+    projectId: string,
+    productId: string,
+    input: {
+      readonly title: string;
+      readonly sku: string;
+      readonly priceMinor: number;
+      readonly compareAtPriceMinor?: number | null;
+      readonly stockQuantity: number;
+      readonly trackInventory: boolean;
+      readonly allowBackorder: boolean;
+      readonly isDefault?: boolean;
+    }
+  ) => Promise<ProductDetailResponse>;
+  readonly updateProductVariant: (
+    projectId: string,
+    productId: string,
+    variantId: string,
+    input: {
+      readonly title?: string;
+      readonly sku?: string;
+      readonly priceMinor?: number;
+      readonly compareAtPriceMinor?: number | null;
+      readonly stockQuantity?: number;
+      readonly trackInventory?: boolean;
+      readonly allowBackorder?: boolean;
+    }
+  ) => Promise<ProductDetailResponse>;
+  readonly deleteProductVariant: (
+    projectId: string,
+    productId: string,
+    variantId: string
+  ) => Promise<ProductDetailResponse>;
+  readonly setDefaultProductVariant: (
+    projectId: string,
+    productId: string,
+    variantId: string
+  ) => Promise<ProductDetailResponse>;
+  readonly listProductMedia: (
+    projectId: string,
+    productId: string
+  ) => Promise<ProductMediaListResponse>;
+  readonly addProductMedia: (
+    projectId: string,
+    productId: string,
+    input: {
+      readonly mediaAssetId: string;
+    }
+  ) => Promise<ProductMediaListResponse>;
+  readonly removeProductMedia: (
+    projectId: string,
+    productId: string,
+    productMediaId: string
+  ) => Promise<ProductMediaListResponse>;
+  readonly setPrimaryProductMedia: (
+    projectId: string,
+    productId: string,
+    productMediaId: string
+  ) => Promise<ProductMediaListResponse>;
+  readonly reorderProductMedia: (
+    projectId: string,
+    productId: string,
+    input: {
+      readonly orderedIds: readonly string[];
+    }
+  ) => Promise<ProductMediaListResponse>;
   readonly getPublicationSettings: (
     projectId: string
   ) => Promise<PublicationSettingsResponse>;
@@ -251,6 +380,190 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
           method: "DELETE"
         }
       ),
+    listProducts: (projectId, input) => {
+      const query = new URLSearchParams();
+
+      if (input?.status !== undefined) {
+        query.set("status", input.status);
+      }
+
+      if (input?.search !== undefined && input.search.trim() !== "") {
+        query.set("search", input.search.trim());
+      }
+
+      const suffix = query.size === 0 ? "" : `?${query.toString()}`;
+
+      return request<ProductsListResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products${suffix}`
+      );
+    },
+    createProduct: (projectId, input) =>
+      request<ProductDetailResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    getProduct: (projectId, productId) =>
+      request<ProductDetailResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}`
+      ),
+    updateProduct: (projectId, productId, input) =>
+      request<ProductDetailResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    deleteProduct: (projectId, productId) =>
+      request<{ readonly deleted: true }>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}`,
+        {
+          method: "DELETE"
+        }
+      ),
+    activateProduct: (projectId, productId) =>
+      request<ProductDetailResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}/activate`,
+        {
+          method: "POST"
+        }
+      ),
+    archiveProduct: (projectId, productId) =>
+      request<ProductDetailResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}/archive`,
+        {
+          method: "POST"
+        }
+      ),
+    createProductVariant: (projectId, productId, input) =>
+      request<ProductDetailResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}/variants`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    updateProductVariant: (projectId, productId, variantId, input) =>
+      request<ProductDetailResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}/variants/${encodeURIComponent(variantId)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    deleteProductVariant: (projectId, productId, variantId) =>
+      request<ProductDetailResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}/variants/${encodeURIComponent(variantId)}`,
+        {
+          method: "DELETE"
+        }
+      ),
+    setDefaultProductVariant: (projectId, productId, variantId) =>
+      request<ProductDetailResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}/variants/${encodeURIComponent(variantId)}/set-default`,
+        {
+          method: "POST"
+        }
+      ),
+    listProductMedia: (projectId, productId) =>
+      request<ProductMediaListResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}/media`
+      ),
+    addProductMedia: (projectId, productId, input) =>
+      request<ProductMediaListResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}/media`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    removeProductMedia: (projectId, productId, productMediaId) =>
+      request<ProductMediaListResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}/media/${encodeURIComponent(productMediaId)}`,
+        {
+          method: "DELETE"
+        }
+      ),
+    setPrimaryProductMedia: (projectId, productId, productMediaId) =>
+      request<ProductMediaListResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}/media/${encodeURIComponent(productMediaId)}/set-primary`,
+        {
+          method: "POST"
+        }
+      ),
+    reorderProductMedia: (projectId, productId, input) =>
+      request<ProductMediaListResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/products/${encodeURIComponent(
+          productId
+        )}/media/reorder`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
     getPublicationSettings: (projectId) =>
       request<PublicationSettingsResponse>(
         normalizedApiUrl,
@@ -326,7 +639,15 @@ async function request<TResponse>(
   path: string,
   init?: RequestInit
 ): Promise<TResponse> {
-  const response = await fetch(`${apiUrl}${path}`, init);
+  const url = `${apiUrl}${path}`;
+  let response: Response;
+
+  try {
+    response = await fetch(url, init);
+  } catch {
+    throw new DashboardNetworkError(url);
+  }
+
   const payload = await parseJson(response);
 
   if (!response.ok) {

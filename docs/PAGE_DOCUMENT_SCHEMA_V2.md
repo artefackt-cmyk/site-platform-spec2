@@ -95,6 +95,39 @@ type ImageBlock = {
 
 `assetId` is optional. When present, it points to a `MediaAsset` inside the same project. The corresponding `src` is the project-scoped media content API URL. The API rejects saved documents that reference unknown, cross-project or cross-tenant media assets. Setting an external URL clears `assetId`.
 
+V2 also adds product blocks:
+
+```ts
+type ProductCardBlock = {
+  id: string;
+  type: "product-card";
+  props: {
+    productId: string | null;
+    showImage: boolean;
+    showDescription: boolean;
+    showPrice: boolean;
+    buttonLabel: string;
+    layout: "vertical" | "horizontal";
+  };
+};
+
+type ProductGridBlock = {
+  id: string;
+  type: "product-grid";
+  props: {
+    selection: "all-active" | "selected";
+    productIds: string[];
+    columns: 2 | 3 | 4;
+    showDescription: boolean;
+    showPrice: boolean;
+    buttonLabel: string;
+    limit: 4 | 8 | 12;
+  };
+};
+```
+
+Product blocks are allowed to be empty in draft state. The renderer receives prepared product DTOs through its context and does not query the database directly. Storefront renders only active products supplied by the public API.
+
 ## Nesting Rules
 
 - The root can contain only sections.

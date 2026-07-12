@@ -10,14 +10,17 @@ import {
   type HeadingBlock,
   type ImageBlock,
   type NodePropsByType,
+  type ProductCardBlock,
+  type ProductGridBlock,
   type SectionLayout,
   type SectionNode,
   type SpacerBlock,
   type TextBlock
 } from "@site-platform/editor-core";
-import { PageRenderer } from "@site-platform/renderer";
+import { PageRenderer, type ProductRenderModel } from "@site-platform/renderer";
 import type {
   MediaAssetSummary,
+  ProductSummary,
   PublicationHistoryItem,
   PublicationStatusResponse,
   ProjectSummary,
@@ -38,6 +41,7 @@ export type PageEditorLoadState =
       readonly status: "ready";
       readonly project: ProjectSummary;
       readonly page: SitePageSummary;
+      readonly products: readonly ProductSummary[];
       readonly publicationStatus: PublicationStatusResponse;
       readonly editor: EditorState;
     };
@@ -58,6 +62,12 @@ export type PageEditorViewProps = {
   readonly onUpdateText: (props: Partial<BlockPropsByType["text"]>) => void;
   readonly onUpdateButton: (props: Partial<BlockPropsByType["button"]>) => void;
   readonly onUpdateImage: (props: Partial<BlockPropsByType["image"]>) => void;
+  readonly onUpdateProductCard: (
+    props: Partial<BlockPropsByType["product-card"]>
+  ) => void;
+  readonly onUpdateProductGrid: (
+    props: Partial<BlockPropsByType["product-grid"]>
+  ) => void;
   readonly mediaPicker: ImageAssetPickerState;
   readonly onOpenImagePicker: () => void;
   readonly onCloseImagePicker: () => void;
@@ -107,6 +117,8 @@ export function PageEditorView({
   onUpdateText,
   onUpdateButton,
   onUpdateImage,
+  onUpdateProductCard,
+  onUpdateProductGrid,
   mediaPicker,
   onOpenImagePicker,
   onCloseImagePicker,
@@ -156,6 +168,7 @@ export function PageEditorView({
     state.editor.selectedNodeId === null
       ? null
       : findNodeById(state.editor.document, state.editor.selectedNodeId);
+  const rendererContext = createRendererProductContext(state.products);
 
   return (
     <main className="editor-shell">
@@ -211,6 +224,7 @@ export function PageEditorView({
                 document={state.editor.document}
                 mode="editor"
                 selectedNodeId={state.editor.selectedNodeId}
+                context={rendererContext}
               />
             )}
           </div>
@@ -227,6 +241,9 @@ export function PageEditorView({
             onUpdateText={onUpdateText}
             onUpdateButton={onUpdateButton}
             onUpdateImage={onUpdateImage}
+            onUpdateProductCard={onUpdateProductCard}
+            onUpdateProductGrid={onUpdateProductGrid}
+            products={state.products}
             mediaPicker={mediaPicker}
             onOpenImagePicker={onOpenImagePicker}
             onCloseImagePicker={onCloseImagePicker}
@@ -763,6 +780,9 @@ function Inspector({
   onUpdateText,
   onUpdateButton,
   onUpdateImage,
+  onUpdateProductCard,
+  onUpdateProductGrid,
+  products,
   mediaPicker,
   onOpenImagePicker,
   onCloseImagePicker,
@@ -780,6 +800,13 @@ function Inspector({
   readonly onUpdateText: (props: Partial<BlockPropsByType["text"]>) => void;
   readonly onUpdateButton: (props: Partial<BlockPropsByType["button"]>) => void;
   readonly onUpdateImage: (props: Partial<BlockPropsByType["image"]>) => void;
+  readonly onUpdateProductCard: (
+    props: Partial<BlockPropsByType["product-card"]>
+  ) => void;
+  readonly onUpdateProductGrid: (
+    props: Partial<BlockPropsByType["product-grid"]>
+  ) => void;
+  readonly products: readonly ProductSummary[];
   readonly mediaPicker: ImageAssetPickerState;
   readonly onOpenImagePicker: () => void;
   readonly onCloseImagePicker: () => void;
@@ -828,6 +855,22 @@ function Inspector({
           onCloseImagePicker={onCloseImagePicker}
           onUploadImageAsset={onUploadImageAsset}
           onSelectImageAsset={onSelectImageAsset}
+        />
+      );
+    case "product-card":
+      return (
+        <ProductCardInspector
+          block={node}
+          products={products}
+          onUpdateProductCard={onUpdateProductCard}
+        />
+      );
+    case "product-grid":
+      return (
+        <ProductGridInspector
+          block={node}
+          products={products}
+          onUpdateProductGrid={onUpdateProductGrid}
         />
       );
     case "spacer":
@@ -1379,6 +1422,190 @@ function SpacerInspector({
   );
 }
 
+function ProductCardInspector({
+  block,
+  products,
+  onUpdateProductCard
+}: {
+  readonly block: ProductCardBlock;
+  readonly products: readonly ProductSummary[];
+  readonly onUpdateProductCard: (
+    props: Partial<BlockPropsByType["product-card"]>
+  ) => void;
+}) {
+  return (
+    <section className="editor-panel-section">
+      <p className="eyebrow">Инспектор</p>
+      <h2>Карточка товара</h2>
+      <InspectorSelect
+        label="Товар"
+        value={block.props.productId ?? ""}
+        options={[
+          ["", "Не выбран"],
+          ...products.map((product) => [product.id, product.title] as const)
+        ]}
+        onChange={(productId) =>
+          onUpdateProductCard({
+            productId: productId === "" ? null : productId
+          })
+        }
+      />
+      <InspectorSelect
+        label="Композиция"
+        value={block.props.layout}
+        options={[
+          ["vertical", "Вертикальная"],
+          ["horizontal", "Горизонтальная"]
+        ]}
+        onChange={(layout) =>
+          onUpdateProductCard({
+            layout: layout === "horizontal" ? "horizontal" : "vertical"
+          })
+        }
+      />
+      <ProductBlockCheckbox
+        label="Показывать изображение"
+        checked={block.props.showImage}
+        onChange={(showImage) => onUpdateProductCard({ showImage })}
+      />
+      <ProductBlockCheckbox
+        label="Показывать описание"
+        checked={block.props.showDescription}
+        onChange={(showDescription) => onUpdateProductCard({ showDescription })}
+      />
+      <ProductBlockCheckbox
+        label="Показывать цену"
+        checked={block.props.showPrice}
+        onChange={(showPrice) => onUpdateProductCard({ showPrice })}
+      />
+      <InspectorTextInput
+        label="Текст кнопки"
+        value={block.props.buttonLabel}
+        onChange={(buttonLabel) => onUpdateProductCard({ buttonLabel })}
+      />
+    </section>
+  );
+}
+
+function ProductGridInspector({
+  block,
+  products,
+  onUpdateProductGrid
+}: {
+  readonly block: ProductGridBlock;
+  readonly products: readonly ProductSummary[];
+  readonly onUpdateProductGrid: (
+    props: Partial<BlockPropsByType["product-grid"]>
+  ) => void;
+}) {
+  return (
+    <section className="editor-panel-section">
+      <p className="eyebrow">Инспектор</p>
+      <h2>Сетка товаров</h2>
+      <InspectorSelect
+        label="Выборка"
+        value={block.props.selection}
+        options={[
+          ["all-active", "Все активные"],
+          ["selected", "Выбранные"]
+        ]}
+        onChange={(selection) =>
+          onUpdateProductGrid({
+            selection: selection === "selected" ? "selected" : "all-active"
+          })
+        }
+      />
+      {block.props.selection === "selected" ? (
+        <div className="inspector-field">
+          <span>Товары</span>
+          {products.map((product) => (
+            <label className="checkbox-field" key={product.id}>
+              <span>{product.title}</span>
+              <input
+                type="checkbox"
+                checked={block.props.productIds.includes(product.id)}
+                onChange={(event) =>
+                  onUpdateProductGrid({
+                    productIds: event.currentTarget.checked
+                      ? [...block.props.productIds, product.id]
+                      : block.props.productIds.filter(
+                          (productId) => productId !== product.id
+                        )
+                  })
+                }
+              />
+            </label>
+          ))}
+        </div>
+      ) : null}
+      <InspectorSelect
+        label="Колонки"
+        value={String(block.props.columns)}
+        options={[
+          ["2", "2"],
+          ["3", "3"],
+          ["4", "4"]
+        ]}
+        onChange={(columns) =>
+          onUpdateProductGrid({
+            columns: columns === "2" ? 2 : columns === "4" ? 4 : 3
+          })
+        }
+      />
+      <InspectorSelect
+        label="Лимит"
+        value={String(block.props.limit)}
+        options={[
+          ["4", "4"],
+          ["8", "8"],
+          ["12", "12"]
+        ]}
+        onChange={(limit) =>
+          onUpdateProductGrid({
+            limit: limit === "4" ? 4 : limit === "12" ? 12 : 8
+          })
+        }
+      />
+      <ProductBlockCheckbox
+        label="Показывать описание"
+        checked={block.props.showDescription}
+        onChange={(showDescription) => onUpdateProductGrid({ showDescription })}
+      />
+      <ProductBlockCheckbox
+        label="Показывать цену"
+        checked={block.props.showPrice}
+        onChange={(showPrice) => onUpdateProductGrid({ showPrice })}
+      />
+      <InspectorTextInput
+        label="Текст кнопки"
+        value={block.props.buttonLabel}
+        onChange={(buttonLabel) => onUpdateProductGrid({ buttonLabel })}
+      />
+    </section>
+  );
+}
+
+function ProductBlockCheckbox({
+  label,
+  checked,
+  onChange
+}: {
+  readonly label: string;
+  readonly checked: boolean;
+  readonly onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="inspector-field checkbox-field">
+      <span>{label}</span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.currentTarget.checked)}
+      />
+    </label>
+  );
+}
+
 function InspectorTextInput({
   label,
   value,
@@ -1499,7 +1726,40 @@ function getBlockSummary(block: BlockNode): string {
       return block.props.src || "Изображение без URL";
     case "spacer":
       return `Размер: ${block.props.size}`;
+    case "product-card":
+      return block.props.productId === null ? "Товар не выбран" : "Карточка товара";
+    case "product-grid":
+      return block.props.selection === "all-active"
+        ? "Все активные товары"
+        : `${block.props.productIds.length} товар(ов)`;
   }
+}
+
+function createRendererProductContext(products: readonly ProductSummary[]) {
+  const productList = products.map(toProductRenderModel);
+
+  return {
+    products: Object.fromEntries(productList.map((product) => [product.id, product])),
+    productList
+  };
+}
+
+function toProductRenderModel(product: ProductSummary): ProductRenderModel {
+  return {
+    id: product.id,
+    title: product.title,
+    slug: product.slug,
+    shortDescription: null,
+    primaryImage:
+      product.primaryImage === null
+        ? null
+        : {
+            url: product.primaryImage.url,
+            altText: product.primaryImage.altText
+          },
+    price: product.defaultPrice,
+    availability: product.stockSummary
+  };
 }
 
 function formatDimensions(asset: MediaAssetSummary): string {

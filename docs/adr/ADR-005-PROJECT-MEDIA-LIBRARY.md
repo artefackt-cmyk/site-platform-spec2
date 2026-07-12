@@ -47,7 +47,9 @@ External image URLs remain supported. Setting an external URL clears `assetId`.
 
 The API validates that every `assetId` referenced by a saved PageDocument belongs to the same project and organization. Unknown or cross-project media assets make the document invalid.
 
-Deleting a media asset is allowed only when it is unused by saved PageDocuments in the same project. Usage is calculated from PageDocument V2 image asset references.
+Deleting a media asset is allowed only when it is unused by saved PageDocuments and products in the same project. Usage is calculated from PageDocument V2 image asset references and `Product.primaryMediaAssetId`.
+
+Public media serving allows an asset when it is used by an active published page snapshot or by an active product in a published project. This keeps product primary images available even when they are not referenced by a page snapshot.
 
 The implementation stays inside the modular monolith. Do not introduce microservices.
 
@@ -55,6 +57,7 @@ The implementation stays inside the modular monolith. Do not introduce microserv
 
 - Editors can upload, browse, reuse and delete unused project images.
 - The same `MediaAsset` can be referenced by multiple `ImageBlock` nodes.
+- The same `MediaAsset` can be used as a product primary image.
 - Tenant isolation is enforced through `TenantContext`, `organizationId` and `projectId`.
 - Local filesystem storage is suitable for development only.
 - S3-compatible storage can be added later by implementing the same adapter interface.

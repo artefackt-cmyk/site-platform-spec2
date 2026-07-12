@@ -76,11 +76,13 @@ export function PageEditorApp({
         apiClient.getProjectPageDocument(projectId, pageId),
         apiClient.getPagePublicationStatus(projectId, pageId)
       ]);
+      const products = await apiClient.listProducts(projectId);
 
       setState({
         status: "ready",
         project,
         page,
+        products: products.products,
         publicationStatus,
         editor: createEditorState(pageDocument)
       });
@@ -494,6 +496,12 @@ export function PageEditorApp({
             ? updateSelectedNodeProps(editor, props)
             : updateSelectedImageExternalUrl(editor, props.src)
         )
+      }
+      onUpdateProductCard={(props: Partial<BlockPropsByType["product-card"]>) =>
+        updateEditor((editor) => updateSelectedNodeProps(editor, props))
+      }
+      onUpdateProductGrid={(props: Partial<BlockPropsByType["product-grid"]>) =>
+        updateEditor((editor) => updateSelectedNodeProps(editor, props))
       }
       mediaPicker={mediaPicker}
       onOpenImagePicker={openImagePicker}

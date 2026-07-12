@@ -3,6 +3,8 @@ import {
   ColumnNodePropsSchema,
   HeadingBlockPropsSchema,
   ImageBlockPropsSchema,
+  ProductCardBlockPropsSchema,
+  ProductGridBlockPropsSchema,
   SectionNodePropsSchema,
   SpacerBlockPropsSchema,
   TextBlockPropsSchema,
@@ -274,6 +276,97 @@ export const IMAGE_BLOCK_DEFINITION: BlockDefinition<"image"> = {
   ]
 };
 
+export const PRODUCT_CARD_BLOCK_DEFINITION: BlockDefinition<"product-card"> = {
+  type: "product-card",
+  label: "Карточка товара",
+  defaultProps: createDefaultBlock("product-card").props,
+  propsSchema: ProductCardBlockPropsSchema,
+  inspectorFields: [
+    {
+      name: "productId",
+      label: "Товар",
+      fieldType: "select"
+    },
+    {
+      name: "layout",
+      label: "Макет",
+      fieldType: "select",
+      options: [
+        {
+          label: "Вертикальный",
+          value: "vertical"
+        },
+        {
+          label: "Горизонтальный",
+          value: "horizontal"
+        }
+      ]
+    }
+  ]
+};
+
+export const PRODUCT_GRID_BLOCK_DEFINITION: BlockDefinition<"product-grid"> = {
+  type: "product-grid",
+  label: "Каталог товаров",
+  defaultProps: createDefaultBlock("product-grid").props,
+  propsSchema: ProductGridBlockPropsSchema,
+  inspectorFields: [
+    {
+      name: "selection",
+      label: "Выборка",
+      fieldType: "select",
+      options: [
+        {
+          label: "Все активные",
+          value: "all-active"
+        },
+        {
+          label: "Выбранные",
+          value: "selected"
+        }
+      ]
+    },
+    {
+      name: "columns",
+      label: "Колонки",
+      fieldType: "select",
+      options: [
+        {
+          label: "2",
+          value: 2
+        },
+        {
+          label: "3",
+          value: 3
+        },
+        {
+          label: "4",
+          value: 4
+        }
+      ]
+    },
+    {
+      name: "limit",
+      label: "Лимит",
+      fieldType: "select",
+      options: [
+        {
+          label: "4",
+          value: 4
+        },
+        {
+          label: "8",
+          value: 8
+        },
+        {
+          label: "12",
+          value: 12
+        }
+      ]
+    }
+  ]
+};
+
 export const SPACER_BLOCK_DEFINITION: BlockDefinition<"spacer"> = {
   type: "spacer",
   label: "Отступ",
@@ -447,7 +540,9 @@ export const BLOCK_DEFINITIONS = [
   TEXT_BLOCK_DEFINITION,
   BUTTON_BLOCK_DEFINITION,
   IMAGE_BLOCK_DEFINITION,
-  SPACER_BLOCK_DEFINITION
+  SPACER_BLOCK_DEFINITION,
+  PRODUCT_CARD_BLOCK_DEFINITION,
+  PRODUCT_GRID_BLOCK_DEFINITION
 ] as const;
 
 export const SECTION_PRESETS: readonly SectionPreset[] = [

@@ -136,6 +136,11 @@ export async function seedDevelopmentDatabase(
     organizationId: organization.id,
     projectId: project.id
   });
+  await seedDemoProducts(client, {
+    organizationId: organization.id,
+    projectId: project.id,
+    userId: user.id
+  });
 }
 
 async function createAuditLogIfMissing(
@@ -243,6 +248,94 @@ async function seedDemoPages(
   });
 }
 
+async function seedDemoProducts(
+  client: DatabasePrismaClient,
+  input: {
+    readonly organizationId: string;
+    readonly projectId: string;
+    readonly userId: string;
+  }
+): Promise<void> {
+  const products = [
+    {
+      title: "Демо футболка",
+      slug: "demo-tshirt",
+      shortDescription: "Базовый товар для проверки каталога.",
+      sku: "DEMO-TSHIRT",
+      priceMinor: 249000,
+      stockQuantity: 12
+    },
+    {
+      title: "Демо худи",
+      slug: "demo-hoodie",
+      shortDescription: "Товар с локальным остатком и ценой в RUB.",
+      sku: "DEMO-HOODIE",
+      priceMinor: 499000,
+      stockQuantity: 6
+    }
+  ] as const;
+
+  for (const productInput of products) {
+    const product = await client.product.upsert({
+      where: {
+        projectId_slug: {
+          projectId: input.projectId,
+          slug: productInput.slug
+        }
+      },
+      create: {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        title: productInput.title,
+        slug: productInput.slug,
+        shortDescription: productInput.shortDescription,
+        status: "ACTIVE",
+        createdByUserId: input.userId,
+        updatedByUserId: input.userId
+      },
+      update: {
+        title: productInput.title,
+        shortDescription: productInput.shortDescription,
+        status: "ACTIVE",
+        deletedAt: null,
+        updatedByUserId: input.userId
+      }
+    });
+
+    await client.productVariant.upsert({
+      where: {
+        projectId_sku: {
+          projectId: input.projectId,
+          sku: productInput.sku
+        }
+      },
+      create: {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        productId: product.id,
+        title: "Основной вариант",
+        sku: productInput.sku,
+        priceMinor: productInput.priceMinor,
+        stockQuantity: productInput.stockQuantity,
+        trackInventory: true,
+        allowBackorder: false,
+        isDefault: true,
+        position: 0
+      },
+      update: {
+        productId: product.id,
+        title: "Основной вариант",
+        priceMinor: productInput.priceMinor,
+        stockQuantity: productInput.stockQuantity,
+        trackInventory: true,
+        allowBackorder: false,
+        isDefault: true,
+        deletedAt: null
+      }
+    });
+  }
+}
+
 function createSeedPageDocument(slug: string): PageDocumentV2 {
   switch (slug) {
     case "home":
@@ -329,13 +422,7 @@ function createSeedPageDocument(slug: string): PageDocumentV2 {
         }
       };
     case "catalog":
-      return createTextSeedDocument({
-        sectionId: "seed-catalog-section",
-        headingId: "seed-catalog-heading",
-        textId: "seed-catalog-text",
-        heading: "Каталог",
-        text: "Здесь появятся товары"
-      });
+      return createCatalogSeedDocument();
     case "about":
       return createTextSeedDocument({
         sectionId: "seed-about-section",
@@ -354,6 +441,54 @@ function createSeedPageDocument(slug: string): PageDocumentV2 {
         }
       };
   }
+}
+
+function createCatalogSeedDocument(): PageDocumentV2 {
+  return {
+    schemaVersion: 2,
+    root: {
+      id: "root",
+      type: "page",
+      children: [
+        {
+          id: "seed-catalog-section",
+          type: "section",
+          props: {
+            background: "white",
+            paddingY: "medium",
+            contentWidth: "wide",
+            layout: "single",
+            columnRatio: "50-50",
+            verticalAlign: "start"
+          },
+          children: [
+            {
+              id: "seed-catalog-heading",
+              type: "heading",
+              props: {
+                text: "Каталог",
+                level: 1,
+                align: "left"
+              }
+            },
+            {
+              id: "seed-catalog-grid",
+              type: "product-grid",
+              props: {
+                selection: "all-active",
+                productIds: [],
+                columns: 3,
+                showDescription: true,
+                showPrice: true,
+                buttonLabel: "Подробнее",
+                limit: 8
+              }
+            }
+          ]
+        }
+      ]
+    }
+  };
 }
 
 function createTextSeedDocument(input: {

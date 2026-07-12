@@ -30,6 +30,7 @@ export type UpdateMediaAssetMetadataInput = {
 export type MediaAssetUsage = {
   readonly usageCount: number;
   readonly pageIds: readonly string[];
+  readonly productIds: readonly string[];
 };
 
 export class MediaAssetRepository {
@@ -168,6 +169,7 @@ export class MediaAssetRepository {
       }
     });
     const pageIds = new Set<string>();
+    const productIds = new Set<string>();
     let usageCount = 0;
 
     for (const pageDocument of pageDocuments) {
@@ -189,9 +191,59 @@ export class MediaAssetRepository {
       }
     }
 
+    const productMedia = await this.client.productMedia.findMany({
+      where: {
+        organizationId: context.organizationId,
+        projectId,
+        mediaAssetId: assetId,
+        product: {
+          organizationId: context.organizationId,
+          projectId,
+          deletedAt: null,
+          project: {
+            organizationId: context.organizationId,
+            deletedAt: null
+          }
+        }
+      },
+      select: {
+        productId: true
+      }
+    });
+
+    for (const item of productMedia) {
+      productIds.add(item.productId);
+      usageCount += 1;
+    }
+
+    const legacyPrimaryProducts = await this.client.product.findMany({
+      where: {
+        organizationId: context.organizationId,
+        projectId,
+        primaryMediaAssetId: assetId,
+        deletedAt: null,
+        media: {
+          none: {}
+        },
+        project: {
+          organizationId: context.organizationId,
+          deletedAt: null
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    for (const product of legacyPrimaryProducts) {
+      productIds.add(product.id);
+      usageCount += 1;
+    }
+
     return {
       usageCount,
-      pageIds: [...pageIds]
+      pageIds: [...pageIds],
+      productIds: [...productIds]
     };
   }
 }

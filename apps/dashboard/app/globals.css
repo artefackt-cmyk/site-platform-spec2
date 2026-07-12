@@ -661,6 +661,27 @@ button:disabled {
   gap: 10px;
 }
 
+.product-images-field {
+  display: grid;
+  gap: 16px;
+}
+
+.product-images-empty {
+  padding: 24px;
+}
+
+.product-image-card {
+  align-content: start;
+}
+
+.product-upload-button {
+  justify-self: start;
+}
+
+.product-upload-button input {
+  display: none;
+}
+
 .add-block-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

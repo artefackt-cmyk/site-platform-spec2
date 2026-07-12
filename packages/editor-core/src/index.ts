@@ -12,7 +12,9 @@ export const LEAF_BLOCK_TYPES = [
   "text",
   "button",
   "spacer",
-  "image"
+  "image",
+  "product-card",
+  "product-grid"
 ] as const;
 export const BLOCK_TYPES = LEAF_BLOCK_TYPES;
 export const TEXT_ALIGNMENTS = ["left", "center", "right"] as const;
@@ -35,6 +37,10 @@ export const IMAGE_ASPECT_RATIOS = [
 export const IMAGE_OBJECT_FITS = ["cover", "contain"] as const;
 export const IMAGE_BORDER_RADII = ["none", "small", "medium", "large"] as const;
 export const IMAGE_WIDTHS = ["small", "medium", "full"] as const;
+export const PRODUCT_CARD_LAYOUTS = ["vertical", "horizontal"] as const;
+export const PRODUCT_GRID_SELECTIONS = ["all-active", "selected"] as const;
+export const PRODUCT_GRID_COLUMNS = [2, 3, 4] as const;
+export const PRODUCT_GRID_LIMITS = [4, 8, 12] as const;
 
 export type LeafBlockType = (typeof LEAF_BLOCK_TYPES)[number];
 export type BlockType = LeafBlockType;
@@ -52,6 +58,10 @@ export type ImageAspectRatio = (typeof IMAGE_ASPECT_RATIOS)[number];
 export type ImageObjectFit = (typeof IMAGE_OBJECT_FITS)[number];
 export type ImageBorderRadius = (typeof IMAGE_BORDER_RADII)[number];
 export type ImageWidth = (typeof IMAGE_WIDTHS)[number];
+export type ProductCardLayout = (typeof PRODUCT_CARD_LAYOUTS)[number];
+export type ProductGridSelection = (typeof PRODUCT_GRID_SELECTIONS)[number];
+export type ProductGridColumns = (typeof PRODUCT_GRID_COLUMNS)[number];
+export type ProductGridLimit = (typeof PRODUCT_GRID_LIMITS)[number];
 
 const NodeIdSchema = z.string().trim().min(1);
 const TextAlignmentSchema = z.enum(TEXT_ALIGNMENTS);
@@ -121,6 +131,29 @@ export const ImageBlockPropsSchema = z
     }
   });
 
+export const ProductCardBlockPropsSchema = z
+  .object({
+    productId: z.string().trim().min(1).nullable(),
+    showImage: z.boolean(),
+    showDescription: z.boolean(),
+    showPrice: z.boolean(),
+    buttonLabel: z.string(),
+    layout: z.enum(PRODUCT_CARD_LAYOUTS)
+  })
+  .strict();
+
+export const ProductGridBlockPropsSchema = z
+  .object({
+    selection: z.enum(PRODUCT_GRID_SELECTIONS),
+    productIds: z.array(z.string().trim().min(1)),
+    columns: z.union([z.literal(2), z.literal(3), z.literal(4)]),
+    showDescription: z.boolean(),
+    showPrice: z.boolean(),
+    buttonLabel: z.string(),
+    limit: z.union([z.literal(4), z.literal(8), z.literal(12)])
+  })
+  .strict();
+
 export const SectionNodePropsSchema = z
   .object({
     background: z.enum(SECTION_BACKGROUNDS),
@@ -178,12 +211,30 @@ export const ImageBlockSchema = z
   })
   .strict();
 
+export const ProductCardBlockSchema = z
+  .object({
+    id: NodeIdSchema,
+    type: z.literal("product-card"),
+    props: ProductCardBlockPropsSchema
+  })
+  .strict();
+
+export const ProductGridBlockSchema = z
+  .object({
+    id: NodeIdSchema,
+    type: z.literal("product-grid"),
+    props: ProductGridBlockPropsSchema
+  })
+  .strict();
+
 export const LeafBlockNodeSchema = z.discriminatedUnion("type", [
   HeadingBlockSchema,
   TextBlockSchema,
   ButtonBlockSchema,
   SpacerBlockSchema,
-  ImageBlockSchema
+  ImageBlockSchema,
+  ProductCardBlockSchema,
+  ProductGridBlockSchema
 ]);
 
 export const LegacyBlockNodeSchema = z.discriminatedUnion("type", [
@@ -282,6 +333,8 @@ export type TextBlockProps = z.infer<typeof TextBlockPropsSchema>;
 export type ButtonBlockProps = z.infer<typeof ButtonBlockPropsSchema>;
 export type SpacerBlockProps = z.infer<typeof SpacerBlockPropsSchema>;
 export type ImageBlockProps = z.infer<typeof ImageBlockPropsSchema>;
+export type ProductCardBlockProps = z.infer<typeof ProductCardBlockPropsSchema>;
+export type ProductGridBlockProps = z.infer<typeof ProductGridBlockPropsSchema>;
 export type SectionNodeProps = z.infer<typeof SectionNodePropsSchema>;
 export type ColumnNodeProps = z.infer<typeof ColumnNodePropsSchema>;
 export type HeadingBlock = z.infer<typeof HeadingBlockSchema>;
@@ -289,6 +342,8 @@ export type TextBlock = z.infer<typeof TextBlockSchema>;
 export type ButtonBlock = z.infer<typeof ButtonBlockSchema>;
 export type SpacerBlock = z.infer<typeof SpacerBlockSchema>;
 export type ImageBlock = z.infer<typeof ImageBlockSchema>;
+export type ProductCardBlock = z.infer<typeof ProductCardBlockSchema>;
+export type ProductGridBlock = z.infer<typeof ProductGridBlockSchema>;
 export type LeafBlockNode = z.infer<typeof LeafBlockNodeSchema>;
 export type LegacyBlockNode = z.infer<typeof LegacyBlockNodeSchema>;
 export type BlockNode = LeafBlockNode;
@@ -307,6 +362,8 @@ export type BlockPropsByType = {
   readonly button: ButtonBlockProps;
   readonly spacer: SpacerBlockProps;
   readonly image: ImageBlockProps;
+  readonly "product-card": ProductCardBlockProps;
+  readonly "product-grid": ProductGridBlockProps;
 };
 
 export type NodePropsByType = BlockPropsByType & {
@@ -376,6 +433,8 @@ export function createDefaultBlock(type: "text"): TextBlock;
 export function createDefaultBlock(type: "button"): ButtonBlock;
 export function createDefaultBlock(type: "spacer"): SpacerBlock;
 export function createDefaultBlock(type: "image"): ImageBlock;
+export function createDefaultBlock(type: "product-card"): ProductCardBlock;
+export function createDefaultBlock(type: "product-grid"): ProductGridBlock;
 export function createDefaultBlock(type: LeafBlockType): LeafBlockNode {
   const id = createNodeId(type);
 
@@ -431,6 +490,33 @@ export function createDefaultBlock(type: LeafBlockType): LeafBlockNode {
           borderRadius: "medium",
           align: "center",
           width: "full"
+        }
+      };
+    case "product-card":
+      return {
+        id,
+        type,
+        props: {
+          productId: null,
+          showImage: true,
+          showDescription: true,
+          showPrice: true,
+          buttonLabel: "Подробнее",
+          layout: "vertical"
+        }
+      };
+    case "product-grid":
+      return {
+        id,
+        type,
+        props: {
+          selection: "all-active",
+          productIds: [],
+          columns: 3,
+          showDescription: true,
+          showPrice: true,
+          buttonLabel: "Подробнее",
+          limit: 8
         }
       };
   }
@@ -944,6 +1030,16 @@ export function updateNodeProps<TType extends keyof NodePropsByType>(
           ...node,
           props: ImageBlockPropsSchema.parse({ ...node.props, ...props })
         };
+      case "product-card":
+        return {
+          ...node,
+          props: ProductCardBlockPropsSchema.parse({ ...node.props, ...props })
+        };
+      case "product-grid":
+        return {
+          ...node,
+          props: ProductGridBlockPropsSchema.parse({ ...node.props, ...props })
+        };
       case "page":
         return node;
     }
@@ -981,6 +1077,16 @@ export function updateBlockProps<TType extends LeafBlockType>(
         return {
           ...node,
           props: ImageBlockPropsSchema.parse({ ...node.props, ...props })
+        };
+      case "product-card":
+        return {
+          ...node,
+          props: ProductCardBlockPropsSchema.parse({ ...node.props, ...props })
+        };
+      case "product-grid":
+        return {
+          ...node,
+          props: ProductGridBlockPropsSchema.parse({ ...node.props, ...props })
         };
       case "page":
       case "section":
