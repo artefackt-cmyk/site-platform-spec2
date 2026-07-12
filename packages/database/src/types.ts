@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 export type RepositoryPrismaClient = Pick<
   Prisma.TransactionClient,
   | "auditLog"
+  | "authSession"
   | "membership"
   | "mediaAsset"
   | "organization"
@@ -11,6 +12,8 @@ export type RepositoryPrismaClient = Pick<
   | "product"
   | "productMedia"
   | "productVariant"
+  | "passwordCredential"
+  | "passwordResetToken"
   | "project"
   | "publishedPageSnapshot"
   | "publishedPageState"

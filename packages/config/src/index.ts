@@ -21,6 +21,15 @@ export type AppConfig = {
   };
   readonly development: {
     readonly devUserEmail?: string;
+    readonly allowDevIdentity: boolean;
+    readonly exposeDevResetToken: boolean;
+    readonly seedUserPassword?: string;
+  };
+  readonly auth: {
+    readonly sessionCookieName: string;
+    readonly sessionTtlDays: number;
+    readonly passwordResetTtlMinutes: number;
+    readonly appOrigin: string;
   };
   readonly database: {
     readonly url: string;
@@ -64,7 +73,11 @@ export type LoadConfigResult =
       readonly error: ConfigValidationError;
     };
 
-const SECRET_VARIABLES = new Set(["DATABASE_URL", "TEST_DATABASE_URL"]);
+const SECRET_VARIABLES = new Set([
+  "DATABASE_URL",
+  "TEST_DATABASE_URL",
+  "DEV_SEED_USER_PASSWORD"
+]);
 
 const portSchema = z.coerce
   .number()
@@ -79,6 +92,9 @@ const optionalEmailSchema = z
   .trim()
   .email("DEV_USER_EMAIL must be a valid email")
   .optional();
+const booleanFlagSchema = z
+  .enum(["true", "false", "1", "0"])
+  .transform((value) => value === "true" || value === "1");
 
 const environmentSchema = z
   .object({
@@ -88,6 +104,18 @@ const environmentSchema = z
     DATABASE_URL: databaseUrlSchema.optional(),
     TEST_DATABASE_URL: databaseUrlSchema.optional(),
     DEV_USER_EMAIL: optionalEmailSchema,
+    AUTH_ALLOW_DEV_IDENTITY: booleanFlagSchema.default(false),
+    AUTH_EXPOSE_DEV_RESET_TOKEN: booleanFlagSchema.default(false),
+    DEV_SEED_USER_PASSWORD: z.string().min(10).max(256).optional(),
+    AUTH_SESSION_COOKIE_NAME: z.string().trim().min(1).default("mercurio_session"),
+    AUTH_SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+    AUTH_PASSWORD_RESET_TTL_MINUTES: z.coerce
+      .number()
+      .int()
+      .min(5)
+      .max(1440)
+      .default(30),
+    AUTH_APP_ORIGIN: publicUrlSchema.default("http://localhost:3000"),
     DASHBOARD_ORIGIN: publicUrlSchema.default("http://localhost:3000"),
     STOREFRONT_ORIGIN: publicUrlSchema.default("http://localhost:3001"),
     NEXT_PUBLIC_API_URL: publicUrlSchema.default("http://localhost:3002"),
@@ -115,11 +143,23 @@ const environmentSchema = z
       });
     }
 
-    if (env.NODE_ENV === "production" && env.DEV_USER_EMAIL !== undefined) {
+    if (
+      env.NODE_ENV === "production" &&
+      (env.DEV_USER_EMAIL !== undefined || env.AUTH_ALLOW_DEV_IDENTITY)
+    ) {
       context.addIssue({
         code: "custom",
-        path: ["DEV_USER_EMAIL"],
-        message: "DEV_USER_EMAIL is development-only and must not be set in production"
+        path: ["AUTH_ALLOW_DEV_IDENTITY"],
+        message:
+          "DEV_USER_EMAIL/AUTH_ALLOW_DEV_IDENTITY are development-only and must not be enabled in production"
+      });
+    }
+
+    if (env.NODE_ENV === "production" && env.AUTH_EXPOSE_DEV_RESET_TOKEN) {
+      context.addIssue({
+        code: "custom",
+        path: ["AUTH_EXPOSE_DEV_RESET_TOKEN"],
+        message: "AUTH_EXPOSE_DEV_RESET_TOKEN must not be enabled in production"
       });
     }
   });
@@ -255,12 +295,26 @@ function toAppConfig(env: ParsedEnvironment): AppConfig {
       publicApiUrl: env.NEXT_PUBLIC_API_URL,
       publicStorefrontUrl: env.NEXT_PUBLIC_STOREFRONT_URL
     },
-    development:
-      env.DEV_USER_EMAIL === undefined
+    development: {
+      ...(env.DEV_USER_EMAIL === undefined
         ? {}
         : {
             devUserEmail: env.DEV_USER_EMAIL
-          },
+          }),
+      allowDevIdentity: env.AUTH_ALLOW_DEV_IDENTITY,
+      exposeDevResetToken: env.AUTH_EXPOSE_DEV_RESET_TOKEN,
+      ...(env.DEV_SEED_USER_PASSWORD === undefined
+        ? {}
+        : {
+            seedUserPassword: env.DEV_SEED_USER_PASSWORD
+          })
+    },
+    auth: {
+      sessionCookieName: env.AUTH_SESSION_COOKIE_NAME,
+      sessionTtlDays: env.AUTH_SESSION_TTL_DAYS,
+      passwordResetTtlMinutes: env.AUTH_PASSWORD_RESET_TTL_MINUTES,
+      appOrigin: env.AUTH_APP_ORIGIN
+    },
     database: {
       url: databaseUrl,
       activeUrlKind,

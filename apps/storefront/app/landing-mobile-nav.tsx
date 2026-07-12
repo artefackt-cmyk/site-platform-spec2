@@ -12,6 +12,8 @@ export function LandingMobileNav({
   readonly dashboardUrl: string;
 }) {
   const [open, setOpen] = useState(false);
+  const loginUrl = buildDashboardUrl(dashboardUrl, "/login");
+  const registerUrl = buildDashboardUrl(dashboardUrl, "/register");
 
   return (
     <div className="landing-mobile-nav">
@@ -35,12 +37,12 @@ export function LandingMobileNav({
             {item.label}
           </a>
         ))}
-        <a href={dashboardUrl} onClick={() => setOpen(false)}>
+        <a href={loginUrl} onClick={() => setOpen(false)}>
           Войти
         </a>
         <a
           className="landing-mobile-primary"
-          href={dashboardUrl}
+          href={registerUrl}
           onClick={() => setOpen(false)}
         >
           Создать проект
@@ -48,4 +50,13 @@ export function LandingMobileNav({
       </nav>
     </div>
   );
+}
+
+function buildDashboardUrl(dashboardUrl: string, path: string): string {
+  const url = new URL(dashboardUrl);
+  url.pathname = path;
+  url.search = "";
+  url.hash = "";
+
+  return url.toString();
 }

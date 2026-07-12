@@ -32,7 +32,9 @@ MEDIA_STORAGE_DIR=.local-media
 MEDIA_PUBLIC_BASE_URL=http://localhost:3002
 ```
 
-`DEV_USER_EMAIL` используется только в `NODE_ENV=development`. Это не production-auth, не session, не cookie и не token.
+Auth использует server-side session и HttpOnly cookie `mercurio_session`. Для локальной разработки seed создаёт пользователя `owner@example.com`; пароль берётся из `DEV_SEED_USER_PASSWORD` (`development123` в `.env.example`).
+
+`DEV_USER_EMAIL` больше не является обычным dashboard flow. Development identity доступен только при явном `AUTH_ALLOW_DEV_IDENTITY=true`, только в `NODE_ENV=development`, и запрещён в production.
 `MEDIA_STORAGE_DIR` используется только локальным storage adapter для development uploads. Не указывайте production bucket credentials в `.env`.
 
 ## PostgreSQL
@@ -119,6 +121,7 @@ pnpm db:seed
 Seed работает только вне production и идемпотентно создает:
 
 - пользователя `owner@example.com`;
+- `PasswordCredential` для demo owner с development password из `DEV_SEED_USER_PASSWORD`, если credential ещё нет;
 - организацию `Demo Brand`;
 - `OWNER` membership;
 - проект `Demo Store` со slug `demo-store`;
@@ -156,7 +159,14 @@ API endpoints:
 
 - `GET /health` - не требует подключения к базе;
 - `GET /health/database` - проверяет PostgreSQL и возвращает стабильную ошибку без раскрытия connection string.
-- `GET /api/me` - development-only текущий пользователь и активная организация;
+- `POST /api/auth/register` - создаёт пользователя, credential, организацию, OWNER membership, optional project и session cookie;
+- `POST /api/auth/login` - проверяет email/password и создаёт новую server-side session;
+- `POST /api/auth/logout` - идемпотентно отзывает текущую session и очищает cookie;
+- `GET /api/auth/session` - возвращает текущего пользователя, активную организацию, роль и onboarding status;
+- `POST /api/auth/password-reset/request` - создаёт reset token с generic public response;
+- `POST /api/auth/password-reset/confirm` - меняет пароль, помечает token used, отзывает старые sessions и создаёт новую;
+- `POST /api/auth/onboarding/complete` - завершает первый onboarding;
+- `GET /api/me` - текущий пользователь и активная организация из auth session;
 - `GET /api/projects` - проекты активной организации;
 - `POST /api/projects` - создание проекта в активной организации;
 - `GET /api/projects/:projectId` - данные проекта активной организации;
@@ -235,7 +245,9 @@ pnpm --filter @site-platform/dashboard dev
 pnpm --filter @site-platform/storefront dev
 ```
 
-Если `DEV_USER_EMAIL` отсутствует или пользователь не найден в таблицах `User`/`Membership`, API вернет понятную JSON-ошибку, а dashboard покажет сообщение конфигурации.
+Если session отсутствует или истекла, protected API вернут стабильные auth error codes. Если onboarding не завершён, protected admin routes вернут `AUTH_ONBOARDING_REQUIRED`.
+
+Password reset email provider пока не подключён. В development raw reset token может возвращаться только при `AUTH_EXPOSE_DEV_RESET_TOKEN=true`; production должен подключить реальный email sender. Rate limiting сейчас in-memory и требует distributed store перед production horizontal scaling.
 
 Сейчас в dashboard уже работает:
 

@@ -3,7 +3,8 @@ import {
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
-  NotFoundException
+  NotFoundException,
+  UnauthorizedException
 } from "@nestjs/common";
 import type { DomainErrorCode } from "@site-platform/domain";
 
@@ -56,7 +57,18 @@ export const API_ERROR_CODES = {
   variantComparePriceInvalid: "VARIANT_COMPARE_PRICE_INVALID",
   variantStockInvalid: "VARIANT_STOCK_INVALID",
   cannotDeleteOnlyVariant: "CANNOT_DELETE_ONLY_VARIANT",
-  cannotDeleteDefaultVariant: "CANNOT_DELETE_DEFAULT_VARIANT"
+  cannotDeleteDefaultVariant: "CANNOT_DELETE_DEFAULT_VARIANT",
+  authInvalidCredentials: "AUTH_INVALID_CREDENTIALS",
+  authEmailAlreadyExists: "AUTH_EMAIL_ALREADY_EXISTS",
+  authSessionRequired: "AUTH_SESSION_REQUIRED",
+  authSessionExpired: "AUTH_SESSION_EXPIRED",
+  authSessionRevoked: "AUTH_SESSION_REVOKED",
+  authCsrfInvalid: "AUTH_CSRF_INVALID",
+  authPasswordTooWeak: "AUTH_PASSWORD_TOO_WEAK",
+  authResetTokenInvalid: "AUTH_RESET_TOKEN_INVALID",
+  authResetTokenExpired: "AUTH_RESET_TOKEN_EXPIRED",
+  authOnboardingRequired: "AUTH_ONBOARDING_REQUIRED",
+  rateLimitExceeded: "RATE_LIMIT_EXCEEDED"
 } as const;
 
 export type ApiErrorCode =
@@ -92,6 +104,13 @@ export function forbidden(
   message: string
 ): ForbiddenException {
   return new ForbiddenException(createErrorResponse(code, message));
+}
+
+export function unauthorized(
+  code: ApiErrorCode,
+  message: string
+): UnauthorizedException {
+  return new UnauthorizedException(createErrorResponse(code, message));
 }
 
 export function notFound(

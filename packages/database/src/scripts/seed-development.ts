@@ -1,6 +1,7 @@
 import { loadConfig } from "@site-platform/config";
 import { type PageDocumentV2 } from "@site-platform/editor-core";
 import { normalizeEmail } from "@site-platform/domain";
+import argon2 from "argon2";
 import {
   createPrismaClient,
   disconnectPrismaClient,
@@ -33,7 +34,10 @@ const DEMO_PAGES = [
 ] as const;
 
 export async function seedDevelopmentDatabase(
-  client: DatabasePrismaClient
+  client: DatabasePrismaClient,
+  options: {
+    readonly ownerPassword: string;
+  }
 ): Promise<void> {
   const ownerEmail = normalizeEmail(DEMO_OWNER_EMAIL);
   const user = await client.user.upsert({
@@ -46,6 +50,21 @@ export async function seedDevelopmentDatabase(
     },
     update: {}
   });
+
+  const existingCredential = await client.passwordCredential.findUnique({
+    where: {
+      userId: user.id
+    }
+  });
+
+  if (existingCredential === null) {
+    await client.passwordCredential.create({
+      data: {
+        userId: user.id,
+        passwordHash: await hashSeedPassword(options.ownerPassword)
+      }
+    });
+  }
 
   const organization = await client.organization.upsert({
     where: {
@@ -550,7 +569,9 @@ async function main(): Promise<void> {
   const client = createPrismaClient(config);
 
   try {
-    await seedDevelopmentDatabase(client);
+    await seedDevelopmentDatabase(client, {
+      ownerPassword: config.development.seedUserPassword ?? "development123"
+    });
   } finally {
     await disconnectPrismaClient(client);
   }
@@ -565,3 +586,12 @@ void main().catch((error: unknown) => {
 
   process.exitCode = 1;
 });
+
+function hashSeedPassword(password: string): Promise<string> {
+  return argon2.hash(password, {
+    type: argon2.argon2id,
+    memoryCost: 64 * 1024,
+    timeCost: 3,
+    parallelism: 1
+  });
+}

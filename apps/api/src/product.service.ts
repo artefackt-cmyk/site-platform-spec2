@@ -28,6 +28,7 @@ import {
   validateStockQuantity,
   validateVariantSku,
   validateVariantTitle,
+  type DomainErrorCode,
   type Permission,
   type TenantContext
 } from "@site-platform/domain";
@@ -1339,8 +1340,7 @@ function requireRecord(body: unknown): Record<string, unknown> {
 function validationError(
   field: string,
   message: string,
-  code: (typeof DOMAIN_ERROR_CODES)[keyof typeof DOMAIN_ERROR_CODES] =
-    DOMAIN_ERROR_CODES.productTitleRequired
+  code: DomainErrorCode = DOMAIN_ERROR_CODES.productTitleRequired
 ) {
   return badRequest(API_ERROR_CODES.validationFailed, message, [
     {

@@ -10,6 +10,11 @@ export {
   type CreateAuditLogInput
 } from "./repositories/audit-log-repository";
 export {
+  AuthSessionRepository,
+  type AuthSessionWithUser,
+  type CreateAuthSessionInput
+} from "./repositories/auth-session-repository";
+export {
   MembershipRepository,
   type CreateMembershipInput,
   type MembershipWithOrganization
@@ -68,6 +73,14 @@ export {
   type PageDocumentRepositoryErrorCode
 } from "./repositories/page-document-repository";
 export {
+  PasswordCredentialRepository,
+  type CreatePasswordCredentialInput
+} from "./repositories/password-credential-repository";
+export {
+  PasswordResetTokenRepository,
+  type CreatePasswordResetTokenInput
+} from "./repositories/password-reset-token-repository";
+export {
   PublishedPageSnapshotRepository,
   type ActivePublishedPageLookup,
   type CreatePublishedPageSnapshotInput
@@ -98,7 +111,10 @@ export {
 } from "./types";
 export type {
   PageDocument,
+  AuthSession,
   MediaAsset,
+  PasswordCredential,
+  PasswordResetToken,
   Product,
   ProductCurrency,
   ProductMedia,

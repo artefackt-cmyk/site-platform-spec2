@@ -21,6 +21,9 @@ export function LandingPageView({
 }: {
   readonly dashboardUrl: string;
 }) {
+  const loginUrl = buildDashboardUrl(dashboardUrl, "/login");
+  const registerUrl = buildDashboardUrl(dashboardUrl, "/register");
+
   return (
     <main className="landing-page">
       <a className="skip-link" href="#main-content">
@@ -43,10 +46,10 @@ export function LandingPageView({
           ))}
         </nav>
         <div className="landing-header-actions">
-          <a className="landing-link-button" href={dashboardUrl}>
+          <a className="landing-link-button" href={loginUrl}>
             Войти
           </a>
-          <a className="landing-primary-button" href={dashboardUrl}>
+          <a className="landing-primary-button" href={registerUrl}>
             Создать проект
           </a>
         </div>
@@ -74,7 +77,7 @@ export function LandingPageView({
             технической команды.
           </p>
           <div className="landing-hero-actions">
-            <a className="landing-primary-button" href={dashboardUrl}>
+            <a className="landing-primary-button" href={registerUrl}>
               Создать проект
             </a>
             <a className="landing-secondary-button" href="#features">
@@ -294,10 +297,10 @@ export function LandingPageView({
           оплату, доставку и новые сервисы тогда, когда они понадобятся.
         </p>
         <div className="landing-hero-actions">
-          <a className="landing-primary-button" href={dashboardUrl}>
+          <a className="landing-primary-button" href={registerUrl}>
             Создать проект
           </a>
-          <a className="landing-secondary-button" href={dashboardUrl}>
+          <a className="landing-secondary-button" href={loginUrl}>
             Посмотреть платформу
           </a>
         </div>
@@ -307,6 +310,15 @@ export function LandingPageView({
       </section>
     </main>
   );
+}
+
+function buildDashboardUrl(dashboardUrl: string, path: string): string {
+  const url = new URL(dashboardUrl);
+  url.pathname = path;
+  url.search = "";
+  url.hash = "";
+
+  return url.toString();
 }
 
 function SectionIntro({

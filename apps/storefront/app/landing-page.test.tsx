@@ -68,14 +68,15 @@ describe("Mercurio marketing landing", () => {
     expect(html).toContain("aria-label=\"Мобильная навигация\"");
   });
 
-  it("renders hero and final CTA links to the configured dashboard URL", () => {
+  it("renders hero and final CTA links to configured dashboard auth routes", () => {
     const html = renderLanding("http://localhost:3000");
     const routeSource = readFileSync(
       new URL("./page.tsx", import.meta.url),
       "utf8"
     );
 
-    expect(html).toContain("href=\"http://localhost:3000\"");
+    expect(html).toContain("href=\"http://localhost:3000/register\"");
+    expect(html).toContain("href=\"http://localhost:3000/login\"");
     expect(html).toContain("Создать проект");
     expect(html).toContain("Посмотреть возможности");
     expect(html).toContain("Посмотреть платформу");

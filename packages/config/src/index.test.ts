@@ -43,7 +43,15 @@ describe("loadConfig", () => {
         publicBaseUrl: "http://localhost:3002"
       },
       development: {
-        devUserEmail: "Owner@Example.COM"
+        devUserEmail: "Owner@Example.COM",
+        allowDevIdentity: false,
+        exposeDevResetToken: false
+      },
+      auth: {
+        sessionCookieName: "mercurio_session",
+        sessionTtlDays: 30,
+        passwordResetTtlMinutes: 30,
+        appOrigin: "http://localhost:3000"
       },
       database: {
         url: developmentDatabaseUrl,
@@ -126,9 +134,9 @@ describe("loadConfig", () => {
 
     if (!result.ok) {
       expect(result.error.issues).toContainEqual({
-        variable: "DEV_USER_EMAIL",
+        variable: "AUTH_ALLOW_DEV_IDENTITY",
         message:
-          "DEV_USER_EMAIL is development-only and must not be set in production",
+          "DEV_USER_EMAIL/AUTH_ALLOW_DEV_IDENTITY are development-only and must not be enabled in production",
         secret: false
       });
     }

@@ -22,18 +22,27 @@ export function MercurioAppShell({
   activeArea,
   project,
   user,
+  onLogout,
+  logoutPending,
   children
 }: {
   readonly activeArea: MercurioShellArea;
   readonly project?: ProjectSummary | undefined;
   readonly user?: CurrentUserResponse | undefined;
+  readonly onLogout?: (() => void) | undefined;
+  readonly logoutPending?: boolean | undefined;
   readonly children?: React.ReactNode;
 }) {
   return (
     <main className="dashboard-shell mercurio-app-shell">
       <MercurioSidebar activeArea={activeArea} project={project} />
       <section className="mercurio-main">
-        <MercurioTopbar project={project} user={user} />
+        <MercurioTopbar
+          project={project}
+          user={user}
+          onLogout={onLogout}
+          logoutPending={logoutPending}
+        />
         <section className="dashboard-panel">{children}</section>
       </section>
     </main>
@@ -128,11 +137,18 @@ function MercurioSidebar({
 
 function MercurioTopbar({
   project,
-  user
+  user,
+  onLogout,
+  logoutPending
 }: {
   readonly project?: ProjectSummary | undefined;
   readonly user?: CurrentUserResponse | undefined;
+  readonly onLogout?: (() => void) | undefined;
+  readonly logoutPending?: boolean | undefined;
 }) {
+  const userName = user?.user?.displayName ?? user?.displayName ?? user?.user?.email ?? user?.email;
+  const userEmail = user?.user?.email ?? user?.email;
+
   return (
     <header className="mercurio-topbar">
       <MercurioLogo className="mercurio-topbar-logo-wide" variant="compact" />
@@ -154,9 +170,20 @@ function MercurioTopbar({
             {getInitials(user)}
           </span>
           <div>
-            <strong>{user.displayName ?? user.email}</strong>
+            <strong>{userName}</strong>
             <span>{user.role}</span>
           </div>
+          {onLogout === undefined ? null : (
+            <button
+              className="mercurio-logout-button"
+              type="button"
+              onClick={onLogout}
+              disabled={logoutPending}
+              title={`Выйти${userEmail === undefined ? "" : `: ${userEmail}`}`}
+            >
+              {logoutPending === true ? "..." : "Выйти"}
+            </button>
+          )}
         </div>
       )}
     </header>
@@ -196,7 +223,12 @@ function MercurioNavIcon({
 }
 
 function getInitials(user: CurrentUserResponse): string {
-  const source = user.displayName ?? user.email;
+  const source =
+    user.user?.displayName ??
+    user.displayName ??
+    user.user?.email ??
+    user.email ??
+    "U";
   const parts = source.split(/[\s@._-]+/).filter(Boolean);
 
   return parts

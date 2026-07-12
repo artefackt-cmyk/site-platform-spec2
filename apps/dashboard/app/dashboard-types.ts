@@ -6,16 +6,29 @@ export type SitePageStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type ProductStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 
 export type CurrentUserResponse = {
-  readonly id: string;
-  readonly email: string;
-  readonly displayName: string | null;
+  readonly user?: {
+    readonly id: string;
+    readonly email: string;
+    readonly displayName: string | null;
+  };
+  readonly id?: string;
+  readonly email?: string;
+  readonly displayName?: string | null;
   readonly activeOrganization: {
     readonly id: string;
     readonly name: string;
     readonly slug: string;
   };
   readonly role: OrganizationRole;
+  readonly onboarding?: {
+    readonly completed: boolean;
+    readonly completedAt: string | null;
+  };
 };
+
+export type AuthSessionResponse = Required<
+  Pick<CurrentUserResponse, "user" | "activeOrganization" | "role" | "onboarding">
+>;
 
 export type ProjectSummary = {
   readonly id: string;

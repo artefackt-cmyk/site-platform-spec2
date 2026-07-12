@@ -18,10 +18,12 @@
     "@site-platform/domain": "workspace:*",
     "@site-platform/editor-core": "workspace:*",
     "@site-platform/media-storage": "workspace:*",
+    "argon2": "^0.44.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
+    "@types/express": "^5.0.5",
     "@nestjs/testing": "^11.1.28"
   }
 }

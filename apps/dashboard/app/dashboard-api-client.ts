@@ -1,5 +1,6 @@
 import type {
   ApiErrorResponse,
+  AuthSessionResponse,
   CreatePageFormValues,
   CreateProjectPageResponse,
   CreateProjectFormValues,
@@ -54,6 +55,29 @@ export class DashboardNetworkError extends Error {
 }
 
 export type DashboardApiClient = {
+  readonly register: (input: {
+    readonly email: string;
+    readonly password: string;
+    readonly displayName: string;
+    readonly organizationName: string;
+    readonly projectName?: string;
+  }) => Promise<AuthSessionResponse>;
+  readonly login: (input: {
+    readonly email: string;
+    readonly password: string;
+  }) => Promise<AuthSessionResponse>;
+  readonly logout: () => Promise<{ readonly ok: true }>;
+  readonly getSession: () => Promise<AuthSessionResponse>;
+  readonly requestPasswordReset: (input: {
+    readonly email: string;
+  }) => Promise<{ readonly ok: true; readonly developmentResetToken?: string }>;
+  readonly confirmPasswordReset: (input: {
+    readonly token: string;
+    readonly newPassword: string;
+  }) => Promise<AuthSessionResponse>;
+  readonly completeOnboarding: (input: {
+    readonly projectName?: string;
+  }) => Promise<AuthSessionResponse>;
   readonly getCurrentUser: () => Promise<CurrentUserResponse>;
   readonly listProjects: () => Promise<ProjectsListResponse>;
   readonly createProject: (
@@ -258,6 +282,64 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
   const normalizedApiUrl = apiUrl.replace(/\/$/, "");
 
   return {
+    register: (input) =>
+      request<AuthSessionResponse>(normalizedApiUrl, "/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(input)
+      }),
+    login: (input) =>
+      request<AuthSessionResponse>(normalizedApiUrl, "/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(input)
+      }),
+    logout: () =>
+      request<{ readonly ok: true }>(normalizedApiUrl, "/api/auth/logout", {
+        method: "POST"
+      }),
+    getSession: () =>
+      request<AuthSessionResponse>(normalizedApiUrl, "/api/auth/session"),
+    requestPasswordReset: (input) =>
+      request<{ readonly ok: true; readonly developmentResetToken?: string }>(
+        normalizedApiUrl,
+        "/api/auth/password-reset/request",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    confirmPasswordReset: (input) =>
+      request<AuthSessionResponse>(
+        normalizedApiUrl,
+        "/api/auth/password-reset/confirm",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    completeOnboarding: (input) =>
+      request<AuthSessionResponse>(
+        normalizedApiUrl,
+        "/api/auth/onboarding/complete",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
     getCurrentUser: () => request<CurrentUserResponse>(normalizedApiUrl, "/api/me"),
     listProjects: () =>
       request<ProjectsListResponse>(normalizedApiUrl, "/api/projects"),
@@ -643,7 +725,10 @@ async function request<TResponse>(
   let response: Response;
 
   try {
-    response = await fetch(url, init);
+    response = await fetch(url, {
+      ...init,
+      credentials: "include"
+    });
   } catch {
     throw new DashboardNetworkError(url);
   }

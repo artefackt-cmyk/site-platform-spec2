@@ -37,6 +37,8 @@ export type DashboardViewProps = {
   readonly onSubmitCreateProject: (
     event: FormEvent<HTMLFormElement>
   ) => void;
+  readonly onLogout?: (() => void) | undefined;
+  readonly logoutPending?: boolean | undefined;
 };
 
 export function DashboardView({
@@ -45,12 +47,16 @@ export function DashboardView({
   onOpenCreateForm,
   onCloseCreateForm,
   onFormChange,
-  onSubmitCreateProject
+  onSubmitCreateProject,
+  onLogout,
+  logoutPending
 }: DashboardViewProps) {
   return (
     <MercurioAppShell
       activeArea="projects"
       user={state.status === "ready" ? state.me : undefined}
+      onLogout={onLogout}
+      logoutPending={logoutPending}
     >
       {state.status === "loading" ? (
         <LoadingState />

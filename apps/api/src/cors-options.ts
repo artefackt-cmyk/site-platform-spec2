@@ -5,6 +5,6 @@ export function createApiCorsOptions(dashboardOrigin: string): CorsOptions {
     origin: dashboardOrigin,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
-    credentials: false
+    credentials: true
   };
 }

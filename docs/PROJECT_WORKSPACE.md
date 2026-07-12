@@ -4,7 +4,7 @@
 
 This document describes the first internal project workspace, page editor, page preview and publication flow.
 
-The current implementation is intentionally limited to project navigation, page metadata, editing the current draft page document, previewing the saved draft and publishing immutable snapshots to the system storefront URL. It does not add custom domains, production authentication, commerce or integrations.
+The current implementation includes the first authentication/onboarding foundation, project navigation, page metadata, editing the current draft page document, previewing the saved draft and publishing immutable snapshots to the system storefront URL. It does not add custom domains, OAuth, production email provider, Redis-backed rate limiting, billing or external commerce integrations.
 
 ## Workspace Structure
 
@@ -222,6 +222,11 @@ Dashboard routes:
 
 | Route | Purpose |
 | --- | --- |
+| `/login` | Email/password login. |
+| `/register` | Account, organization and optional first project registration. |
+| `/forgot-password` | Generic password reset request. |
+| `/reset-password` | Password reset confirmation with a reset token. |
+| `/onboarding` | First short onboarding completion. |
 | `/` | Projects list. |
 | `/projects/[projectId]` | Project workspace. |
 | `/projects/[projectId]/media` | Project media library. |
@@ -239,6 +244,13 @@ API routes:
 
 | Route | Purpose |
 | --- | --- |
+| `POST /api/auth/register` | Register user, credential, organization, OWNER membership, optional project and session. |
+| `POST /api/auth/login` | Create a fresh server-side session for valid credentials. |
+| `POST /api/auth/logout` | Revoke current session and clear cookie. |
+| `GET /api/auth/session` | Return authenticated user, active organization, role and onboarding status. |
+| `POST /api/auth/password-reset/request` | Create hashed reset token with generic response. |
+| `POST /api/auth/password-reset/confirm` | Update password, mark token used, revoke sessions and create a new session. |
+| `POST /api/auth/onboarding/complete` | Mark onboarding complete and create first project when needed. |
 | `GET /api/projects/:projectId` | Return a project inside the active organization. |
 | `GET /api/projects/:projectId/pages` | Return active pages for a project. |
 | `POST /api/projects/:projectId/pages` | Create a draft page for a project. |

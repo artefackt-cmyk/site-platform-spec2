@@ -29,6 +29,7 @@ export function DashboardApp({ apiUrl }: { readonly apiUrl: string }) {
     submitting: false,
     errorMessage: undefined
   });
+  const [logoutPending, setLogoutPending] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     setState({
@@ -37,9 +38,14 @@ export function DashboardApp({ apiUrl }: { readonly apiUrl: string }) {
 
     try {
       const [me, projectsResponse] = await Promise.all([
-        apiClient.getCurrentUser(),
+        apiClient.getSession(),
         apiClient.listProjects()
       ]);
+
+      if (!me.onboarding.completed) {
+        window.location.assign("/onboarding");
+        return;
+      }
 
       setState({
         status: "ready",
@@ -47,6 +53,18 @@ export function DashboardApp({ apiUrl }: { readonly apiUrl: string }) {
         projects: projectsResponse.projects
       });
     } catch (error) {
+      if (error instanceof DashboardApiError) {
+        if (error.status === 401) {
+          window.location.assign("/login");
+          return;
+        }
+
+        if (error.code === "AUTH_ONBOARDING_REQUIRED") {
+          window.location.assign("/onboarding");
+          return;
+        }
+      }
+
       setState({
         status: "error",
         message: toUserFacingError(error)
@@ -134,10 +152,27 @@ export function DashboardApp({ apiUrl }: { readonly apiUrl: string }) {
     [apiClient, form.values]
   );
 
+  const logout = useCallback(async () => {
+    setLogoutPending(true);
+
+    try {
+      await apiClient.logout();
+      window.location.assign("/login");
+    } catch (error) {
+      setLogoutPending(false);
+      setState({
+        status: "error",
+        message: toUserFacingError(error)
+      });
+    }
+  }, [apiClient]);
+
   return (
     <DashboardView
       state={state}
       form={form}
+      onLogout={logout}
+      logoutPending={logoutPending}
       onOpenCreateForm={openCreateForm}
       onCloseCreateForm={closeCreateForm}
       onFormChange={changeForm}

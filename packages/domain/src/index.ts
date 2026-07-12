@@ -196,8 +196,29 @@ export const DOMAIN_ERROR_CODES = {
   tenantScopedEntityNotFound: "TENANT_SCOPED_ENTITY_NOT_FOUND"
 } as const;
 
+export const AUTH_ERROR_CODES = {
+  invalidCredentials: "AUTH_INVALID_CREDENTIALS",
+  emailAlreadyExists: "AUTH_EMAIL_ALREADY_EXISTS",
+  sessionRequired: "AUTH_SESSION_REQUIRED",
+  sessionExpired: "AUTH_SESSION_EXPIRED",
+  sessionRevoked: "AUTH_SESSION_REVOKED",
+  csrfInvalid: "AUTH_CSRF_INVALID",
+  passwordTooWeak: "AUTH_PASSWORD_TOO_WEAK",
+  resetTokenInvalid: "AUTH_RESET_TOKEN_INVALID",
+  resetTokenExpired: "AUTH_RESET_TOKEN_EXPIRED",
+  onboardingRequired: "AUTH_ONBOARDING_REQUIRED"
+} as const;
+
+export type AuthErrorCode =
+  (typeof AUTH_ERROR_CODES)[keyof typeof AUTH_ERROR_CODES];
+
 export type DomainErrorCode =
-  (typeof DOMAIN_ERROR_CODES)[keyof typeof DOMAIN_ERROR_CODES];
+  | (typeof DOMAIN_ERROR_CODES)[keyof typeof DOMAIN_ERROR_CODES]
+  | AuthErrorCode
+  | "AUTH_EMAIL_INVALID"
+  | "AUTH_DISPLAY_NAME_REQUIRED"
+  | "AUTH_ORGANIZATION_NAME_REQUIRED"
+  | "AUTH_TOKEN_REQUIRED";
 
 export type ValidationResult<TValue> =
   | {
@@ -231,6 +252,9 @@ const PRODUCT_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const VARIANT_TITLE_MAX_LENGTH = 120;
 const VARIANT_SKU_MAX_LENGTH = 64;
 const VARIANT_SKU_PATTERN = /^[A-Za-z0-9_-]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_MIN_LENGTH = 10;
+const PASSWORD_MAX_LENGTH = 256;
 export const RESERVED_PUBLIC_HANDLES = [
   "api",
   "admin",
@@ -278,6 +302,188 @@ export function hasPermission(
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+export type RegistrationInput = {
+  readonly email: string;
+  readonly password: string;
+  readonly displayName: string;
+  readonly organizationName: string;
+  readonly projectName?: string | undefined;
+};
+
+export type RegistrationPayload = {
+  readonly email: string;
+  readonly password: string;
+  readonly displayName: string;
+  readonly organizationName: string;
+  readonly projectName?: string | undefined;
+};
+
+export type LoginInput = {
+  readonly email: string;
+  readonly password: string;
+};
+
+export type LoginPayload = {
+  readonly email: string;
+  readonly password: string;
+};
+
+export type PasswordResetRequestInput = {
+  readonly email: string;
+};
+
+export type PasswordResetConfirmInput = {
+  readonly token: string;
+  readonly newPassword: string;
+};
+
+export type PasswordResetRequestPayload = {
+  readonly email: string;
+};
+
+export type PasswordResetConfirmPayload = {
+  readonly token: string;
+  readonly newPassword: string;
+};
+
+export function validateRegistrationInput(
+  input: RegistrationInput
+): ValidationResult<RegistrationPayload> {
+  const email = validateEmail(input.email);
+
+  if (!email.ok) {
+    return email;
+  }
+
+  const password = validatePassword(input.password);
+
+  if (!password.ok) {
+    return password;
+  }
+
+  const displayName = normalizeRequiredText(
+    input.displayName,
+    "AUTH_DISPLAY_NAME_REQUIRED"
+  );
+
+  if (!displayName.ok) {
+    return displayName;
+  }
+
+  const organizationName = validateOrganizationName(input.organizationName);
+
+  if (!organizationName.ok) {
+    return invalid("AUTH_ORGANIZATION_NAME_REQUIRED");
+  }
+
+  const projectName =
+    input.projectName === undefined || input.projectName.trim() === ""
+      ? undefined
+      : validateProjectName(input.projectName);
+
+  if (projectName !== undefined && !projectName.ok) {
+    return projectName;
+  }
+
+  return valid({
+    email: email.value,
+    password: password.value,
+    displayName: displayName.value,
+    organizationName: organizationName.value,
+    ...(projectName === undefined ? {} : { projectName: projectName.value })
+  });
+}
+
+export function validateLoginInput(
+  input: LoginInput
+): ValidationResult<LoginPayload> {
+  const email = validateEmail(input.email);
+
+  if (!email.ok) {
+    return email;
+  }
+
+  if (input.password.length === 0) {
+    return invalid(AUTH_ERROR_CODES.invalidCredentials);
+  }
+
+  return valid({
+    email: email.value,
+    password: input.password
+  });
+}
+
+export function validatePasswordResetRequestInput(
+  input: PasswordResetRequestInput
+): ValidationResult<PasswordResetRequestPayload> {
+  const email = validateEmail(input.email);
+
+  if (!email.ok) {
+    return email;
+  }
+
+  return valid({
+    email: email.value
+  });
+}
+
+export function validatePasswordResetConfirmInput(
+  input: PasswordResetConfirmInput
+): ValidationResult<PasswordResetConfirmPayload> {
+  const token = normalizeRequiredText(input.token, "AUTH_TOKEN_REQUIRED");
+
+  if (!token.ok) {
+    return token;
+  }
+
+  const password = validatePassword(input.newPassword);
+
+  if (!password.ok) {
+    return password;
+  }
+
+  return valid({
+    token: token.value,
+    newPassword: password.value
+  });
+}
+
+export function validateEmail(email: string): ValidationResult<string> {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!EMAIL_PATTERN.test(normalizedEmail)) {
+    return invalid("AUTH_EMAIL_INVALID");
+  }
+
+  return valid(normalizedEmail);
+}
+
+export function validatePassword(password: string): ValidationResult<string> {
+  if (
+    password.length < PASSWORD_MIN_LENGTH ||
+    password.length > PASSWORD_MAX_LENGTH ||
+    !/[A-Za-zА-Яа-яЁё]/.test(password) ||
+    !/\d/.test(password)
+  ) {
+    return invalid(AUTH_ERROR_CODES.passwordTooWeak);
+  }
+
+  return valid(password);
+}
+
+function normalizeRequiredText(
+  text: string,
+  code: DomainErrorCode
+): ValidationResult<string> {
+  const normalizedText = text.trim().replace(/\s+/g, " ");
+
+  if (normalizedText.length === 0) {
+    return invalid(code);
+  }
+
+  return valid(normalizedText);
 }
 
 export function validateOrganizationName(

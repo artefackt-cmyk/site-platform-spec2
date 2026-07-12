@@ -26,7 +26,8 @@
     "@prisma/client": "^6.19.0",
     "@site-platform/config": "workspace:*",
     "@site-platform/domain": "workspace:*",
-    "@site-platform/editor-core": "workspace:*"
+    "@site-platform/editor-core": "workspace:*",
+    "argon2": "^0.44.0"
   },
   "devDependencies": {
     "prisma": "^6.19.0"
