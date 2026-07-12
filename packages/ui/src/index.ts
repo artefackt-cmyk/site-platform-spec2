@@ -54,23 +54,29 @@ export const mercurioTokens = {
 
 export type MercurioLogoVariant = "icon" | "wordmark" | "lockup" | "compact";
 export type MercurioLogoSize = number | `${number}px` | `${number}rem`;
+export type MercurioLogoSurface = "light" | "dark";
+
+export const mercurioLogoAssets = {
+  monogram: "/assets/mercurio/mercurio-monogram.png",
+  horizontal: "/assets/mercurio/mercurio-logo-horizontal.png"
+} as const;
 
 const mercurioLogoDefaults = {
   icon: {
     width: 40,
-    mark: 40
+    height: 40
   },
   compact: {
     width: 190,
-    mark: 32
+    height: 42
   },
   wordmark: {
     width: 260,
-    mark: 40
+    height: 58
   },
   lockup: {
     width: 236,
-    mark: 48
+    height: 54
   }
 } as const;
 
@@ -78,26 +84,33 @@ export function MercurioLogo({
   variant = "lockup",
   className,
   size,
-  title = "Mercurio"
+  title = "Mercurio",
+  surface = "light"
 }: {
   readonly variant?: MercurioLogoVariant;
   readonly className?: string;
   readonly size?: MercurioLogoSize;
   readonly title?: string;
+  readonly surface?: MercurioLogoSurface;
 }): React.ReactElement {
-  const showWordmark = variant !== "icon";
-  const compact = variant === "compact";
   const defaults = mercurioLogoDefaults[variant];
   const logoWidth = toCssSize(size ?? defaults.width);
-  const markSize = toCssSize(variant === "icon" && size !== undefined ? size : defaults.mark);
+  const logoHeight = toCssSize(
+    variant === "icon" && size !== undefined ? size : defaults.height
+  );
+  const assetSrc =
+    variant === "icon"
+      ? mercurioLogoAssets.monogram
+      : mercurioLogoAssets.horizontal;
+  const logoClassName = mergeClassNames(
+    `mercurio-logo mercurio-logo-${variant} mercurio-logo-${surface}`,
+    className
+  );
 
   return React.createElement(
     "span",
     {
-      className:
-        className === undefined
-          ? `mercurio-logo mercurio-logo-${variant}`
-          : `mercurio-logo mercurio-logo-${variant} ${className}`,
+      className: logoClassName,
       role: "img",
       "aria-label": title,
       title,
@@ -105,49 +118,36 @@ export function MercurioLogo({
         width: logoWidth,
         maxWidth: logoWidth,
         minWidth: variant === "icon" ? logoWidth : undefined,
-        height: variant === "icon" ? logoWidth : undefined,
-        maxHeight: variant === "icon" ? logoWidth : undefined,
+        height: logoHeight,
+        maxHeight: logoHeight,
         flex: "0 0 auto"
       }
     },
     React.createElement(
-      "svg",
+      "object",
       {
-        className: "mercurio-logo-mark",
-        viewBox: "0 0 64 64",
-        width: markSize,
-        height: markSize,
-        preserveAspectRatio: "xMidYMid meet",
-        focusable: "false",
+        className: "mercurio-logo-asset",
+        data: assetSrc,
+        type: "image/png",
         "aria-hidden": "true",
         style: {
-          width: markSize,
-          height: markSize,
-          maxWidth: markSize,
-          maxHeight: markSize,
-          flex: "0 0 auto"
+          width: logoWidth,
+          height: logoHeight,
+          maxWidth: logoWidth,
+          maxHeight: logoHeight,
+          flex: "0 0 auto",
+          objectFit: "contain",
+          objectPosition: "center"
         }
       },
-      React.createElement("path", {
-        d: "M10 52V14h8l14 27 14-27h8v38h-7V27L35 52h-6L17 27v25h-7Z",
-        fill: "currentColor"
-      }),
-      React.createElement("path", {
-        d: "M47 6l2.7 7.3L57 16l-7.3 2.7L47 26l-2.7-7.3L37 16l7.3-2.7L47 6Z",
-        fill: "#6C8FD6"
-      })
-    ),
-    showWordmark
-      ? React.createElement(
-          "span",
-          {
-            className: compact
-              ? "mercurio-logo-word mercurio-logo-word-compact"
-              : "mercurio-logo-word"
-          },
-          "MERCURIO"
-        )
-      : null
+      React.createElement(
+        "span",
+        {
+          className: "mercurio-logo-fallback"
+        },
+        "MERCURIO"
+      )
+    )
   );
 }
 

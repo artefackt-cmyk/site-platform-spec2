@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { loadPublicConfig } from "@site-platform/config";
 import { validatePageDocument } from "@site-platform/editor-core";
 import { PageRenderer } from "@site-platform/renderer";
+import { MercurioLogo } from "@site-platform/ui";
 import { fetchPublicSitePage } from "../../../public-site-client";
 
 type StorefrontPageProps = {
@@ -83,8 +84,12 @@ export default async function Page({ params }: StorefrontPageProps) {
   return (
     <div style={shellStyle}>
       <header style={headerStyle}>
-        <a href={siteBasePath} style={brandStyle}>
-          {response.page.projectName}
+        <a
+          href={siteBasePath}
+          style={brandStyle}
+          aria-label={`${response.page.projectName} на Mercurio`}
+        >
+          <MercurioLogo variant="compact" title={response.page.projectName} />
         </a>
         <nav style={navStyle} aria-label="Навигация сайта">
           {response.page.navigation.map((item) => (
@@ -153,15 +158,15 @@ const headerStyle = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
+  flexWrap: "wrap",
   gap: 24,
   borderBottom: "1px solid #e5e7eb",
   padding: "18px 32px"
 } as const;
 
 const brandStyle = {
-  color: "#152033",
-  fontSize: 20,
-  fontWeight: 800,
+  display: "inline-flex",
+  maxWidth: 190,
   textDecoration: "none"
 } as const;
 

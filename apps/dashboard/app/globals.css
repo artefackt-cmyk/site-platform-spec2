@@ -1044,7 +1044,6 @@ button:disabled {
 .mercurio-logo {
   display: inline-flex;
   align-items: center;
-  gap: 18px;
   color: var(--mc-text-primary);
   max-width: 260px;
   flex: 0 0 auto;
@@ -1063,26 +1062,29 @@ button:disabled {
   overflow: visible;
 }
 
-.mercurio-logo-mark {
-  width: 40px;
-  height: 40px;
-  max-width: 48px;
-  max-height: 48px;
+.mercurio-logo-asset {
+  display: block;
   flex: 0 0 auto;
-  color: var(--mc-graphite);
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
 }
 
-.mercurio-logo-word {
+.mercurio-logo-fallback {
   color: var(--mc-text-primary);
   font-family: var(--mc-font-brand);
-  font-size: 30px;
-  letter-spacing: 0.18em;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
   white-space: nowrap;
 }
 
-.mercurio-logo-word-compact {
-  font-size: 20px;
-  letter-spacing: 0.18em;
+.mercurio-logo-dark .mercurio-logo-fallback {
+  color: var(--mc-white);
+}
+
+.mercurio-topbar-logo-narrow {
+  display: none;
 }
 
 .mercurio-app-shell.dashboard-shell {
@@ -1117,6 +1119,11 @@ button:disabled {
 .mercurio-topbar > .mercurio-logo {
   max-width: 190px;
   flex: 0 0 190px;
+}
+
+.mercurio-topbar > .mercurio-topbar-logo-narrow {
+  max-width: 40px;
+  flex: 0 0 40px;
 }
 
 .mercurio-sidebar-nav {
@@ -1195,11 +1202,6 @@ button:disabled {
   background: rgba(255, 255, 255, 0.68);
   padding: 0 42px;
   backdrop-filter: blur(18px);
-}
-
-.mercurio-topbar .mercurio-logo-word {
-  font-size: 20px;
-  letter-spacing: 0.18em;
 }
 
 .mercurio-context-chip {
@@ -1797,8 +1799,12 @@ textarea:focus {
 
   .mercurio-nav-item span,
   .mercurio-brand-panel,
-  .mercurio-logo-word {
+  .mercurio-topbar-logo-wide {
     display: none;
+  }
+
+  .mercurio-topbar-logo-narrow {
+    display: inline-flex;
   }
 
   .mercurio-topbar {

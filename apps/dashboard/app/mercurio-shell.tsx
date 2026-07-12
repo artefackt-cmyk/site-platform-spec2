@@ -135,7 +135,12 @@ function MercurioTopbar({
 }) {
   return (
     <header className="mercurio-topbar">
-      <MercurioLogo variant="compact" />
+      <MercurioLogo className="mercurio-topbar-logo-wide" variant="compact" />
+      <MercurioLogo
+        className="mercurio-topbar-logo-narrow"
+        variant="icon"
+        size={40}
+      />
       {project === undefined ? null : (
         <div className="mercurio-context-chip" aria-label="Текущий проект">
           <MercurioNavIcon name="building" />

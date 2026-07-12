@@ -13,6 +13,7 @@
     "@site-platform/config": "workspace:*",
     "@site-platform/editor-core": "workspace:*",
     "@site-platform/renderer": "workspace:*",
+    "@site-platform/ui": "workspace:*",
     "next": "^15.5.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

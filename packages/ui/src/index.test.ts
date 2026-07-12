@@ -1,7 +1,13 @@
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { Button, MercurioLogo, Modal, mercurioTokens } from "./index";
+import {
+  Button,
+  MercurioLogo,
+  Modal,
+  mercurioLogoAssets,
+  mercurioTokens
+} from "./index";
 
 describe("@site-platform/ui Mercurio primitives", () => {
   it("renders Mercurio logo variants without client-only behavior", () => {
@@ -13,8 +19,10 @@ describe("@site-platform/ui Mercurio primitives", () => {
     );
 
     expect(html).toContain("MERCURIO");
-    expect(html).toContain("mercurio-logo-mark");
-    expect(html).toContain("preserveAspectRatio=\"xMidYMid meet\"");
+    expect(html).toContain("mercurio-logo-asset");
+    expect(html).toContain(mercurioLogoAssets.horizontal);
+    expect(html).toContain("object-fit:contain");
+    expect(html).not.toContain("<svg");
     expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
@@ -27,9 +35,11 @@ describe("@site-platform/ui Mercurio primitives", () => {
     expect(html).toContain("mercurio-logo-icon");
     expect(html).toContain("style=\"width:40px");
     expect(html).toContain("height:40px");
-    expect(html).toContain("width=\"40px\"");
-    expect(html).toContain("height=\"40px\"");
+    expect(html).toContain(mercurioLogoAssets.monogram);
+    expect(html).toContain("max-width:40px");
+    expect(html).toContain("max-height:40px");
     expect(html).not.toContain("width:100%");
+    expect(html).not.toContain("height:100vh");
   });
 
   it("renders compact logo with bounded horizontal dimensions", () => {
@@ -40,9 +50,11 @@ describe("@site-platform/ui Mercurio primitives", () => {
     expect(html).toContain("mercurio-logo-compact");
     expect(html).toContain("style=\"width:190px");
     expect(html).toContain("max-width:190px");
-    expect(html).toContain("width=\"32px\"");
-    expect(html).toContain("height=\"32px\"");
+    expect(html).toContain("height:42px");
+    expect(html).toContain(mercurioLogoAssets.horizontal);
+    expect(html).toContain("MERCURIO");
     expect(html).not.toContain("width:100%");
+    expect(html).not.toContain("width:2600px");
   });
 
   it("renders button variants and loading state accessibly", () => {

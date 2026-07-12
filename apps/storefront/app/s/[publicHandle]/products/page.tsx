@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { loadPublicConfig } from "@site-platform/config";
+import { MercurioLogo } from "@site-platform/ui";
 import { fetchPublicCatalog } from "../../../public-site-client";
 
 type ProductsPageProps = {
@@ -42,8 +43,8 @@ export default async function Page({ params }: ProductsPageProps) {
   return (
     <main style={shellStyle}>
       <header style={headerStyle}>
-        <a href={siteBasePath} style={brandStyle}>
-          На сайт
+        <a href={siteBasePath} style={brandStyle} aria-label="На сайт Mercurio">
+          <MercurioLogo variant="compact" title="Mercurio" />
         </a>
         <h1 style={titleStyle}>Каталог</h1>
       </header>
@@ -97,8 +98,8 @@ const headerStyle = {
 } as const;
 
 const brandStyle = {
-  color: "#1d4ed8",
-  fontWeight: 700,
+  display: "inline-flex",
+  maxWidth: 190,
   textDecoration: "none"
 } as const;
 

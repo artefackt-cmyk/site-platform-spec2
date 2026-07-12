@@ -1,7 +1,8 @@
 import * as React from "react";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { mercurioLogoAssets } from "@site-platform/ui";
 import { MercurioAppShell } from "./mercurio-shell";
 
 describe("MercurioAppShell", () => {
@@ -24,6 +25,8 @@ describe("MercurioAppShell", () => {
     );
 
     expect(html).toContain("MERCURIO");
+    expect(html).toContain(mercurioLogoAssets.monogram);
+    expect(html).toContain(mercurioLogoAssets.horizontal);
     expect(html).toContain("/projects/project-1/products");
     expect(html).toContain("aria-current=\"page\"");
   });
@@ -43,20 +46,43 @@ describe("MercurioAppShell", () => {
     expect(html).toContain("style=\"width:40px");
     expect(html).toContain("mercurio-logo-compact");
     expect(html).toContain("style=\"width:190px");
-    expect(html).toContain("preserveAspectRatio=\"xMidYMid meet\"");
+    expect(html).toContain("object-fit:contain");
+    expect(html).not.toContain("mercurio-logo-mark");
+    expect(html).not.toContain("preserveAspectRatio");
     expect(html).not.toContain("width:100%");
     expect(html).not.toContain("height:100vh");
   });
 
-  it("keeps compact wordmark visible on desktop and hides only the word at narrow width", () => {
+  it("keeps compact logo on desktop and switches topbar to monogram at narrow width", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 
     expect(css).toContain(".mercurio-topbar > .mercurio-logo");
     expect(css).toContain("flex: 0 0 190px");
-    expect(css).toContain(".mercurio-logo-word");
+    expect(css).toContain(".mercurio-topbar-logo-narrow");
+    expect(css).toContain("display: none");
     expect(css).toContain("white-space: nowrap");
     expect(css).toContain("@media (max-width: 1120px)");
-    expect(css).toContain(".mercurio-logo-word {\n    display: none;");
+    expect(css).toContain(".mercurio-topbar-logo-wide {\n    display: none;");
+    expect(css).toContain(".mercurio-topbar-logo-narrow {\n    display: inline-flex;");
+  });
+
+  it("ships approved Mercurio assets in the dashboard public directory", () => {
+    expect(
+      existsSync(
+        new URL(
+          "../public/assets/mercurio/mercurio-monogram.png",
+          import.meta.url
+        )
+      )
+    ).toBe(true);
+    expect(
+      existsSync(
+        new URL(
+          "../public/assets/mercurio/mercurio-logo-horizontal.png",
+          import.meta.url
+        )
+      )
+    ).toBe(true);
   });
 
   it("does not render fake commerce navigation links", () => {
