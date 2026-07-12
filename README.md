@@ -219,9 +219,35 @@ API endpoints:
 
 ```bash
 pnpm --filter @site-platform/api dev
-pnpm --filter @site-platform/dashboard dev
-pnpm --filter @site-platform/storefront dev
+pnpm dev:dashboard
+pnpm dev:storefront
 ```
+
+Next.js dev cache is intentionally isolated from production build output:
+
+- dashboard dev writes to `apps/dashboard/.next-dev`;
+- storefront dev writes to `apps/storefront/.next-dev`;
+- `next build` still writes to the normal `apps/*/.next` folders;
+- Turborepo build cache may restore `.next`, but it should not touch a running dev server's `.next-dev`.
+
+Do not start two dev servers for the same app on the same port. The dashboard
+and storefront dev scripts check ports `3000` and `3001` before starting Next, so
+a second copy exits before it can mutate the app cache. Running `pnpm build`
+while dev servers are open is now safe for the dev cache because build and dev
+use different `distDir` values, but restarting the app after a large shared
+package change is still the most predictable workflow.
+
+If a local browser shows `MODULE_NOT_FOUND` for `vendor-chunks` or `ENOENT` for
+`server/pages/_document.js`, stop only the affected app and clear only its dev
+cache:
+
+```bash
+pnpm dev:dashboard:clean
+pnpm dev:storefront:clean
+```
+
+Then start the affected app again. Avoid deleting another app's cache while its
+dev server is running.
 
 Адреса для браузера и API:
 
@@ -248,8 +274,8 @@ pnpm db:up
 pnpm db:migrate
 pnpm db:seed
 pnpm --filter @site-platform/api dev
-pnpm --filter @site-platform/dashboard dev
-pnpm --filter @site-platform/storefront dev
+pnpm dev:dashboard
+pnpm dev:storefront
 ```
 
 Если session отсутствует или истекла, protected API вернут стабильные auth error codes. Если onboarding не завершён, protected admin routes вернут `AUTH_ONBOARDING_REQUIRED`.

@@ -10,6 +10,39 @@ The current implementation includes the first authentication/onboarding foundati
 
 The dashboard project workspace opens from a project card.
 
+## Development Dev Cache
+
+Dashboard and storefront are separate Next.js apps. They do not share a
+configured `distDir`, but a plain Next.js setup writes both development and
+production build artifacts into each app's `.next` folder. When `next build`,
+Turbo build-output restore, or a second dev server touches that folder while a
+dev server keeps an in-memory module graph, the browser can see stale references
+such as missing `vendor-chunks` files or `server/pages/_document.js`.
+
+The local workflow keeps development cache separate from build output:
+
+- dashboard dev uses `apps/dashboard/.next-dev`;
+- storefront dev uses `apps/storefront/.next-dev`;
+- production builds continue to use `apps/*/.next`;
+- `turbo.json` continues to cache build output only, not `.next-dev`.
+
+Use this startup order for the full local workspace:
+
+```bash
+pnpm db:up
+pnpm db:migrate
+pnpm db:seed
+pnpm --filter @site-platform/api dev
+pnpm dev:dashboard
+pnpm dev:storefront
+```
+
+Do not run two dev servers for the same app on the same port. The dashboard and
+storefront dev scripts check their ports before starting Next. If a repeated
+`MODULE_NOT_FOUND` for `vendor-chunks` or `ENOENT` for `_document.js` appears,
+stop the affected app, run `pnpm dev:dashboard:clean` or
+`pnpm dev:storefront:clean`, and start only that app again.
+
 The workspace has:
 
 - a top panel with project name and status;

@@ -5,6 +5,7 @@ export default [
   {
     ignores: [
       "**/.next/**",
+      "**/.next-dev*/**",
       "**/.turbo/**",
       "**/coverage/**",
       "**/dist/**",
@@ -21,4 +22,3 @@ export default [
     }
   }
 ];
-

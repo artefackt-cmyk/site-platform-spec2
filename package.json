@@ -9,6 +9,10 @@
   },
   "scripts": {
     "dev": "turbo run dev --parallel",
+    "dev:dashboard": "pnpm --filter @site-platform/dashboard dev",
+    "dev:dashboard:clean": "pnpm --filter @site-platform/dashboard dev:clean",
+    "dev:storefront": "pnpm --filter @site-platform/storefront dev",
+    "dev:storefront:clean": "pnpm --filter @site-platform/storefront dev:clean",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

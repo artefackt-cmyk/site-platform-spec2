@@ -4,6 +4,7 @@ node_modules/
 dist/
 coverage/
 .next/
+.next-dev*/
 *.tsbuildinfo
 .env
 .env.*
