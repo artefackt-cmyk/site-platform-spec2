@@ -26,7 +26,7 @@ export function LandingPageView({
       <a className="skip-link" href="#main-content">
         Перейти к содержанию
       </a>
-      <header className="landing-header">
+      <header className="landing-header landing-header-compact">
         <a className="landing-brand" href="/" aria-label="Mercurio">
           <MercurioLogo className="landing-brand-wide" variant="wordmark" />
           <MercurioLogo
@@ -97,92 +97,91 @@ export function LandingPageView({
           title="Платформа для тех, кто продаёт и быстро меняет формат"
           text="Mercurio закрывает путь от первой страницы до торговой системы, сохраняя управление в руках команды бизнеса."
         />
-        <div className="landing-card-grid landing-card-grid-four">
-          {audienceCards.map((card) => (
-            <article key={card.title} className="landing-card">
-              {card.badge === undefined ? null : (
-                <span className="landing-badge">{card.badge}</span>
-              )}
-              <h3>{card.title}</h3>
-              <p>{card.text}</p>
-            </article>
-          ))}
+        <div className="landing-audience-layout">
+          <AudienceCardView
+            card={audienceCards[0]}
+            className="landing-audience-card landing-audience-card-large"
+          />
+          <div className="landing-audience-side">
+            {audienceCards.slice(1, 3).map((card) => (
+              <AudienceCardView
+                key={card.title}
+                card={card}
+                className="landing-audience-card"
+              />
+            ))}
+          </div>
+          <AudienceCardView
+            card={audienceCards[3]}
+            className="landing-audience-card landing-audience-marketplace"
+          />
         </div>
       </section>
 
-      <section id="features" className="landing-section landing-band" aria-labelledby="features-title">
-        <SectionIntro
-          eyebrow="Главное отличие"
-          titleId="features-title"
-          title="Не подстраивайте бизнес под шаблон"
-          text="Большинство конструкторов предлагают выбрать готовый шаблон и менять контент внутри заданной структуры. Mercurio устроен иначе. Вы можете свободно менять композицию страниц, перестраивать модули и блоки, создавать собственные формы кнопок и собирать новые сценарии взаимодействия."
-        />
-        <p className="landing-large-phrase">
-          Mercurio не ограничивает творчество и возможности бизнеса.
-        </p>
-        <div className="landing-card-grid">
-          {templateDifferenceCards.map((card) => (
-            <article key={card.title} className="landing-card">
-              <h3>{card.title}</h3>
-              <p>{card.text}</p>
-            </article>
-          ))}
+      <section id="features" className="landing-section landing-dark-section landing-editor-story" aria-labelledby="features-title">
+        <div className="landing-story-copy">
+          <SectionIntro
+            eyebrow="Главное отличие"
+            titleId="features-title"
+            title="Не подстраивайте бизнес под шаблон"
+            text="Большинство конструкторов предлагают выбрать готовый шаблон и менять контент внутри заданной структуры. Mercurio устроен иначе: вы меняете секции, колонки, блоки и визуальные настройки без обещаний абсолютного свободного позиционирования."
+          />
+          <div className="landing-feature-stack">
+            {templateDifferenceCards.map((card) => (
+              <article key={card.title}>
+                <h3>{card.title}</h3>
+                <p>{card.text}</p>
+              </article>
+            ))}
+          </div>
+          <p className="landing-note">
+            Больше свободы, чем в традиционных шаблонных конструкторах.
+          </p>
         </div>
-        <p className="landing-note">
-          Больше свободы, чем в традиционных шаблонных конструкторах.
-        </p>
+        <EditorFreedomMockup />
       </section>
 
-      <section className="landing-section" aria-labelledby="change-title">
-        <SectionIntro
-          eyebrow="Гибкость"
-          titleId="change-title"
-          title="Меняйте сайт так же быстро, как меняется ваш бизнес"
-          text="Запускайте новые страницы, перестраивайте композицию, меняйте акценты и добавляйте блоки без пересборки всего проекта."
-        />
-        <ul className="landing-chip-list" aria-label="Сценарии изменений">
-          {businessChangeScenarios.map((scenario) => (
-            <li key={scenario}>{scenario}</li>
-          ))}
-        </ul>
-        <p className="landing-large-phrase">
-          Не выбирайте шаблон навсегда. Создавайте новую форму под каждую задачу.
-        </p>
+      <section className="landing-section landing-project-variants" aria-labelledby="change-title">
+        <ProjectScenarioMockup />
+        <div className="landing-story-copy">
+          <SectionIntro
+            eyebrow="Гибкость"
+            titleId="change-title"
+            title="Меняйте сайт так же быстро, как меняется ваш бизнес"
+            text="Один проект может содержать главную, каталог, продуктовые страницы и отдельные лендинги под запуск, сезон, рекламу или аудиторию."
+          />
+          <p className="landing-large-phrase">
+            Не выбирайте шаблон навсегда. Создавайте новую форму под каждую задачу.
+          </p>
+        </div>
       </section>
 
-      <section className="landing-section landing-commerce" aria-labelledby="commerce-title">
+      <section className="landing-section landing-commerce landing-commerce-story" aria-labelledby="commerce-title">
         <SectionIntro
           eyebrow="Магазин и лендинги"
           titleId="commerce-title"
           title="Продавайте через каталог и рассказывайте о каждом продукте отдельно"
           text="Не ограничивайтесь стандартной карточкой товара. Создавайте отдельные страницы, которые раскрывают ценность продукта и помогают продавать убедительнее."
         />
-        <div className="landing-two-column">
-          <FeatureList title="Полноценный магазин" items={storeBullets} />
-          <FeatureList
-            title="Лендинг конкретного продукта"
-            items={productLandingBullets}
-          />
-        </div>
-        <article className="landing-callout">
-          <h3>Коллекция или подборка</h3>
-          <p>
-            Соберите отдельный лендинг для коллекции, сезонного запуска или
-            рекламной кампании.
-          </p>
-        </article>
+        <CommerceStoryMockup />
       </section>
 
-      <section className="landing-section landing-band" aria-labelledby="infrastructure-title">
+      <section className="landing-section landing-band landing-infrastructure-story" aria-labelledby="infrastructure-title">
         <SectionIntro
           eyebrow="Торговая инфраструктура"
           titleId="infrastructure-title"
           title="Mercurio скрывает техническую сложность и оставляет только понятные действия"
           text="Не нужно разбираться в серверах, API и программировании. Mercurio связывает инструменты в единую систему и переводит технические процессы на язык простых действий."
         />
-        <ol className="landing-step-list">
+        <ol className="landing-flow-timeline" aria-label="Этапы торговой инфраструктуры">
           {infrastructureSteps.map((step) => (
-            <li key={step}>{step}</li>
+            <li key={step.label} data-status={step.status}>
+              <span className="landing-flow-icon" aria-hidden="true">
+                {step.icon}
+              </span>
+              <strong>{step.label}</strong>
+              <span>{step.status}</span>
+            </li>
           ))}
         </ol>
         <p className="landing-large-phrase">
@@ -200,16 +199,20 @@ export function LandingPageView({
         <div className="landing-integration-grid">
           {integrations.map((integration) => (
             <article key={integration.title} className="landing-integration-card">
+              <span className="landing-integration-icon" aria-hidden="true">
+                {integration.title.slice(0, 2)}
+              </span>
               <h3>{integration.title}</h3>
-              <span>{integration.status}</span>
+              <p>{integration.role}</p>
+              <span className="landing-status-badge">{integration.status}</span>
             </article>
           ))}
         </div>
       </section>
 
       <section className="landing-section landing-analytics" aria-labelledby="analytics-title">
-        <div>
-          <span className="landing-badge">Модуль аналитики в разработке</span>
+        <div className="landing-story-copy">
+          <span className="landing-badge">Модуль в разработке</span>
           <h2 id="analytics-title">Видите, что происходит с сайтом и продажами</h2>
           <p>
             Mercurio будет собирать ключевые показатели в одном месте, чтобы вы
@@ -220,11 +223,7 @@ export function LandingPageView({
             Не просто запускайте сайт. Управляйте бизнесом на основе данных.
           </p>
         </div>
-        <ul className="landing-chip-list" aria-label="Направления аналитики">
-          {analyticsDirections.map((direction) => (
-            <li key={direction}>{direction}</li>
-          ))}
-        </ul>
+        <AnalyticsRoadmapMockup />
       </section>
 
       <section id="platform" className="landing-section landing-band" aria-labelledby="platform-title">
@@ -264,7 +263,7 @@ export function LandingPageView({
         </div>
       </section>
 
-      <section className="landing-section landing-capabilities" aria-labelledby="capabilities-title">
+      <section className="landing-section landing-capabilities landing-mercury-panel" aria-labelledby="capabilities-title">
         <SectionIntro
           eyebrow="Текущий статус"
           titleId="capabilities-title"
@@ -272,8 +271,9 @@ export function LandingPageView({
           text="Mercurio честно разделяет рабочие функции, ближайшие этапы и стратегические направления, чтобы не обещать готовое раньше времени."
         />
         <div className="landing-capability-grid">
-          {capabilityGroups.map((group) => (
-            <article key={group.title} className="landing-capability-card">
+          {capabilityGroups.map((group, index) => (
+            <article key={group.title} className="landing-capability-card landing-capability-layer">
+              <span className="landing-layer-index">0{index + 1}</span>
               <h3>{group.title}</h3>
               <ul>
                 {group.items.map((item) => (
@@ -329,6 +329,28 @@ function SectionIntro({
   );
 }
 
+function AudienceCardView({
+  card,
+  className
+}: {
+  readonly card: (typeof audienceCards)[number] | undefined;
+  readonly className: string;
+}) {
+  if (card === undefined) {
+    return null;
+  }
+
+  return (
+    <article className={className}>
+      {card.badge === undefined ? null : (
+        <span className="landing-badge">{card.badge}</span>
+      )}
+      <h3>{card.title}</h3>
+      <p>{card.text}</p>
+    </article>
+  );
+}
+
 function FeatureList({
   title: featureTitle,
   items
@@ -345,6 +367,166 @@ function FeatureList({
         ))}
       </ul>
     </article>
+  );
+}
+
+function EditorFreedomMockup() {
+  return (
+    <aside className="landing-editor-mockup" aria-label="Декоративный макет редактора Mercurio">
+      <div className="landing-editor-glow" aria-hidden="true" />
+      <div className="landing-editor-shell">
+        <div className="landing-editor-toolbar">
+          <strong>Editor</strong>
+          <span>Страница: Главная</span>
+          <span>Публикация</span>
+        </div>
+        <div className="landing-editor-grid">
+          <nav aria-label="Панель структуры">
+            <strong>Structure</strong>
+            <span className="is-selected">Hero section</span>
+            <span>Product grid</span>
+            <span>Media gallery</span>
+            <span>CTA block</span>
+          </nav>
+          <section className="landing-editor-canvas" aria-label="Область композиции">
+            <div className="landing-editor-section is-selected">
+              <span>Sections</span>
+              <div className="landing-editor-columns">
+                <div>
+                  <strong>Новая коллекция</strong>
+                  <p>Block selection</p>
+                </div>
+                <div className="landing-editor-media">Media</div>
+              </div>
+            </div>
+            <div className="landing-editor-section is-rebuilt">
+              <span>Columns</span>
+              <div className="landing-editor-reflow">
+                <i />
+                <i />
+                <i />
+              </div>
+            </div>
+          </section>
+          <aside aria-label="Настройки выбранного блока">
+            <strong>Composition controls</strong>
+            <span>Columns: 2</span>
+            <span>Button settings</span>
+            <div className="landing-button-shapes" aria-label="Форма кнопки">
+              <i />
+              <i className="is-active" />
+              <i />
+            </div>
+          </aside>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function ProjectScenarioMockup() {
+  return (
+    <aside className="landing-project-board" aria-label="Декоративные варианты страниц проекта">
+      <div className="landing-project-header">
+        <strong>Demo Store</strong>
+        <span>Страницы проекта</span>
+      </div>
+      <div className="landing-project-pages">
+        <article className="is-primary">
+          <span>Главная</span>
+          <strong>Базовый storefront</strong>
+          <p>каталог, товары, публикация</p>
+        </article>
+        {businessChangeScenarios.map((scenario) => (
+          <article key={scenario.title}>
+            <span>{scenario.page}</span>
+            <strong>{scenario.title}</strong>
+            <p>{scenario.detail}</p>
+          </article>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
+function CommerceStoryMockup() {
+  return (
+    <div className="landing-commerce-mockup">
+      <article className="landing-catalog-panel">
+        <div className="landing-mockup-window-label">Product catalog</div>
+        <h3>Каталог: демо худи</h3>
+        <div className="landing-product-grid" aria-label="Каталог товаров">
+          <div className="landing-product-card is-active">
+            <span className="landing-product-image" />
+            <strong>Демо худи</strong>
+            <p>4 варианта · цена · остатки</p>
+          </div>
+          <div className="landing-product-card">
+            <span className="landing-product-image" />
+            <strong>Демо футболка</strong>
+            <p>3 варианта · изображения</p>
+          </div>
+          <div className="landing-product-card">
+            <span className="landing-product-image" />
+            <strong>Демо шоппер</strong>
+            <p>2 цвета · доступность</p>
+          </div>
+        </div>
+        <FeatureList title="Полноценный магазин" items={storeBullets} />
+      </article>
+      <article className="landing-product-landing-panel">
+        <div className="landing-mockup-window-label">Product landing</div>
+        <div className="landing-product-landing-hero">
+          <span>Отдельный лендинг</span>
+          <strong>Демо худи для сезонного запуска</strong>
+          <p>Hero, benefits, gallery и CTA для рекламного трафика.</p>
+          <div>Купить коллекцию</div>
+        </div>
+        <div className="landing-product-landing-blocks" aria-label="Блоки продуктового лендинга">
+          <span>Benefits</span>
+          <span>Gallery</span>
+          <span>CTA</span>
+        </div>
+        <FeatureList
+          title="Лендинг конкретного продукта"
+          items={productLandingBullets}
+        />
+      </article>
+    </div>
+  );
+}
+
+function AnalyticsRoadmapMockup() {
+  return (
+    <aside className="landing-analytics-dashboard" aria-label="Схематичный модуль аналитики в разработке">
+      <div className="landing-analytics-topbar">
+        <strong>Analytics</strong>
+        <span>Модуль в разработке</span>
+      </div>
+      <div className="landing-analytics-placeholders">
+        <div>
+          <span>Посещаемость</span>
+          <i />
+        </div>
+        <div>
+          <span>Популярные страницы</span>
+          <i />
+        </div>
+        <div>
+          <span>Продажи</span>
+          <i />
+        </div>
+        <div>
+          <span>Остатки</span>
+          <i />
+        </div>
+      </div>
+      <ul className="landing-analytics-labels" aria-label="Направления аналитики">
+        {analyticsDirections.map((direction) => (
+          <li key={direction}>{direction}</li>
+        ))}
+      </ul>
+    </aside>
   );
 }
 

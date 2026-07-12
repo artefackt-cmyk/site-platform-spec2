@@ -19,6 +19,21 @@ export type IntegrationStatus = "В разработке" | "Скоро";
 export type IntegrationCard = {
   readonly title: string;
   readonly status: IntegrationStatus;
+  readonly role: string;
+};
+
+export type InfrastructureStatus = "Уже работает" | "Следующий этап" | "Roadmap";
+
+export type InfrastructureStep = {
+  readonly label: string;
+  readonly status: InfrastructureStatus;
+  readonly icon: string;
+};
+
+export type ProjectScenario = {
+  readonly title: string;
+  readonly page: string;
+  readonly detail: string;
 };
 
 export type CapabilityGroup = {
@@ -74,13 +89,27 @@ export const templateDifferenceCards: readonly FeatureCard[] = [
   }
 ];
 
-export const businessChangeScenarios: readonly string[] = [
-  "Новый продукт",
-  "Сезонная коллекция",
-  "Рекламная кампания",
-  "Специальное предложение",
-  "Отдельная аудитория",
-  "Обновление бренда"
+export const businessChangeScenarios: readonly ProjectScenario[] = [
+  {
+    title: "Новый продукт",
+    page: "product-launch",
+    detail: "страница запуска"
+  },
+  {
+    title: "Сезонная коллекция",
+    page: "summer-drop",
+    detail: "подборка товаров"
+  },
+  {
+    title: "Рекламная кампания",
+    page: "ads-campaign",
+    detail: "лендинг трафика"
+  },
+  {
+    title: "Отдельная аудитория",
+    page: "b2b-offer",
+    detail: "персональный оффер"
+  }
 ];
 
 export const storeBullets: readonly string[] = [
@@ -103,28 +132,68 @@ export const productLandingBullets: readonly string[] = [
   "рекламный трафик"
 ];
 
-export const infrastructureSteps: readonly string[] = [
-  "Запусти сайт",
-  "Добавь товары",
-  "Подключи склад",
-  "Подключи кассу",
-  "Настрой доставку",
-  "Добавь бонусную систему",
-  "Запусти рассылки",
-  "Следи за результатами"
+export const infrastructureSteps: readonly InfrastructureStep[] = [
+  { label: "Сайт", status: "Уже работает", icon: "01" },
+  { label: "Товары", status: "Уже работает", icon: "02" },
+  { label: "Склад", status: "Следующий этап", icon: "03" },
+  { label: "Касса", status: "Следующий этап", icon: "04" },
+  { label: "Доставка", status: "Следующий этап", icon: "05" },
+  { label: "Бонусы", status: "Roadmap", icon: "06" },
+  { label: "Рассылки", status: "Roadmap", icon: "07" },
+  { label: "Аналитика", status: "Roadmap", icon: "08" }
 ];
 
 export const integrations: readonly IntegrationCard[] = [
-  { title: "МойСклад", status: "В разработке" },
-  { title: "ЮKassa и СБП", status: "Скоро" },
-  { title: "СДЭК", status: "Скоро" },
-  { title: "Бонусные программы", status: "В разработке" },
-  { title: "Email-рассылки", status: "В разработке" },
-  { title: "Telegram", status: "Скоро" },
-  { title: "CRM", status: "В разработке" },
-  { title: "Аналитика", status: "В разработке" },
-  { title: "Онлайн-касса", status: "Скоро" },
-  { title: "Программы лояльности", status: "В разработке" }
+  {
+    title: "МойСклад",
+    status: "В разработке",
+    role: "Склад, остатки и товарные данные."
+  },
+  {
+    title: "ЮKassa и СБП",
+    status: "Скоро",
+    role: "Оплата и быстрые платежи."
+  },
+  {
+    title: "СДЭК",
+    status: "Скоро",
+    role: "Доставка и пункты выдачи."
+  },
+  {
+    title: "Бонусные программы",
+    status: "В разработке",
+    role: "Мотивация повторных покупок."
+  },
+  {
+    title: "Email-рассылки",
+    status: "В разработке",
+    role: "Коммуникации и запуск кампаний."
+  },
+  {
+    title: "Telegram",
+    status: "Скоро",
+    role: "Быстрые уведомления и диалоги."
+  },
+  {
+    title: "CRM",
+    status: "В разработке",
+    role: "Единая история клиентов."
+  },
+  {
+    title: "Аналитика",
+    status: "В разработке",
+    role: "Понимание страниц и продаж."
+  },
+  {
+    title: "Онлайн-касса",
+    status: "Скоро",
+    role: "Фискализация продаж."
+  },
+  {
+    title: "Программы лояльности",
+    status: "В разработке",
+    role: "Правила накоплений и привилегий."
+  }
 ];
 
 export const analyticsDirections: readonly string[] = [
