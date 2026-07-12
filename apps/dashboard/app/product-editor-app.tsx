@@ -16,6 +16,7 @@ import type {
   ProductVariant,
   ProjectSummary
 } from "./dashboard-types";
+import { MercurioAppShell } from "./mercurio-shell";
 
 type LoadState =
   | { readonly status: "loading" }
@@ -64,6 +65,13 @@ export function ProductEditorApp({
   const [galleryStatus, setGalleryStatus] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [variantForm, setVariantForm] = useState(initialVariantForm);
+  const [editingVariant, setEditingVariant] = useState<
+    | {
+        readonly id: string;
+        readonly form: ProductVariantFormDraft;
+      }
+    | null
+  >(null);
 
   const load = useCallback(async () => {
     setState({ status: "loading" });
@@ -251,48 +259,49 @@ export function ProductEditorApp({
     [apiClient, applyProductResponse, productId, projectId]
   );
 
-  const editVariant = useCallback(
-    async (variant: ProductVariant) => {
-      const title = window.prompt("Название варианта", variant.title);
+  const startEditVariant = useCallback((variant: ProductVariant) => {
+    setEditingVariant({
+      id: variant.id,
+      form: createVariantFormDraftFromVariant(variant)
+    });
+  }, []);
 
-      if (title === null) {
+  const submitEditVariant = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      if (editingVariant === null) {
         return;
       }
 
-      const sku = window.prompt("SKU", variant.sku);
+      setErrorMessage(null);
 
-      if (sku === null) {
-        return;
+      try {
+        const response = await apiClient.updateProductVariant(
+          projectId,
+          productId,
+          editingVariant.id,
+          {
+            title: editingVariant.form.title,
+            sku: editingVariant.form.sku,
+            priceMinor: rubToMinor(editingVariant.form.priceRub),
+            compareAtPriceMinor:
+              editingVariant.form.compareAtPriceRub.trim() === ""
+                ? null
+                : rubToMinor(editingVariant.form.compareAtPriceRub),
+            stockQuantity: parseInteger(editingVariant.form.stockQuantity),
+            trackInventory: editingVariant.form.trackInventory,
+            allowBackorder: editingVariant.form.allowBackorder
+          }
+        );
+
+        applyProductResponse(response);
+        setEditingVariant(null);
+      } catch (error) {
+        setErrorMessage(toUserFacingError(error));
       }
-
-      const priceRub = window.prompt(
-        "Цена, ₽",
-        String(variant.price.amountMinor / 100)
-      );
-
-      if (priceRub === null) {
-        return;
-      }
-
-      const stockQuantity = window.prompt(
-        "Остаток",
-        String(variant.stockQuantity)
-      );
-
-      if (stockQuantity === null) {
-        return;
-      }
-
-      applyProductResponse(
-        await apiClient.updateProductVariant(projectId, productId, variant.id, {
-          title,
-          sku,
-          priceMinor: rubToMinor(priceRub),
-          stockQuantity: parseInteger(stockQuantity)
-        })
-      );
     },
-    [apiClient, applyProductResponse, productId, projectId]
+    [apiClient, applyProductResponse, editingVariant, productId, projectId]
   );
 
   const deleteVariant = useCallback(
@@ -317,42 +326,32 @@ export function ProductEditorApp({
   }
 
   return (
-    <main className="dashboard-shell">
-      <section className="dashboard-panel">
-        <header className="topbar workspace-topbar">
-          <div>
-            <a className="back-link" href={`/projects/${projectId}/products`}>
-              Назад к товарам
-            </a>
-            <p className="eyebrow">{state.project.name}</p>
-            <h1>{state.product.title}</h1>
-            <p className="project-slug">/{state.product.slug}</p>
-          </div>
-          <div className="workspace-actions">
-            <span className="project-status">{state.product.status}</span>
-            <button className="secondary-button" type="button" onClick={activate}>
-              Активировать
-            </button>
-            <button className="ghost-button" type="button" onClick={archive}>
-              Архивировать
-            </button>
-            <button className="ghost-button" type="button" onClick={deleteProduct}>
-              Удалить
-            </button>
-          </div>
-        </header>
+    <MercurioAppShell activeArea="products" project={state.project}>
+      <header className="topbar workspace-topbar">
+        <div>
+          <a className="back-link" href={`/projects/${projectId}/products`}>
+            Назад к товарам
+          </a>
+          <p className="eyebrow">Каталог</p>
+          <h1>Данные товара</h1>
+          <p className="section-description">
+            Заполните основную информацию о товаре, его изображения, варианты и
+            настройки публикации.
+          </p>
+        </div>
+        <span className="save-indicator save-indicator-saved">
+          {saving ? "Сохраняем..." : "Автосохранение"}
+        </span>
+      </header>
 
-        <section className="workspace-layout">
-          <div className="workspace-main">
+      <section className="product-editor-layout">
+        <div className="workspace-main">
             <section className="create-form">
               <div className="form-header">
                 <div>
                   <p className="eyebrow">Основное</p>
-                  <h2>Данные товара</h2>
+                  <h2>{state.product.title}</h2>
                 </div>
-                <span className="save-indicator save-indicator-saved">
-                  {saving ? "Сохраняем..." : "Автосохранение"}
-                </span>
               </div>
               <ProductCommitInput
                 label="Название"
@@ -503,49 +502,32 @@ export function ProductEditorApp({
             <section className="create-form">
               <div className="form-header">
                 <div>
-                  <p className="eyebrow">Variants</p>
+                  <p className="eyebrow">Варианты</p>
                   <h2>Варианты товара</h2>
                 </div>
               </div>
               <div className="page-list">
                 {state.variants.map((variant) => (
-                  <article className="page-row" key={variant.id}>
-                    <div>
-                      <div className="page-title-line">
-                        <h3>{variant.title}</h3>
-                        {variant.isDefault ? (
-                          <span className="home-badge">Default</span>
-                        ) : null}
-                      </div>
-                      <p className="project-slug">
-                        {variant.sku} · {variant.price.formatted} · остаток{" "}
-                        {variant.stockQuantity}
-                      </p>
-                    </div>
-                    <div className="page-row-meta">
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        disabled={variant.isDefault}
-                        onClick={() => void setDefaultVariant(variant.id)}
-                      >
-                        Default
-                      </button>
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        onClick={() => void editVariant(variant)}
-                      >
-                        Изменить
-                      </button>
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        onClick={() => void deleteVariant(variant.id)}
-                      >
-                        Удалить
-                      </button>
-                    </div>
+                  <article className="page-row product-variant-row" key={variant.id}>
+                    <VariantRow
+                      variant={variant}
+                      onSetDefault={() => void setDefaultVariant(variant.id)}
+                      onEdit={() => startEditVariant(variant)}
+                      onDelete={() => void deleteVariant(variant.id)}
+                    />
+                    {editingVariant?.id === variant.id ? (
+                      <VariantEditForm
+                        form={editingVariant.form}
+                        onChange={(formDraft) =>
+                          setEditingVariant({
+                            id: variant.id,
+                            form: formDraft
+                          })
+                        }
+                        onCancel={() => setEditingVariant(null)}
+                        onSubmit={submitEditVariant}
+                      />
+                    ) : null}
                   </article>
                 ))}
               </div>
@@ -553,7 +535,7 @@ export function ProductEditorApp({
                 <div className="form-header">
                   <div>
                     <p className="eyebrow">Новый вариант</p>
-                    <h3>Добавить variant</h3>
+                    <h3>Добавить вариант</h3>
                   </div>
                 </div>
                 <ProductInput
@@ -629,10 +611,17 @@ export function ProductEditorApp({
                 </button>
               </form>
             </section>
-          </div>
-        </section>
+        </div>
+
+        <ProductStatusAside
+          product={state.product}
+          variants={state.variants}
+          onActivate={activate}
+          onArchive={archive}
+          onDelete={deleteProduct}
+        />
       </section>
-    </main>
+    </MercurioAppShell>
   );
 }
 
@@ -645,6 +634,217 @@ export function updateProductVariantFormDraft<
   return {
     [field]: value
   } as Pick<ProductVariantFormDraft, TField>;
+}
+
+export function createVariantFormDraftFromVariant(
+  variant: ProductVariant
+): ProductVariantFormDraft {
+  return {
+    title: variant.title,
+    sku: variant.sku,
+    priceRub: String(variant.price.amountMinor / 100),
+    compareAtPriceRub:
+      variant.compareAtPrice === null
+        ? ""
+        : String(variant.compareAtPrice.amountMinor / 100),
+    stockQuantity: String(variant.stockQuantity),
+    trackInventory: variant.trackInventory,
+    allowBackorder: variant.allowBackorder
+  };
+}
+
+function VariantRow({
+  variant,
+  onSetDefault,
+  onEdit,
+  onDelete
+}: {
+  readonly variant: ProductVariant;
+  readonly onSetDefault: () => void;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+}) {
+  return (
+    <>
+      <div>
+        <div className="page-title-line">
+          <h3>{variant.title}</h3>
+          {variant.isDefault ? (
+            <span className="home-badge">По умолчанию</span>
+          ) : null}
+        </div>
+        <p className="project-slug">
+          {variant.sku} · {variant.price.formatted} · остаток{" "}
+          {variant.stockQuantity}
+        </p>
+      </div>
+      <div className="page-row-meta">
+        <button
+          className="ghost-button"
+          type="button"
+          disabled={variant.isDefault}
+          onClick={onSetDefault}
+        >
+          По умолчанию
+        </button>
+        <button className="ghost-button" type="button" onClick={onEdit}>
+          Изменить
+        </button>
+        <button className="ghost-button" type="button" onClick={onDelete}>
+          Удалить
+        </button>
+      </div>
+    </>
+  );
+}
+
+function VariantEditForm({
+  form,
+  onChange,
+  onCancel,
+  onSubmit
+}: {
+  readonly form: ProductVariantFormDraft;
+  readonly onChange: (form: ProductVariantFormDraft) => void;
+  readonly onCancel: () => void;
+  readonly onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form className="variant-edit-form" onSubmit={onSubmit}>
+      <ProductInput
+        label="Название"
+        value={form.title}
+        onChange={(title) => onChange({ ...form, title })}
+      />
+      <ProductInput
+        label="SKU"
+        value={form.sku}
+        onChange={(sku) => onChange({ ...form, sku })}
+      />
+      <ProductInput
+        label="Цена, ₽"
+        value={form.priceRub}
+        onChange={(priceRub) => onChange({ ...form, priceRub })}
+      />
+      <ProductInput
+        label="Старая цена, ₽"
+        value={form.compareAtPriceRub}
+        onChange={(compareAtPriceRub) => onChange({ ...form, compareAtPriceRub })}
+      />
+      <ProductInput
+        label="Остаток"
+        value={form.stockQuantity}
+        onChange={(stockQuantity) => onChange({ ...form, stockQuantity })}
+      />
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={form.trackInventory}
+          onChange={(event) => {
+            const checked = event.currentTarget.checked;
+
+            onChange({
+              ...form,
+              trackInventory: checked
+            });
+          }}
+        />
+        Учитывать остаток
+      </label>
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={form.allowBackorder}
+          onChange={(event) => {
+            const checked = event.currentTarget.checked;
+
+            onChange({
+              ...form,
+              allowBackorder: checked
+            });
+          }}
+        />
+        Разрешить предзаказ
+      </label>
+      <div className="workspace-actions">
+        <button className="primary-button" type="submit">
+          Сохранить вариант
+        </button>
+        <button className="ghost-button" type="button" onClick={onCancel}>
+          Отмена
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ProductStatusAside({
+  product,
+  variants,
+  onActivate,
+  onArchive,
+  onDelete
+}: {
+  readonly product: ProductDetail;
+  readonly variants: readonly ProductVariant[];
+  readonly onActivate: () => void;
+  readonly onArchive: () => void;
+  readonly onDelete: () => void;
+}) {
+  return (
+    <aside className="product-editor-aside" aria-label="Статус товара">
+      <section className="create-form">
+        <div className="form-header">
+          <div>
+            <p className="eyebrow">Статус публикации</p>
+            <h2>Статус</h2>
+          </div>
+        </div>
+        <span className="project-status">{product.status}</span>
+        <p className="editor-muted">Обновлено {formatDate(product.updatedAt)}</p>
+        <div className="product-aside-actions">
+          <button className="secondary-button" type="button" onClick={onActivate}>
+            Активировать
+          </button>
+          <button className="ghost-button" type="button" onClick={onArchive}>
+            Архивировать
+          </button>
+          <button className="ghost-button" type="button" onClick={onDelete}>
+            Удалить
+          </button>
+        </div>
+      </section>
+      <section className="create-form">
+        <div className="form-header">
+          <div>
+            <p className="eyebrow">Сводка товара</p>
+            <h2>{product.title}</h2>
+          </div>
+        </div>
+        {product.primaryImage === null ? null : (
+          <img
+            className="product-summary-image"
+            src={product.primaryImage.url}
+            alt={product.primaryImage.altText ?? product.title}
+          />
+        )}
+        <dl className="product-summary-list">
+          <div>
+            <dt>Slug</dt>
+            <dd>/{product.slug}</dd>
+          </div>
+          <div>
+            <dt>Изображений</dt>
+            <dd>{product.images.length}</dd>
+          </div>
+          <div>
+            <dt>Вариантов</dt>
+            <dd>{variants.length}</dd>
+          </div>
+        </dl>
+      </section>
+    </aside>
+  );
 }
 
 function ProductInput({
@@ -708,15 +908,13 @@ function CenterState({
   readonly tone?: "error";
 }) {
   return (
-    <main className="dashboard-shell">
-      <section className="dashboard-panel">
-        <div className={tone === "error" ? "center-state error-state" : "center-state"}>
-          <p className="eyebrow">Product catalog</p>
-          <h1>{title}</h1>
-          <p>{text}</p>
-        </div>
-      </section>
-    </main>
+    <MercurioAppShell activeArea="products">
+      <div className={tone === "error" ? "center-state error-state" : "center-state"}>
+        <p className="eyebrow">Product catalog</p>
+        <h1>{title}</h1>
+        <p>{text}</p>
+      </div>
+    </MercurioAppShell>
   );
 }
 
@@ -741,6 +939,12 @@ function parseInteger(value: string): number {
   const parsed = Number.parseInt(value, 10);
 
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function formatDate(date: string): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "medium"
+  }).format(new Date(date));
 }
 
 function toUserFacingError(error: unknown): string {

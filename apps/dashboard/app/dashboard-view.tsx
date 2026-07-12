@@ -5,6 +5,7 @@ import type {
   CurrentUserResponse,
   ProjectSummary
 } from "./dashboard-types";
+import { MercurioAppShell } from "./mercurio-shell";
 
 export type DashboardLoadState =
   | {
@@ -47,53 +48,49 @@ export function DashboardView({
   onSubmitCreateProject
 }: DashboardViewProps) {
   return (
-    <main className="dashboard-shell">
-      <section className="dashboard-panel">
-        {state.status === "loading" ? (
-          <LoadingState />
-        ) : state.status === "error" ? (
-          <ErrorState message={state.message} />
-        ) : (
-          <>
-            <header className="topbar">
-              <div>
-                <p className="eyebrow">Активная организация</p>
-                <h1>{state.me.activeOrganization.name}</h1>
-              </div>
-              <div className="user-chip">
-                <span>{state.me.email}</span>
-                <strong>{state.me.role}</strong>
-              </div>
-            </header>
+    <MercurioAppShell
+      activeArea="projects"
+      user={state.status === "ready" ? state.me : undefined}
+    >
+      {state.status === "loading" ? (
+        <LoadingState />
+      ) : state.status === "error" ? (
+        <ErrorState message={state.message} />
+      ) : (
+        <>
+          <header className="topbar">
+            <div>
+              <p className="eyebrow">Dashboard</p>
+              <h1>Проекты</h1>
+              <p className="section-description">
+                Управляйте своими проектами и запускайте новые сайты.
+              </p>
+            </div>
+            <button className="primary-button" onClick={onOpenCreateForm}>
+              <span aria-hidden="true">✦</span>
+              Создать сайт
+            </button>
+          </header>
 
-            <section className="section-heading">
-              <div>
-                <p className="eyebrow">Dashboard</p>
-                <h2>Проекты</h2>
-              </div>
-              <button className="primary-button" onClick={onOpenCreateForm}>
-                Создать сайт
-              </button>
-            </section>
+          <ProjectStats projects={state.projects} />
 
-            {form.open ? (
-              <CreateProjectForm
-                form={form}
-                onClose={onCloseCreateForm}
-                onChange={onFormChange}
-                onSubmit={onSubmitCreateProject}
-              />
-            ) : null}
+          {form.open ? (
+            <CreateProjectForm
+              form={form}
+              onClose={onCloseCreateForm}
+              onChange={onFormChange}
+              onSubmit={onSubmitCreateProject}
+            />
+          ) : null}
 
-            {state.projects.length === 0 ? (
-              <EmptyProjectsState onCreate={onOpenCreateForm} />
-            ) : (
-              <ProjectGrid projects={state.projects} />
-            )}
-          </>
-        )}
-      </section>
-    </main>
+          {state.projects.length === 0 ? (
+            <EmptyProjectsState onCreate={onOpenCreateForm} />
+          ) : (
+            <ProjectGrid projects={state.projects} />
+          )}
+        </>
+      )}
+    </MercurioAppShell>
   );
 }
 
@@ -194,6 +191,41 @@ function EmptyProjectsState({ onCreate }: { readonly onCreate: () => void }) {
       <button className="secondary-button" onClick={onCreate}>
         Создать сайт
       </button>
+    </section>
+  );
+}
+
+function ProjectStats({
+  projects
+}: {
+  readonly projects: readonly ProjectSummary[];
+}) {
+  const activeProjects = projects.filter((project) => project.status === "ACTIVE");
+  const draftProjects = projects.filter((project) => project.status === "DRAFT");
+
+  return (
+    <section className="project-stats" aria-label="Сводка проектов">
+      <article>
+        <span className="project-stat-icon" aria-hidden="true">
+          □
+        </span>
+        <strong>{projects.length}</strong>
+        <p>Проектов</p>
+      </article>
+      <article>
+        <span className="project-stat-icon" aria-hidden="true">
+          ✦
+        </span>
+        <strong>{activeProjects.length}</strong>
+        <p>Опубликовано</p>
+      </article>
+      <article>
+        <span className="project-stat-icon" aria-hidden="true">
+          ◷
+        </span>
+        <strong>{draftProjects.length}</strong>
+        <p>Черновиков</p>
+      </article>
     </section>
   );
 }

@@ -885,8 +885,8 @@ const editorBlockStyle: React.CSSProperties = {
 };
 
 const selectedChromeStyle: React.CSSProperties = {
-  borderColor: "#93b4f8",
-  background: "#f8fbff"
+  borderColor: "#3b4c63",
+  background: "#f3f6fa"
 };
 
 const emptyStateStyle: React.CSSProperties = {

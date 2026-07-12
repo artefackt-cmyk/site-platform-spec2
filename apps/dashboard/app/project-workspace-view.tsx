@@ -5,6 +5,7 @@ import type {
   ProjectSummary,
   SitePageSummary
 } from "./dashboard-types";
+import { MercurioAppShell } from "./mercurio-shell";
 
 export const WORKSPACE_SECTIONS = [
   {
@@ -74,47 +75,48 @@ export function ProjectWorkspaceView({
   onSubmitCreatePage
 }: ProjectWorkspaceViewProps) {
   return (
-    <main className="dashboard-shell">
-      <section className="dashboard-panel">
-        {state.status === "loading" ? (
-          <WorkspaceCenterState
-            title="Загрузка проекта"
-            text="Получаем проект и страницы сайта."
-          />
-        ) : state.status === "error" ? (
-          <WorkspaceCenterState
-            title="Проект не открыт"
-            text={state.message}
-            tone="error"
-          />
-        ) : (
-          <>
-            <ProjectWorkspaceTopbar project={state.project} />
-            <div className="workspace-layout">
-              <WorkspaceNavigation
-                activeSection={activeSection}
-                onSelectSection={onSelectSection}
-              />
-              <section className="workspace-main">
-                {activeSection === "pages" ? (
-                  <PagesSection
-                    project={state.project}
-                    pages={state.pages}
-                    form={form}
-                    onOpenCreatePageForm={onOpenCreatePageForm}
-                    onCloseCreatePageForm={onCloseCreatePageForm}
-                    onPageFormChange={onPageFormChange}
-                    onSubmitCreatePage={onSubmitCreatePage}
-                  />
-                ) : (
-                  <PlaceholderSection section={activeSection} />
-                )}
-              </section>
-            </div>
-          </>
-        )}
-      </section>
-    </main>
+    <MercurioAppShell
+      activeArea={activeSection === "pages" ? "pages" : "project"}
+      project={state.status === "ready" ? state.project : undefined}
+    >
+      {state.status === "loading" ? (
+        <WorkspaceCenterState
+          title="Загрузка проекта"
+          text="Получаем проект и страницы сайта."
+        />
+      ) : state.status === "error" ? (
+        <WorkspaceCenterState
+          title="Проект не открыт"
+          text={state.message}
+          tone="error"
+        />
+      ) : (
+        <>
+          <ProjectWorkspaceTopbar project={state.project} />
+          <div className="workspace-layout">
+            <WorkspaceNavigation
+              activeSection={activeSection}
+              onSelectSection={onSelectSection}
+            />
+            <section className="workspace-main">
+              {activeSection === "pages" ? (
+                <PagesSection
+                  project={state.project}
+                  pages={state.pages}
+                  form={form}
+                  onOpenCreatePageForm={onOpenCreatePageForm}
+                  onCloseCreatePageForm={onCloseCreatePageForm}
+                  onPageFormChange={onPageFormChange}
+                  onSubmitCreatePage={onSubmitCreatePage}
+                />
+              ) : (
+                <PlaceholderSection section={activeSection} />
+              )}
+            </section>
+          </div>
+        </>
+      )}
+    </MercurioAppShell>
   );
 }
 
@@ -140,12 +142,6 @@ function ProjectWorkspaceTopbar({
           Медиа
         </a>
         <span className="project-status">{project.status}</span>
-        <button className="ghost-button" disabled>
-          Предпросмотр
-        </button>
-        <button className="primary-button" disabled>
-          Опубликовать
-        </button>
       </div>
     </header>
   );

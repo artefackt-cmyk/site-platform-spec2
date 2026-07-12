@@ -18,6 +18,7 @@ import {
   type TextBlock
 } from "@site-platform/editor-core";
 import { PageRenderer, type ProductRenderModel } from "@site-platform/renderer";
+import { MercurioLogo } from "@site-platform/ui";
 import type {
   MediaAssetSummary,
   ProductSummary,
@@ -306,7 +307,8 @@ function EditorTopbar({
 }) {
   return (
     <header className="editor-topbar">
-      <div>
+      <div className="editor-title-block">
+        <MercurioLogo variant="compact" />
         <nav className="breadcrumb" aria-label="Навигация">
           <a href={`/projects/${project.id}`}>Страницы</a>
           <span>/</span>
@@ -316,13 +318,20 @@ function EditorTopbar({
         <p className="project-slug">/{page.slug}</p>
       </div>
       <div className="editor-topbar-actions">
-        <span className="project-status">{page.status}</span>
-        <span className={`save-indicator save-indicator-${saveStatus}`}>
-          {toSaveStatusLabel(saveStatus)}
-        </span>
-        <span className="save-indicator save-indicator-saved">
-          {toPublicationStatusLabel(publicationStatus.status)}
-        </span>
+        <div className="editor-status-group" aria-label="Статусы страницы">
+          <span
+            className={`save-indicator editor-save-status save-indicator-${saveStatus}`}
+          >
+            {toSaveStatusLabel(saveStatus)}
+          </span>
+          <span
+            className={`save-indicator editor-publication-status editor-publication-status-${toPublicationStatusTone(
+              publicationStatus.status
+            )}`}
+          >
+            {toPublicationStatusLabel(publicationStatus.status)}
+          </span>
+        </div>
         <button
           className="primary-button"
           type="button"
@@ -342,29 +351,31 @@ function EditorTopbar({
         <button className="secondary-button" type="button" onClick={onPublish}>
           Опубликовать
         </button>
-        {publicationStatus.publicUrl === null ? null : (
-          <a className="ghost-button" href={publicationStatus.publicUrl}>
-            Открыть сайт
-          </a>
-        )}
-        <button
-          className="ghost-button"
-          type="button"
-          onClick={onOpenPublicationHistory}
-        >
-          История
-        </button>
-        <button
-          className="ghost-button"
-          type="button"
-          onClick={onUnpublish}
-          disabled={publicationStatus.activeSnapshotId === null}
-        >
-          Снять
-        </button>
-        <a className="ghost-button" href={`/projects/${project.id}`}>
-          Назад к страницам
-        </a>
+        <details className="editor-overflow-menu">
+          <summary aria-label="Дополнительные действия">•••</summary>
+          <div className="editor-overflow-menu-list">
+            {publicationStatus.publicUrl === null ? null : (
+              <a className="ghost-button" href={publicationStatus.publicUrl}>
+                Открыть сайт
+              </a>
+            )}
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={onOpenPublicationHistory}
+            >
+              История публикаций
+            </button>
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={onUnpublish}
+              disabled={publicationStatus.activeSnapshotId === null}
+            >
+              Снять с публикации
+            </button>
+          </div>
+        </details>
       </div>
       {errorMessage === null ? null : (
         <p className="editor-save-error" role="alert">
@@ -1791,6 +1802,20 @@ function toPublicationStatusLabel(status: PublicationStatusResponse["status"]): 
       return "Есть неопубликованные изменения";
     case "unpublished":
       return "Снято с публикации";
+  }
+}
+
+function toPublicationStatusTone(
+  status: PublicationStatusResponse["status"]
+): "neutral" | "success" | "warning" {
+  switch (status) {
+    case "never-published":
+    case "unpublished":
+      return "neutral";
+    case "published-current":
+      return "success";
+    case "published-with-changes":
+      return "warning";
   }
 }
 

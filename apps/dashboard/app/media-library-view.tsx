@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { MediaAssetSummary } from "./dashboard-types";
 import type { MediaLibraryState } from "./media-library-app";
+import { MercurioAppShell } from "./mercurio-shell";
 
 export function MediaLibraryView({
   state,
@@ -15,89 +16,83 @@ export function MediaLibraryView({
 }) {
   if (state.status === "loading") {
     return (
-      <main className="dashboard-shell">
-        <section className="dashboard-panel">
-          <div className="center-state">
-            <p className="eyebrow">Медиа</p>
-            <h1>Загрузка медиабиблиотеки</h1>
-          </div>
-        </section>
-      </main>
+      <MercurioAppShell activeArea="media">
+        <div className="center-state">
+          <p className="eyebrow">Медиа</p>
+          <h1>Загрузка медиабиблиотеки</h1>
+        </div>
+      </MercurioAppShell>
     );
   }
 
   if (state.status === "error") {
     return (
-      <main className="dashboard-shell">
-        <section className="dashboard-panel">
-          <div className="center-state error-state" role="alert">
-            <p className="eyebrow">Медиа</p>
-            <h1>Медиабиблиотека недоступна</h1>
-            <p>{state.message}</p>
-          </div>
-        </section>
-      </main>
+      <MercurioAppShell activeArea="media">
+        <div className="center-state error-state" role="alert">
+          <p className="eyebrow">Медиа</p>
+          <h1>Медиабиблиотека недоступна</h1>
+          <p>{state.message}</p>
+        </div>
+      </MercurioAppShell>
     );
   }
 
   return (
-    <main className="dashboard-shell">
-      <section className="dashboard-panel">
-        <header className="topbar workspace-topbar">
-          <div>
-            <a className="back-link" href={`/projects/${state.project.id}`}>
-              Назад к проекту
-            </a>
-            <p className="eyebrow">Медиа</p>
-            <h1>Медиабиблиотека</h1>
-          </div>
-          <label className="primary-button">
-            Загрузить изображение
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              disabled={state.uploading}
-              hidden
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
+    <MercurioAppShell activeArea="media" project={state.project}>
+      <header className="topbar workspace-topbar">
+        <div>
+          <a className="back-link" href={`/projects/${state.project.id}`}>
+            Назад к проекту
+          </a>
+          <p className="eyebrow">Медиа</p>
+          <h1>Медиабиблиотека</h1>
+        </div>
+        <label className="primary-button">
+          Загрузить изображение
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={state.uploading}
+            hidden
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
 
-                if (file !== undefined) {
-                  onUpload(file);
-                }
-              }}
+              if (file !== undefined) {
+                onUpload(file);
+              }
+            }}
+          />
+        </label>
+      </header>
+
+      {state.errorMessage === null ? null : (
+        <p className="editor-save-error" role="alert">
+          {state.errorMessage}
+        </p>
+      )}
+      {state.successMessage === null ? null : (
+        <p className="save-indicator save-indicator-saved">{state.successMessage}</p>
+      )}
+
+      {state.assets.length === 0 ? (
+        <section className="empty-state">
+          <p className="eyebrow">Пока пусто</p>
+          <h2>Загрузите первое изображение</h2>
+          <p>Поддерживаются JPEG, PNG и WebP до 10 MB.</p>
+        </section>
+      ) : (
+        <div className="media-grid">
+          {state.assets.map((asset) => (
+            <MediaAssetCard
+              key={asset.id}
+              asset={asset}
+              onUpdateAlt={onUpdateAlt}
+              onDelete={onDelete}
             />
-          </label>
-        </header>
-
-        {state.errorMessage === null ? null : (
-          <p className="editor-save-error" role="alert">
-            {state.errorMessage}
-          </p>
-        )}
-        {state.successMessage === null ? null : (
-          <p className="save-indicator save-indicator-saved">{state.successMessage}</p>
-        )}
-
-        {state.assets.length === 0 ? (
-          <section className="empty-state">
-            <p className="eyebrow">Пока пусто</p>
-            <h2>Загрузите первое изображение</h2>
-            <p>Поддерживаются JPEG, PNG и WebP до 10 MB.</p>
-          </section>
-        ) : (
-          <div className="media-grid">
-            {state.assets.map((asset) => (
-              <MediaAssetCard
-                key={asset.id}
-                asset={asset}
-                onUpdateAlt={onUpdateAlt}
-                onDelete={onDelete}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-    </main>
+          ))}
+        </div>
+      )}
+    </MercurioAppShell>
   );
 }
 

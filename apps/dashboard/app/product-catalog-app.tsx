@@ -17,6 +17,7 @@ import type {
   ProductSummary,
   ProjectSummary
 } from "./dashboard-types";
+import { MercurioAppShell } from "./mercurio-shell";
 
 type LoadState =
   | { readonly status: "loading" }
@@ -173,26 +174,25 @@ export function ProductCatalogApp({
   }
 
   return (
-    <main className="dashboard-shell">
-      <section className="dashboard-panel">
-        <header className="topbar workspace-topbar">
-          <div>
-            <a className="back-link" href={`/projects/${projectId}`}>
-              Назад в проект
-            </a>
-            <p className="eyebrow">Каталог</p>
-            <h1>Товары</h1>
-          </div>
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => setFormOpen(true)}
-          >
-            Добавить товар
-          </button>
-        </header>
+    <MercurioAppShell activeArea="products" project={state.project}>
+      <header className="topbar workspace-topbar">
+        <div>
+          <a className="back-link" href={`/projects/${projectId}`}>
+            Назад в проект
+          </a>
+          <p className="eyebrow">Каталог</p>
+          <h1>Товары</h1>
+        </div>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => setFormOpen(true)}
+        >
+          Добавить товар
+        </button>
+      </header>
 
-        <section className="workspace-main">
+      <section className="workspace-main">
           <div className="workspace-section-heading">
             <div>
               <p className="eyebrow">{state.project.name}</p>
@@ -429,9 +429,8 @@ export function ProductCatalogApp({
               ))}
             </section>
           )}
-        </section>
       </section>
-    </main>
+    </MercurioAppShell>
   );
 }
 
@@ -476,15 +475,13 @@ function CenterState({
   readonly tone?: "error";
 }) {
   return (
-    <main className="dashboard-shell">
-      <section className="dashboard-panel">
-        <div className={tone === "error" ? "center-state error-state" : "center-state"}>
-          <p className="eyebrow">Product catalog</p>
-          <h1>{title}</h1>
-          <p>{text}</p>
-        </div>
-      </section>
-    </main>
+    <MercurioAppShell activeArea="products">
+      <div className={tone === "error" ? "center-state error-state" : "center-state"}>
+        <p className="eyebrow">Product catalog</p>
+        <h1>{title}</h1>
+        <p>{text}</p>
+      </div>
+    </MercurioAppShell>
   );
 }
 

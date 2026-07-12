@@ -292,7 +292,8 @@ describe("@site-platform/renderer", () => {
 
       expect(selectedHtml).toContain("border-width:1px");
       expect(selectedHtml).toContain("border-style:solid");
-      expect(selectedHtml).toContain("border-color:#93b4f8");
+      expect(selectedHtml).toContain("border-color:#3b4c63");
+      expect(selectedHtml).toContain("background:#f3f6fa");
       expect(selectedHtml).not.toContain("border:1px solid");
       expect(unselectedHtml).toContain("data-selected=\"false\"");
       expect(unselectedHtml).toContain("border-color:transparent");

@@ -4,6 +4,7 @@ import {
   type ProductCreateFormDraft
 } from "./product-catalog-app";
 import {
+  createVariantFormDraftFromVariant,
   updateProductVariantFormDraft,
   toMediaLibraryError,
   type ProductVariantFormDraft
@@ -47,6 +48,36 @@ describe("product form state updates", () => {
 
     expect(next.trackInventory).toBe(false);
     expect(next.allowBackorder).toBe(true);
+  });
+
+  it("creates an inline variant edit draft from primitive variant values", () => {
+    const draft = createVariantFormDraftFromVariant({
+      id: "variant-1",
+      title: "Large",
+      sku: "LUNA-LRG",
+      price: {
+        amountMinor: 279000,
+        currency: "RUB",
+        formatted: "2 790 ₽"
+      },
+      compareAtPrice: null,
+      stockQuantity: 26,
+      trackInventory: true,
+      allowBackorder: false,
+      availability: "in-stock",
+      isDefault: false,
+      position: 1
+    });
+
+    expect(draft).toEqual({
+      title: "Large",
+      sku: "LUNA-LRG",
+      priceRub: "2790",
+      compareAtPriceRub: "",
+      stockQuantity: "26",
+      trackInventory: true,
+      allowBackorder: false
+    });
   });
 
   it("maps media library network failures to a Russian retryable message", () => {

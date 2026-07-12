@@ -1,9 +1,12 @@
 import * as React from "react";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { createEmptyPageDocument, insertBlock } from "@site-platform/editor-core";
 import { PageEditorView, type PageEditorLoadState } from "./page-editor-view";
 import { createEditorState } from "./page-editor-state";
+
+type ReadyPageEditorState = Extract<PageEditorLoadState, { readonly status: "ready" }>;
 
 describe("PageEditorView", () => {
   it("renders editor blocks and panels", () => {
@@ -40,6 +43,39 @@ describe("PageEditorView", () => {
 
     expect(html).toContain("Есть изменения");
     expect(html).toContain("Сохранить");
+  });
+
+  it("renders simplified editor topbar with overflow publication actions", () => {
+    const html = renderEditor({
+      state: createReadyState("saved", undefined, {
+        status: "published-with-changes",
+        publicUrl: "https://example.test/demo",
+        activeSnapshotId: "snapshot-1",
+        activeVersion: 1,
+        publishedAt: "2026-01-01T00:00:00.000Z"
+      })
+    });
+
+    expect(html).toContain("editor-overflow-menu");
+    expect(html).toContain("Дополнительные действия");
+    expect(html).toContain("Открыть сайт");
+    expect(html).toContain("История публикаций");
+    expect(html).toContain("Снять с публикации");
+    expect(html).toContain("Сохранено");
+    expect(html).toContain("Есть неопубликованные изменения");
+    expect(html).not.toContain(">DRAFT<");
+  });
+
+  it("keeps editor layout bounded for usable panels and center scroll", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+
+    expect(css).toContain(
+      "grid-template-columns: minmax(260px, 280px) minmax(0, 1fr) minmax(300px, 320px)"
+    );
+    expect(css).toContain("overflow: auto");
+    expect(css).toContain("min-width: 720px");
+    expect(css).toContain("editor-overflow-menu");
+    expect(css).toContain("rgba(59, 76, 99");
   });
 
   it("renders unsaved changes preview warning", () => {
@@ -113,7 +149,8 @@ function renderEditor(input: {
 
 function createReadyState(
   saveStatus: "saved" | "dirty",
-  selectedNodeId?: string | null
+  selectedNodeId?: string | null,
+  publicationStatus?: ReadyPageEditorState["publicationStatus"]
 ): PageEditorLoadState {
   const document = insertBlock(
     createEmptyPageDocument(),
@@ -158,7 +195,7 @@ function createReadyState(
       updatedAt: "2026-01-01T00:00:00.000Z"
     },
     products: [],
-    publicationStatus: {
+    publicationStatus: publicationStatus ?? {
       status: "never-published",
       publicUrl: null,
       activeSnapshotId: null,

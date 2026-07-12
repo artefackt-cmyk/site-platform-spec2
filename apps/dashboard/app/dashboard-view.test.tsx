@@ -36,6 +36,19 @@ describe("DashboardView", () => {
     expect(html).toContain("Открыть");
   });
 
+  it("renders the Mercurio shell without fake inactive navigation", () => {
+    const html = renderDashboard({
+      state: createReadyState([])
+    });
+
+    expect(html).toContain("MERCURIO");
+    expect(html).toContain("Clarity.");
+    expect(html).toContain("Проекты");
+    expect(html).not.toContain("Заказы");
+    expect(html).not.toContain("Клиенты");
+    expect(html).not.toContain("Аналитика");
+  });
+
   it("renders the create project form", () => {
     const html = renderDashboard({
       form: {

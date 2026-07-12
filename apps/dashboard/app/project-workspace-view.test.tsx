@@ -23,6 +23,15 @@ describe("ProjectWorkspaceView", () => {
     expect(html).toContain("/home");
   });
 
+  it("keeps only real workspace actions in the project topbar", () => {
+    const html = renderWorkspace();
+
+    expect(html).toContain("Товары");
+    expect(html).toContain("Медиа");
+    expect(html).not.toContain("Предпросмотр");
+    expect(html).not.toContain("Опубликовать");
+  });
+
   it("renders the home page badge", () => {
     const html = renderWorkspace();
 
