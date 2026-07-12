@@ -22,6 +22,10 @@ describe("Mercurio public brand assets", () => {
   });
 
   it("uses the shared MercurioLogo component in public headers", () => {
+    const marketingLandingSource = readFileSync(
+      new URL("./landing-page-view.tsx", import.meta.url),
+      "utf8"
+    );
     const landingSource = readFileSync(
       new URL("./s/[publicHandle]/[[...pageSlug]]/page.tsx", import.meta.url),
       "utf8"
@@ -31,6 +35,12 @@ describe("Mercurio public brand assets", () => {
       "utf8"
     );
 
+    expect(marketingLandingSource).toContain(
+      'import { MercurioLogo } from "@site-platform/ui"'
+    );
+    expect(marketingLandingSource).toContain('<MercurioLogo className="landing-brand-wide"');
+    expect(marketingLandingSource).toContain('variant="wordmark"');
+    expect(marketingLandingSource).toContain('variant="icon"');
     expect(landingSource).toContain('import { MercurioLogo } from "@site-platform/ui"');
     expect(landingSource).toContain('<MercurioLogo variant="compact"');
     expect(productsSource).toContain('import { MercurioLogo } from "@site-platform/ui"');

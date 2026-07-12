@@ -27,6 +27,7 @@ DASHBOARD_ORIGIN=http://localhost:3000
 STOREFRONT_ORIGIN=http://localhost:3001
 NEXT_PUBLIC_API_URL=http://localhost:3002
 NEXT_PUBLIC_STOREFRONT_URL=http://localhost:3001
+NEXT_PUBLIC_DASHBOARD_URL=http://localhost:3000
 MEDIA_STORAGE_DIR=.local-media
 MEDIA_PUBLIC_BASE_URL=http://localhost:3002
 ```
@@ -216,6 +217,7 @@ pnpm --filter @site-platform/storefront dev
 - product editor: `http://localhost:3000/projects/{projectId}/products/{productId}`;
 - page editor: `http://localhost:3000/projects/{projectId}/pages/{pageId}`;
 - page preview: `http://localhost:3000/projects/{projectId}/pages/{pageId}/preview`;
+- Mercurio marketing homepage: `http://localhost:3001/`;
 - storefront: `http://localhost:3001/s/{publicHandle}/{pageSlug}`;
 - storefront catalog: `http://localhost:3001/s/{publicHandle}/products`;
 - storefront product: `http://localhost:3001/s/{publicHandle}/products/{productSlug}`;
@@ -268,6 +270,26 @@ pnpm --filter @site-platform/storefront dev
 - открытие публичного storefront URL;
 - история публикаций, rollback и unpublish.
 
+## Public Mercurio Homepage
+
+`apps/storefront` serves the public Mercurio marketing homepage at `/`. This page is the pre-registration product entry point for Mercurio itself and is separate from customer storefront routes under `/s/{publicHandle}`.
+
+The homepage uses only approved Mercurio brand assets through the shared `MercurioLogo` component:
+
+- `/assets/mercurio/mercurio-monogram.png`;
+- `/assets/mercurio/mercurio-logo-horizontal.png`.
+
+Do not redraw the monogram in CSS or SVG, replace the four-point star mark, or use a text `M` except as the existing image fallback. Desktop header uses the horizontal logo. Narrow headers use the approved monogram.
+
+Landing CTA links use typed public config. Set `NEXT_PUBLIC_DASHBOARD_URL` when the dashboard lives on another origin; locally it defaults to `http://localhost:3000`. The homepage does not create production auth, registration forms, analytics scripts, tracking pixels, sitemap UI or robots UI.
+
+Content honesty rules:
+
+- current capabilities must be visually separated from future work;
+- integrations that are not working yet must use `В разработке` or `Скоро`, not `Доступно`;
+- analytics must be marked as in development;
+- marketplace and multi-vendor messaging must be marked as strategic direction or development direction.
+
 Пока не реализовано:
 
 - autosave;
@@ -296,6 +318,7 @@ Preview route `/projects/{projectId}/pages/{pageId}/preview` не являетс
 ```bash
 STOREFRONT_ORIGIN=http://localhost:3001
 NEXT_PUBLIC_STOREFRONT_URL=http://localhost:3001
+NEXT_PUBLIC_DASHBOARD_URL=http://localhost:3000
 ```
 
 Публикация не сохраняет dirty editor state автоматически. Если есть несохраненные изменения, dashboard предлагает сохранить и опубликовать либо опубликовать последнюю сохраненную версию.

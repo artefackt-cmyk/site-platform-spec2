@@ -37,6 +37,7 @@ export type AppConfig = {
 export type PublicAppConfig = {
   readonly apiUrl: string;
   readonly storefrontUrl: string;
+  readonly dashboardUrl: string;
 };
 
 export type EnvironmentInput = Record<string, string | undefined>;
@@ -125,7 +126,8 @@ const environmentSchema = z
 
 const publicEnvironmentSchema = z.object({
   NEXT_PUBLIC_API_URL: publicUrlSchema.default("http://localhost:3002"),
-  NEXT_PUBLIC_STOREFRONT_URL: publicUrlSchema.default("http://localhost:3001")
+  NEXT_PUBLIC_STOREFRONT_URL: publicUrlSchema.default("http://localhost:3001"),
+  NEXT_PUBLIC_DASHBOARD_URL: publicUrlSchema.default("http://localhost:3000")
 });
 
 type ParsedEnvironment = z.infer<typeof environmentSchema>;
@@ -181,7 +183,8 @@ export function loadPublicConfig(
 
   return {
     apiUrl: parsed.data.NEXT_PUBLIC_API_URL,
-    storefrontUrl: parsed.data.NEXT_PUBLIC_STOREFRONT_URL
+    storefrontUrl: parsed.data.NEXT_PUBLIC_STOREFRONT_URL,
+    dashboardUrl: parsed.data.NEXT_PUBLIC_DASHBOARD_URL
   };
 }
 

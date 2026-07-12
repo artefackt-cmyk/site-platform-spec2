@@ -155,10 +155,34 @@ Unpublish sets the active snapshot to null. History remains available and the pu
 
 ## Storefront
 
-The storefront app serves system public URLs:
+The storefront app serves the Mercurio marketing homepage plus system public
+customer storefront URLs.
+
+The Mercurio marketing homepage is available at `/` in `apps/storefront`. It is
+the pre-registration product page for Mercurio itself, not a project storefront
+and not dashboard UI. Its CTA links use typed public config:
+`NEXT_PUBLIC_DASHBOARD_URL` points to the dashboard entry when dashboard runs on
+another origin.
+
+The marketing homepage must use approved Mercurio assets only through the shared
+`MercurioLogo` component:
+
+- `/assets/mercurio/mercurio-monogram.png`;
+- `/assets/mercurio/mercurio-logo-horizontal.png`.
+
+Do not reconstruct the mark in CSS or SVG, replace the approved monogram, lose
+the four-point star, or use a text `M` except as the existing image fallback.
+
+Marketing content must stay honest: working capabilities are separated from next
+steps and strategic directions; unfinished integrations use `В разработке` or
+`Скоро`; analytics is marked as in development; marketplace and multi-vendor
+messaging is marked as strategic direction or development direction.
+
+Customer storefront system public URLs remain under `/s`:
 
 | Route | Purpose |
 | --- | --- |
+| `/` | Public Mercurio marketing homepage before registration. |
 | `/s/[publicHandle]` | Render the active published home page. |
 | `/s/[publicHandle]/[pageSlug]` | Render an active published page. |
 | `/s/[publicHandle]/products` | Render the active public catalog. |
@@ -205,6 +229,7 @@ Dashboard routes:
 | `/projects/[projectId]/products/[productId]` | Product editor. |
 | `/projects/[projectId]/pages/[pageId]` | Page editor. |
 | `/projects/[projectId]/pages/[pageId]/preview` | Preview of the saved draft page document. |
+| `http://localhost:3001/` | Mercurio marketing homepage. |
 | `http://localhost:3001/s/[publicHandle]` | Public published home page. |
 | `http://localhost:3001/s/[publicHandle]/[pageSlug]` | Public published page. |
 | `http://localhost:3001/s/[publicHandle]/products` | Public product catalog. |

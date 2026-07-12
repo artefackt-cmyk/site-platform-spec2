@@ -18,6 +18,7 @@ describe("loadConfig", () => {
         STOREFRONT_ORIGIN: "http://localhost:3001",
         NEXT_PUBLIC_API_URL: "http://localhost:3002",
         NEXT_PUBLIC_STOREFRONT_URL: "http://localhost:3001",
+        NEXT_PUBLIC_DASHBOARD_URL: "http://localhost:3000",
         API_PORT: "3002",
         DASHBOARD_PORT: "3000",
         STOREFRONT_PORT: "3001"
@@ -138,13 +139,15 @@ describe("loadConfig", () => {
       dotenvPath: false,
       env: {
         NEXT_PUBLIC_API_URL: "http://localhost:3002",
-        NEXT_PUBLIC_STOREFRONT_URL: "http://localhost:3001"
+        NEXT_PUBLIC_STOREFRONT_URL: "http://localhost:3001",
+        NEXT_PUBLIC_DASHBOARD_URL: "http://localhost:3000"
       }
     });
 
     expect(publicConfig).toEqual({
       apiUrl: "http://localhost:3002",
-      storefrontUrl: "http://localhost:3001"
+      storefrontUrl: "http://localhost:3001",
+      dashboardUrl: "http://localhost:3000"
     });
   });
 });
