@@ -3,7 +3,9 @@ import {
   ALL_PERMISSIONS,
   DOMAIN_ERROR_CODES,
   MUTATION_PERMISSIONS,
+  ORDER_ERROR_CODES,
   PERMISSIONS,
+  canTransitionOrderStatus,
   hasPermission,
   normalizeEmail,
   packageName,
@@ -14,6 +16,7 @@ import {
   validateProjectSlug,
   validateCompareAtPriceMinor,
   validateMoneyMinor,
+  validateCreateOrderInput,
   validateProductSlug,
   validateProductTitle,
   validateStockQuantity,
@@ -132,6 +135,92 @@ describe("@site-platform/domain", () => {
       ok: false,
       code: DOMAIN_ERROR_CODES.stockQuantityInvalid
     });
+  });
+
+  it("validates checkout cart and customer payloads", () => {
+    expect(
+      validateCreateOrderInput({
+        publicHandle: "demo-store",
+        idempotencyKey: "8d30d36e-5984-4c21-a66f-40f6f7dc71c2",
+        customer: {
+          name: "  Анна  Иванова ",
+          email: " ANNA@EXAMPLE.COM "
+        },
+        items: [
+          {
+            productId: "product-1",
+            variantId: "variant-1",
+            quantity: 2
+          }
+        ]
+      })
+    ).toEqual({
+      ok: true,
+      value: {
+        publicHandle: "demo-store",
+        idempotencyKey: "8d30d36e-5984-4c21-a66f-40f6f7dc71c2",
+        customer: {
+          name: "Анна Иванова",
+          email: "anna@example.com"
+        },
+        items: [
+          {
+            productId: "product-1",
+            variantId: "variant-1",
+            quantity: 2
+          }
+        ]
+      }
+    });
+    expect(
+      validateCreateOrderInput({
+        publicHandle: "demo-store",
+        idempotencyKey: "8d30d36e-5984-4c21-a66f-40f6f7dc71c2",
+        customer: {
+          name: "Анна",
+          email: "anna@example.com"
+        },
+        items: []
+      })
+    ).toEqual({
+      ok: false,
+      code: ORDER_ERROR_CODES.cartEmpty
+    });
+    expect(
+      validateCreateOrderInput({
+        publicHandle: "demo-store",
+        idempotencyKey: "8d30d36e-5984-4c21-a66f-40f6f7dc71c2",
+        customer: {
+          name: "Анна",
+          email: "anna@example.com"
+        },
+        items: [
+          {
+            productId: "product-1",
+            variantId: "variant-1",
+            quantity: 1
+          },
+          {
+            productId: "product-1",
+            variantId: "variant-1",
+            quantity: 1
+          }
+        ]
+      })
+    ).toEqual({
+      ok: false,
+      code: ORDER_ERROR_CODES.cartItemInvalid
+    });
+  });
+
+  it("validates order status transitions", () => {
+    expect(canTransitionOrderStatus("NEW", "CONFIRMED")).toBe(true);
+    expect(canTransitionOrderStatus("CONFIRMED", "PROCESSING")).toBe(true);
+    expect(canTransitionOrderStatus("PROCESSING", "COMPLETED")).toBe(true);
+    expect(canTransitionOrderStatus("PROCESSING", "CANCELLED")).toBe(true);
+    expect(canTransitionOrderStatus("NEW", "PROCESSING")).toBe(false);
+    expect(canTransitionOrderStatus("COMPLETED", "CANCELLED")).toBe(false);
+    expect(canTransitionOrderStatus("CANCELLED", "NEW")).toBe(false);
   });
 
   it("grants OWNER every current permission", () => {

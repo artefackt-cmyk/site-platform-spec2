@@ -160,6 +160,10 @@ export async function seedDevelopmentDatabase(
     projectId: project.id,
     userId: user.id
   });
+  await seedDemoOrders(client, {
+    organizationId: organization.id,
+    projectId: project.id
+  });
 }
 
 async function createAuditLogIfMissing(
@@ -351,6 +355,129 @@ async function seedDemoProducts(
         isDefault: true,
         deletedAt: null
       }
+    });
+  }
+}
+
+async function seedDemoOrders(
+  client: DatabasePrismaClient,
+  input: {
+    readonly organizationId: string;
+    readonly projectId: string;
+  }
+): Promise<void> {
+  const variants = await client.productVariant.findMany({
+    where: {
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      deletedAt: null,
+      product: {
+        deletedAt: null
+      }
+    },
+    include: {
+      product: true
+    },
+    orderBy: {
+      sku: "asc"
+    }
+  });
+
+  const firstVariant = variants[0];
+
+  if (firstVariant === undefined) {
+    return;
+  }
+
+  const secondVariant = variants[1] ?? firstVariant;
+  const demoOrders = [
+    {
+      orderNumber: 1001,
+      status: "NEW" as const,
+      customerName: "Анна Иванова",
+      customerEmail: "anna@example.com",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      publicTokenHash: "seed-public-token-hash-1001",
+      items: [
+        {
+          variant: firstVariant,
+          quantity: 1
+        }
+      ]
+    },
+    {
+      orderNumber: 1002,
+      status: "CONFIRMED" as const,
+      customerName: "Илья Петров",
+      customerEmail: "ilya@example.com",
+      idempotencyKey: "22222222-2222-4222-8222-222222222222",
+      publicTokenHash: "seed-public-token-hash-1002",
+      items: [
+        {
+          variant: secondVariant,
+          quantity: 2
+        }
+      ]
+    }
+  ] as const;
+
+  await client.projectOrderCounter.upsert({
+    where: {
+      projectId: input.projectId
+    },
+    create: {
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      lastOrderNumber: 1002
+    },
+    update: {}
+  });
+
+  for (const demoOrder of demoOrders) {
+    const subtotalMinor = demoOrder.items.reduce(
+      (sum, item) => sum + item.variant.priceMinor * item.quantity,
+      0
+    );
+
+    await client.order.upsert({
+      where: {
+        projectId_idempotencyKey: {
+          projectId: input.projectId,
+          idempotencyKey: demoOrder.idempotencyKey
+        }
+      },
+      create: {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        orderNumber: demoOrder.orderNumber,
+        status: demoOrder.status,
+        currency: "RUB",
+        subtotalMinor,
+        totalMinor: subtotalMinor,
+        customerName: demoOrder.customerName,
+        customerEmail: demoOrder.customerEmail,
+        idempotencyKey: demoOrder.idempotencyKey,
+        idempotencyPayloadHash: `seed-payload-${demoOrder.orderNumber}`,
+        publicHandleSnapshot: DEMO_PROJECT_SLUG,
+        publicTokenHash: demoOrder.publicTokenHash,
+        items: {
+          create: demoOrder.items.map((item) => ({
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            productId: item.variant.productId,
+            variantId: item.variant.id,
+            productNameSnapshot: item.variant.product.title,
+            variantNameSnapshot: item.variant.title,
+            skuSnapshot: item.variant.sku,
+            unitPriceMinor: item.variant.priceMinor,
+            quantity: item.quantity,
+            lineTotalMinor: item.variant.priceMinor * item.quantity,
+            currency: "RUB",
+            inventoryDecremented: false
+          }))
+        }
+      },
+      update: {}
     });
   }
 }

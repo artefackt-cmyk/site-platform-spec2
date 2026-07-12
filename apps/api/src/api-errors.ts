@@ -68,6 +68,18 @@ export const API_ERROR_CODES = {
   authResetTokenInvalid: "AUTH_RESET_TOKEN_INVALID",
   authResetTokenExpired: "AUTH_RESET_TOKEN_EXPIRED",
   authOnboardingRequired: "AUTH_ONBOARDING_REQUIRED",
+  cartEmpty: "CART_EMPTY",
+  cartItemInvalid: "CART_ITEM_INVALID",
+  cartItemUnavailable: "CART_ITEM_UNAVAILABLE",
+  cartQuantityInvalid: "CART_QUANTITY_INVALID",
+  cartPriceChanged: "CART_PRICE_CHANGED",
+  cartStockInsufficient: "CART_STOCK_INSUFFICIENT",
+  orderNotFound: "ORDER_NOT_FOUND",
+  orderIdempotencyConflict: "ORDER_IDEMPOTENCY_CONFLICT",
+  orderStatusInvalid: "ORDER_STATUS_INVALID",
+  orderStatusTransitionInvalid: "ORDER_STATUS_TRANSITION_INVALID",
+  orderProjectUnavailable: "ORDER_PROJECT_UNAVAILABLE",
+  orderCustomerInvalid: "ORDER_CUSTOMER_INVALID",
   rateLimitExceeded: "RATE_LIMIT_EXCEEDED"
 } as const;
 

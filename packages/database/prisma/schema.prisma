@@ -37,6 +37,14 @@ enum ProductCurrency {
   RUB
 }
 
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
 model User {
   id          String       @id @default(cuid())
   email       String       @unique
@@ -116,6 +124,9 @@ model Organization {
   products Product[]
   productVariants ProductVariant[]
   productMedia ProductMedia[]
+  orders Order[]
+  orderItems OrderItem[]
+  projectOrderCounters ProjectOrderCounter[]
   publicationSettings ProjectPublicationSettings[]
   publishedPageSnapshots PublishedPageSnapshot[]
   publishedPageStates PublishedPageState[]
@@ -155,6 +166,9 @@ model Project {
   products       Product[]
   productVariants ProductVariant[]
   productMedia    ProductMedia[]
+  orders          Order[]
+  orderItems      OrderItem[]
+  orderCounter    ProjectOrderCounter?
   publicationSettings ProjectPublicationSettings?
   publishedPageSnapshots PublishedPageSnapshot[]
   publishedPageStates PublishedPageState[]
@@ -319,6 +333,7 @@ model Product {
   updatedByUser       User             @relation("ProductUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
   variants            ProductVariant[]
   media               ProductMedia[]
+  orderItems          OrderItem[]
 
   @@unique([projectId, slug])
   @@index([organizationId])
@@ -352,6 +367,7 @@ model ProductVariant {
   organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   project             Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
   product             Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  orderItems          OrderItem[]
 
   @@unique([projectId, sku])
   @@index([organizationId])
@@ -360,6 +376,84 @@ model ProductVariant {
   @@index([productId, isDefault])
   @@index([productId, position])
   @@map("product_variants")
+}
+
+model ProjectOrderCounter {
+  id              String       @id @default(cuid())
+  organizationId  String       @map("organization_id")
+  projectId       String       @unique @map("project_id")
+  lastOrderNumber Int          @default(1000) @map("last_order_number")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project         Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@map("project_order_counters")
+}
+
+model Order {
+  id                     String       @id @default(cuid())
+  organizationId         String       @map("organization_id")
+  projectId              String       @map("project_id")
+  orderNumber            Int          @map("order_number")
+  status                 OrderStatus  @default(NEW)
+  currency               ProductCurrency @default(RUB)
+  subtotalMinor          Int          @map("subtotal_minor")
+  totalMinor             Int          @map("total_minor")
+  customerName           String       @map("customer_name")
+  customerEmail          String       @map("customer_email")
+  customerPhone          String?      @map("customer_phone")
+  customerComment        String?      @map("customer_comment")
+  idempotencyKey         String       @map("idempotency_key")
+  idempotencyPayloadHash String       @map("idempotency_payload_hash")
+  publicHandleSnapshot   String       @map("public_handle_snapshot")
+  publicTokenHash        String       @unique @map("public_token_hash")
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt              DateTime     @updatedAt @map("updated_at")
+  cancelledAt            DateTime?    @map("cancelled_at")
+  completedAt            DateTime?    @map("completed_at")
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project                Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  items                  OrderItem[]
+
+  @@unique([projectId, orderNumber])
+  @@unique([projectId, idempotencyKey])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([customerEmail])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                    String          @id @default(cuid())
+  orderId               String          @map("order_id")
+  organizationId        String          @map("organization_id")
+  projectId             String          @map("project_id")
+  productId             String?         @map("product_id")
+  variantId             String?         @map("variant_id")
+  productNameSnapshot   String          @map("product_name_snapshot")
+  variantNameSnapshot   String          @map("variant_name_snapshot")
+  skuSnapshot           String          @map("sku_snapshot")
+  unitPriceMinor        Int             @map("unit_price_minor")
+  quantity              Int
+  lineTotalMinor        Int             @map("line_total_minor")
+  currency              ProductCurrency @default(RUB)
+  mediaUrlSnapshot      String?         @map("media_url_snapshot")
+  inventoryDecremented  Boolean         @default(false) @map("inventory_decremented")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  order                 Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project               Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  product               Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant               ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+  @@map("order_items")
 }
 
 model ProductMedia {

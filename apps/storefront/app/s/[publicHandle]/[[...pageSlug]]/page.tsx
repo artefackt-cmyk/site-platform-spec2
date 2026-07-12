@@ -3,6 +3,7 @@ import { loadPublicConfig } from "@site-platform/config";
 import { validatePageDocument } from "@site-platform/editor-core";
 import { PageRenderer } from "@site-platform/renderer";
 import { MercurioLogo } from "@site-platform/ui";
+import { CartBadge } from "../../../cart-client";
 import { fetchPublicSitePage } from "../../../public-site-client";
 
 type StorefrontPageProps = {
@@ -103,7 +104,11 @@ export default async function Page({ params }: StorefrontPageProps) {
               {item.title}
             </a>
           ))}
+          <a href={`${siteBasePath}/products`} style={navLinkStyle}>
+            Каталог
+          </a>
         </nav>
+        <CartBadge publicHandle={publicHandle} />
       </header>
       <main>
         <PageRenderer

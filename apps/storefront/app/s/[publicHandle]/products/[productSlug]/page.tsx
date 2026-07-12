@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { loadPublicConfig } from "@site-platform/config";
+import { CartBadge, ProductAddToCart } from "../../../../cart-client";
 import { fetchPublicProduct } from "../../../../public-site-client";
 import { ProductGallery } from "./product-gallery";
 
@@ -75,6 +76,7 @@ export default async function Page({ params }: ProductPageProps) {
         <a href={`${siteBasePath}/products`} style={linkStyle}>
           Каталог
         </a>
+        <CartBadge publicHandle={publicHandle} />
       </nav>
       <section style={layoutStyle}>
         <ProductGallery title={product.title} images={product.images ?? []} />
@@ -87,6 +89,13 @@ export default async function Page({ params }: ProductPageProps) {
             {product.price === null ? "Цена не указана" : product.price.formatted}
           </p>
           <p style={mutedStyle}>Статус: {toAvailabilityLabel(product.availability)}</p>
+          <ProductAddToCart
+            publicHandle={publicHandle}
+            productId={product.id}
+            productTitle={product.title}
+            variants={product.variants}
+            defaultVariantId={product.defaultVariant?.id ?? null}
+          />
           {product.description === null ? null : (
             <p style={descriptionStyle}>{product.description}</p>
           )}

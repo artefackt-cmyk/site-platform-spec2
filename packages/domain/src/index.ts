@@ -18,6 +18,16 @@ export const PRODUCT_STATUSES = ["DRAFT", "ACTIVE", "ARCHIVED"] as const;
 
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 
+export const ORDER_STATUSES = [
+  "NEW",
+  "CONFIRMED",
+  "PROCESSING",
+  "COMPLETED",
+  "CANCELLED"
+] as const;
+
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
 export const PRODUCT_CURRENCY = "RUB" as const;
 
 export type ProductCurrency = typeof PRODUCT_CURRENCY;
@@ -61,6 +71,26 @@ export type ProductVariant = {
   readonly allowBackorder: boolean;
   readonly isDefault: boolean;
   readonly position: number;
+};
+
+export type CartItem = {
+  readonly productId: string;
+  readonly variantId: string;
+  readonly quantity: number;
+};
+
+export type CheckoutCustomer = {
+  readonly name: string;
+  readonly email: string;
+  readonly phone?: string | undefined;
+  readonly comment?: string | undefined;
+};
+
+export type CreateOrderInput = {
+  readonly publicHandle: string;
+  readonly idempotencyKey: string;
+  readonly customer: CheckoutCustomer;
+  readonly items: readonly CartItem[];
 };
 
 export type TenantContext = {
@@ -209,12 +239,31 @@ export const AUTH_ERROR_CODES = {
   onboardingRequired: "AUTH_ONBOARDING_REQUIRED"
 } as const;
 
+export const ORDER_ERROR_CODES = {
+  cartEmpty: "CART_EMPTY",
+  cartItemInvalid: "CART_ITEM_INVALID",
+  cartItemUnavailable: "CART_ITEM_UNAVAILABLE",
+  cartQuantityInvalid: "CART_QUANTITY_INVALID",
+  cartPriceChanged: "CART_PRICE_CHANGED",
+  cartStockInsufficient: "CART_STOCK_INSUFFICIENT",
+  orderNotFound: "ORDER_NOT_FOUND",
+  orderIdempotencyConflict: "ORDER_IDEMPOTENCY_CONFLICT",
+  orderStatusInvalid: "ORDER_STATUS_INVALID",
+  orderStatusTransitionInvalid: "ORDER_STATUS_TRANSITION_INVALID",
+  orderProjectUnavailable: "ORDER_PROJECT_UNAVAILABLE",
+  orderCustomerInvalid: "ORDER_CUSTOMER_INVALID"
+} as const;
+
 export type AuthErrorCode =
   (typeof AUTH_ERROR_CODES)[keyof typeof AUTH_ERROR_CODES];
+
+export type OrderErrorCode =
+  (typeof ORDER_ERROR_CODES)[keyof typeof ORDER_ERROR_CODES];
 
 export type DomainErrorCode =
   | (typeof DOMAIN_ERROR_CODES)[keyof typeof DOMAIN_ERROR_CODES]
   | AuthErrorCode
+  | OrderErrorCode
   | "AUTH_EMAIL_INVALID"
   | "AUTH_DISPLAY_NAME_REQUIRED"
   | "AUTH_ORGANIZATION_NAME_REQUIRED"
@@ -255,6 +304,11 @@ const VARIANT_SKU_PATTERN = /^[A-Za-z0-9_-]+$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN_LENGTH = 10;
 const PASSWORD_MAX_LENGTH = 256;
+const ORDER_CUSTOMER_NAME_MAX_LENGTH = 120;
+const ORDER_CUSTOMER_COMMENT_MAX_LENGTH = 1000;
+const ORDER_CUSTOMER_PHONE_MAX_LENGTH = 40;
+const ORDER_IDEMPOTENCY_KEY_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const RESERVED_PUBLIC_HANDLES = [
   "api",
   "admin",
@@ -448,6 +502,121 @@ export function validatePasswordResetConfirmInput(
     token: token.value,
     newPassword: password.value
   });
+}
+
+export function validateCreateOrderInput(
+  input: CreateOrderInput
+): ValidationResult<CreateOrderInput> {
+  const publicHandle = validatePublicHandle(input.publicHandle);
+
+  if (!publicHandle.ok) {
+    return invalid(ORDER_ERROR_CODES.orderProjectUnavailable);
+  }
+
+  if (!ORDER_IDEMPOTENCY_KEY_PATTERN.test(input.idempotencyKey.trim())) {
+    return invalid(ORDER_ERROR_CODES.orderIdempotencyConflict);
+  }
+
+  const customer = validateCheckoutCustomer(input.customer);
+
+  if (!customer.ok) {
+    return customer;
+  }
+
+  const items = validateCartItems(input.items);
+
+  if (!items.ok) {
+    return items;
+  }
+
+  return valid({
+    publicHandle: publicHandle.value,
+    idempotencyKey: input.idempotencyKey.trim().toLowerCase(),
+    customer: customer.value,
+    items: items.value
+  });
+}
+
+export function validateCheckoutCustomer(
+  customer: CheckoutCustomer
+): ValidationResult<CheckoutCustomer> {
+  const name = customer.name.trim().replace(/\s+/g, " ");
+
+  if (name.length === 0 || name.length > ORDER_CUSTOMER_NAME_MAX_LENGTH) {
+    return invalid(ORDER_ERROR_CODES.orderCustomerInvalid);
+  }
+
+  const email = validateEmail(customer.email);
+
+  if (!email.ok) {
+    return invalid(ORDER_ERROR_CODES.orderCustomerInvalid);
+  }
+
+  const phone = customer.phone?.trim();
+  const comment = customer.comment?.trim();
+
+  if (phone !== undefined && phone.length > ORDER_CUSTOMER_PHONE_MAX_LENGTH) {
+    return invalid(ORDER_ERROR_CODES.orderCustomerInvalid);
+  }
+
+  if (
+    comment !== undefined &&
+    comment.length > ORDER_CUSTOMER_COMMENT_MAX_LENGTH
+  ) {
+    return invalid(ORDER_ERROR_CODES.orderCustomerInvalid);
+  }
+
+  return valid({
+    name,
+    email: email.value,
+    ...(phone === undefined || phone.length === 0 ? {} : { phone }),
+    ...(comment === undefined || comment.length === 0 ? {} : { comment })
+  });
+}
+
+export function validateCartItems(
+  items: readonly CartItem[]
+): ValidationResult<readonly CartItem[]> {
+  if (items.length === 0) {
+    return invalid(ORDER_ERROR_CODES.cartEmpty);
+  }
+
+  if (items.length > 100) {
+    return invalid(ORDER_ERROR_CODES.cartItemInvalid);
+  }
+
+  const seenVariantIds = new Set<string>();
+  const normalizedItems: CartItem[] = [];
+
+  for (const item of items) {
+    if (
+      item.productId.trim().length === 0 ||
+      item.variantId.trim().length === 0
+    ) {
+      return invalid(ORDER_ERROR_CODES.cartItemInvalid);
+    }
+
+    if (
+      !Number.isInteger(item.quantity) ||
+      item.quantity < 1 ||
+      item.quantity > 99
+    ) {
+      return invalid(ORDER_ERROR_CODES.cartQuantityInvalid);
+    }
+
+    if (seenVariantIds.has(item.variantId)) {
+      return invalid(ORDER_ERROR_CODES.cartItemInvalid);
+    }
+
+    seenVariantIds.add(item.variantId);
+    normalizedItems.push({
+      productId: item.productId,
+      variantId: item.variantId,
+      quantity: item.quantity
+    });
+  }
+
+  return valid(normalizedItems);
 }
 
 export function validateEmail(email: string): ValidationResult<string> {
@@ -743,6 +912,29 @@ export function getProductAvailability(input: {
   }
 
   return input.allowBackorder ? "preorder" : "out-of-stock";
+}
+
+export function canTransitionOrderStatus(
+  from: OrderStatus,
+  to: OrderStatus
+): boolean {
+  if (from === to) {
+    return false;
+  }
+
+  const allowedTransitions = {
+    NEW: ["CONFIRMED", "CANCELLED"],
+    CONFIRMED: ["PROCESSING", "CANCELLED"],
+    PROCESSING: ["COMPLETED", "CANCELLED"],
+    COMPLETED: [],
+    CANCELLED: []
+  } as const satisfies Record<OrderStatus, readonly OrderStatus[]>;
+
+  return (allowedTransitions[from] as readonly OrderStatus[]).includes(to);
+}
+
+export function isOrderStatus(value: string): value is OrderStatus {
+  return (ORDER_STATUSES as readonly string[]).includes(value);
 }
 
 export function formatRubMoney(money: Money): string {

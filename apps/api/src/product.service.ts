@@ -137,6 +137,7 @@ export type PublicProductSummaryResponse = {
   readonly images: readonly ProductGalleryImageResponse[];
   readonly price: ProductMoneyResponse | null;
   readonly availability: ProductAvailabilityResponse;
+  readonly defaultVariant: ProductVariantResponse | null;
   readonly publicUrl: string;
 };
 
@@ -945,6 +946,7 @@ export class PublicCatalogService {
       price: defaultVariant === null ? null : toMoneyResponse(defaultVariant.priceMinor),
       availability:
         defaultVariant === null ? "out-of-stock" : toAvailability(defaultVariant),
+      defaultVariant: defaultVariant === null ? null : toVariantResponse(defaultVariant),
       publicUrl: createPublicProductUrl(this.config, publicHandle, product.slug)
     };
   }

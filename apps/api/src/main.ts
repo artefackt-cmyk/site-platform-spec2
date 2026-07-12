@@ -8,7 +8,12 @@ import { createCsrfOriginMiddleware } from "./csrf-origin";
 async function bootstrap(): Promise<void> {
   const config = loadConfig();
   const app = await NestFactory.create(AppModule);
-  app.enableCors(createApiCorsOptions(config.web.dashboardOrigin));
+  app.enableCors(
+    createApiCorsOptions([
+      config.web.dashboardOrigin,
+      config.web.storefrontOrigin
+    ])
+  );
   app.use(createCsrfOriginMiddleware(config));
   await app.listen(config.ports.api);
 }

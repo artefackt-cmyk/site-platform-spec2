@@ -100,4 +100,27 @@ describe("MercurioAppShell", () => {
     expect(html).not.toContain("Клиенты");
     expect(html).not.toContain("Аналитика");
   });
+
+  it("renders the real project orders route when project navigation is available", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        MercurioAppShell,
+        {
+          activeArea: "orders",
+          project: {
+            id: "project-1",
+            name: "Demo Store",
+            slug: "demo-store",
+            status: "DRAFT",
+            createdAt: "2026-01-01T00:00:00.000Z"
+          }
+        },
+        React.createElement("p", null, "Content")
+      )
+    );
+
+    expect(html).toContain("Заказы");
+    expect(html).toContain("/projects/project-1/orders");
+    expect(html).toContain("aria-current=\"page\"");
+  });
 });

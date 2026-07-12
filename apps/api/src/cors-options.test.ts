@@ -9,11 +9,13 @@ describe("API CORS preflight", () => {
     const moduleRef = await Test.createTestingModule({}).compile();
     const app = moduleRef.createNestApplication();
 
-    app.enableCors(createApiCorsOptions("http://localhost:3000"));
+    app.enableCors(
+      createApiCorsOptions(["http://localhost:3000", "http://localhost:3001"])
+    );
     await app.init();
 
     try {
-      const response = await dispatchPreflight(app);
+      const response = await dispatchPreflight(app, "http://localhost:3000");
 
       expect(response.getHeaderValue("Access-Control-Allow-Origin")).toBe(
         "http://localhost:3000"
@@ -25,6 +27,79 @@ describe("API CORS preflight", () => {
       expect(response.getHeaderValue("Access-Control-Allow-Headers")).toBe(
         "Content-Type"
       );
+    } finally {
+      await app.close();
+      await moduleRef.close();
+    }
+  });
+
+  it("allows storefront POST preflight", async () => {
+    const moduleRef = await Test.createTestingModule({}).compile();
+    const app = moduleRef.createNestApplication();
+
+    app.enableCors(
+      createApiCorsOptions(["http://localhost:3000", "http://localhost:3001"])
+    );
+    await app.init();
+
+    try {
+      const response = await dispatchPreflight(
+        app,
+        "http://localhost:3001",
+        "POST"
+      );
+
+      expect(response.getHeaderValue("Access-Control-Allow-Origin")).toBe(
+        "http://localhost:3001"
+      );
+      expect(response.getHeaderValue("Access-Control-Allow-Credentials")).toBe(
+        "true"
+      );
+      expect(
+        String(response.getHeaderValue("Access-Control-Allow-Methods"))
+      ).toContain("POST");
+    } finally {
+      await app.close();
+      await moduleRef.close();
+    }
+  });
+
+  it("does not emit CORS allow-origin for unrelated origins", async () => {
+    const moduleRef = await Test.createTestingModule({}).compile();
+    const app = moduleRef.createNestApplication();
+
+    app.enableCors(
+      createApiCorsOptions(["http://localhost:3000", "http://localhost:3001"])
+    );
+    await app.init();
+
+    try {
+      const response = await dispatchPreflight(app, "https://example.invalid");
+
+      expect(response.getHeaderValue("Access-Control-Allow-Origin")).toBeUndefined();
+      expect(
+        response.getHeaderValue("Access-Control-Allow-Credentials")
+      ).toBeUndefined();
+    } finally {
+      await app.close();
+      await moduleRef.close();
+    }
+  });
+
+  it("continues to handle requests without Origin without emitting wildcard CORS", async () => {
+    const moduleRef = await Test.createTestingModule({}).compile();
+    const app = moduleRef.createNestApplication();
+
+    app.enableCors(
+      createApiCorsOptions(["http://localhost:3000", "http://localhost:3001"])
+    );
+    await app.init();
+
+    try {
+      const response = await dispatchPreflight(app, undefined);
+
+      expect(response.getHeaderValue("Access-Control-Allow-Origin")).toBeUndefined();
+      expect(response.getHeaderValue("Access-Control-Allow-Origin")).not.toBe("*");
     } finally {
       await app.close();
       await moduleRef.close();
@@ -43,18 +118,27 @@ type ExpressLikeApplication = {
 };
 
 class PreflightRequest {
-  readonly method = "OPTIONS";
+  readonly method: string;
   readonly url = "/api/projects/project-1/pages/page-1/document";
   readonly originalUrl = this.url;
-  readonly headers = {
-    origin: "http://localhost:3000",
-    "access-control-request-method": "PUT",
-    "access-control-request-headers": "Content-Type"
+  readonly headers: {
+    readonly origin?: string;
+    readonly "access-control-request-method": string;
+    readonly "access-control-request-headers": string;
   };
   readonly socket = {
     encrypted: false
   };
   readonly connection = this.socket;
+
+  constructor(origin: string | undefined, requestedMethod: string) {
+    this.method = "OPTIONS";
+    this.headers = {
+      ...(origin === undefined ? {} : { origin }),
+      "access-control-request-method": requestedMethod,
+      "access-control-request-headers": "Content-Type"
+    };
+  }
 }
 
 class PreflightResponse {
@@ -111,10 +195,12 @@ class PreflightResponse {
 }
 
 async function dispatchPreflight(
-  app: INestApplication
+  app: INestApplication,
+  origin: string | undefined,
+  requestedMethod = "PUT"
 ): Promise<PreflightResponse> {
   const expressApp = app.getHttpAdapter().getInstance() as ExpressLikeApplication;
-  const request = new PreflightRequest();
+  const request = new PreflightRequest(origin, requestedMethod);
   const response = new PreflightResponse();
   let nextError: unknown;
 

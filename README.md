@@ -1,6 +1,6 @@
 # Site Platform Spec 2
 
-Минимальный технический каркас monorepo для будущей SaaS-платформы. В репозитории есть foundation-модели для организаций, участников, проектов, страниц и audit log, development-only dashboard с первым блочным редактором страниц, локальная media library и первый flow публикации через immutable snapshots. Production-авторизации, commerce, очередей и реальных интеграций пока нет.
+Минимальный технический каркас monorepo для будущей SaaS-платформы. В репозитории есть foundation-модели для организаций, участников, проектов, страниц и audit log, production-style authentication foundation, development dashboard с блочным редактором страниц, локальная media library, публикация immutable snapshots, первый product catalog и MVP торговый контур cart → checkout → order. Реальных платежей, доставки, налогов, очередей и внешних интеграций пока нет.
 
 ## Требования к окружению
 
@@ -208,6 +208,11 @@ API endpoints:
 - `GET /api/public/sites/:publicHandle/pages/:pageSlug` - публичная опубликованная страница;
 - `GET /api/public/sites/:publicHandle/products` - публичный active catalog;
 - `GET /api/public/sites/:publicHandle/products/:productSlug` - публичная страница active product;
+- `POST /api/public/sites/:publicHandle/orders` - checkout без оплаты: сервер перепроверяет published storefront, active products/variants, stock и создает order snapshots;
+- `GET /api/public/sites/:publicHandle/orders/:publicToken` - публичная success lookup по hashed token без internal ids и без полного email;
+- `GET /api/projects/:projectId/orders` - dashboard список заказов проекта с фильтром статуса и поиском;
+- `GET /api/projects/:projectId/orders/:orderId` - dashboard карточка заказа с customer data и immutable item snapshots;
+- `PATCH /api/projects/:projectId/orders/:orderId/status` - смена статуса заказа по разрешенному lifecycle с audit log и stock restore on cancel;
 - `GET /api/public/media/:assetId/content` - публичная выдача media asset, если он используется active snapshot или active product.
 
 Для раздельного запуска:
@@ -231,6 +236,8 @@ pnpm --filter @site-platform/storefront dev
 - storefront: `http://localhost:3001/s/{publicHandle}/{pageSlug}`;
 - storefront catalog: `http://localhost:3001/s/{publicHandle}/products`;
 - storefront product: `http://localhost:3001/s/{publicHandle}/products/{productSlug}`;
+- storefront checkout: `http://localhost:3001/s/{publicHandle}/checkout`;
+- storefront order success: `http://localhost:3001/s/{publicHandle}/order/{publicToken}`;
 - API: `http://localhost:3002`;
 - database health: `http://localhost:3002/health/database`.
 
@@ -258,6 +265,17 @@ Password reset email provider пока не подключён. В development r
 - открытие раздела товаров;
 - создание товара с title, slug, SKU, ценой и остатком;
 - редактирование описания, primary image, variants и статуса товара;
+- просмотр заказов проекта;
+- открытие карточки заказа;
+- смена статуса заказа без payment/shipping/refund UI.
+
+Сейчас в storefront уже работает:
+
+- client-side cart, scoped by `publicHandle`, с localStorage persistence;
+- добавление товара/варианта в корзину, merge duplicate variants, quantity 1..99;
+- checkout без оплаты, доставки, адреса, налогов и скидок;
+- server-side order creation с перепроверкой цены/доступности/остатков;
+- order success page по public token с masked email и без internal ids.
 - activation/archive/soft delete товара;
 - просмотр страниц проекта;
 - создание страниц проекта;

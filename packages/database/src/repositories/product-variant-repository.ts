@@ -185,6 +185,62 @@ export class ProductVariantRepository {
     );
   }
 
+  async decrementStockIfAvailable(input: {
+    readonly organizationId: string;
+    readonly projectId: string;
+    readonly productId: string;
+    readonly variantId: string;
+    readonly quantity: number;
+    readonly requireAvailableStock: boolean;
+  }): Promise<boolean> {
+    const result = await this.client.productVariant.updateMany({
+      where: {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        productId: input.productId,
+        id: input.variantId,
+        deletedAt: null,
+        ...(input.requireAvailableStock
+          ? {
+              stockQuantity: {
+                gte: input.quantity
+              }
+            }
+          : {})
+      },
+      data: {
+        stockQuantity: {
+          decrement: input.quantity
+        }
+      }
+    });
+
+    return result.count === 1;
+  }
+
+  async restoreStock(input: {
+    readonly organizationId: string;
+    readonly projectId: string;
+    readonly variantId: string;
+    readonly quantity: number;
+  }): Promise<boolean> {
+    const result = await this.client.productVariant.updateMany({
+      where: {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        id: input.variantId,
+        deletedAt: null
+      },
+      data: {
+        stockQuantity: {
+          increment: input.quantity
+        }
+      }
+    });
+
+    return result.count === 1;
+  }
+
   async reorder(
     context: TenantContext,
     projectId: string,

@@ -14,6 +14,8 @@ import { HealthController } from "./health.controller";
 import { MediaController } from "./media.controller";
 import { MediaService } from "./media.service";
 import { MeController } from "./me.controller";
+import { OrderController, PublicOrderController } from "./order.controller";
+import { OrderService } from "./order.service";
 import {
   PublicationController,
   PublicSiteController
@@ -38,7 +40,9 @@ import { ProjectsService } from "./projects.service";
     PublicationController,
     PublicSiteController,
     ProductController,
-    PublicProductController
+    PublicProductController,
+    OrderController,
+    PublicOrderController
   ],
   providers: [
     appConfigProvider,
@@ -65,6 +69,7 @@ import { ProjectsService } from "./projects.service";
     PublicSiteService,
     ProductService,
     PublicCatalogService,
+    OrderService,
     AuthService
   ]
 })

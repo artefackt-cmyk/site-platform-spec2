@@ -7,6 +7,7 @@ export type MercurioShellArea =
   | "project"
   | "pages"
   | "products"
+  | "orders"
   | "media"
   | "editor"
   | "preview";
@@ -15,7 +16,7 @@ type MercurioNavItem = {
   readonly id: MercurioShellArea;
   readonly label: string;
   readonly href: string;
-  readonly icon: "folder" | "grid" | "page" | "box" | "image";
+  readonly icon: "folder" | "grid" | "page" | "box" | "receipt" | "image";
 };
 
 export function MercurioAppShell({
@@ -84,6 +85,12 @@ function MercurioSidebar({
             label: "Товары",
             href: `/projects/${projectId}/products`,
             icon: "box"
+          },
+          {
+            id: "orders",
+            label: "Заказы",
+            href: `/projects/${projectId}/orders`,
+            icon: "receipt"
           },
           {
             id: "media",
@@ -193,13 +200,21 @@ function MercurioTopbar({
 function MercurioNavIcon({
   name
 }: {
-  readonly name: "folder" | "grid" | "page" | "box" | "image" | "building";
+  readonly name:
+    | "folder"
+    | "grid"
+    | "page"
+    | "box"
+    | "receipt"
+    | "image"
+    | "building";
 }) {
   const pathByName = {
     folder: "M5 18V8h6l2 3h6v7H5Zm0-7h14",
     grid: "M5 5h6v6H5V5Zm8 0h6v6h-6V5ZM5 13h6v6H5v-6Zm8 0h6v6h-6v-6Z",
     page: "M7 4h7l4 4v12H7V4Zm7 0v5h5",
     box: "M5 8l7-4 7 4v8l-7 4-7-4V8Zm7 4 7-4M12 12 5 8m7 4v8",
+    receipt: "M7 4h10v16l-2-1-2 1-2-1-2 1-2-1V4Zm3 5h4m-4 4h4m-4 4h2",
     image: "M5 6h14v12H5V6Zm3 9 3-4 2 2 2-3 3 5",
     building: "M6 20V5h8v15M4 20h16M9 8h2m-2 4h2m-2 4h2m5-3h2m-2 4h2"
   } as const;

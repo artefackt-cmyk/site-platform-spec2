@@ -12,6 +12,7 @@ import {
   disconnectPrismaClient,
   MediaAssetRepository,
   MembershipRepository,
+  OrderRepository,
   OrganizationCreationService,
   PageDocumentInvalidError,
   PageDocumentRepository,
@@ -20,6 +21,7 @@ import {
   ProductMediaRepositoryError,
   ProductRepository,
   ProductVariantRepository,
+  ProjectOrderCounterRepository,
   ProjectPublicationSettingsRepository,
   ProjectRepository,
   PublishedPageSnapshotRepository,
@@ -481,6 +483,99 @@ describe.skipIf(integrationConfig === undefined)(
           productA.id
         )
       ).resolves.toBeNull();
+    });
+
+    it("creates tenant-safe orders with snapshots and idempotency lookup", async () => {
+      const currentClient = getClient(client);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const tenantB = await createOrganizationFixture(currentClient, "tenant-b");
+      const tenantAContext = createTenantContext(tenantA);
+      const tenantBContext = createTenantContext(tenantB);
+      const projectRepository = new ProjectRepository(currentClient);
+      const orderRepository = new OrderRepository(currentClient);
+      const counterRepository = new ProjectOrderCounterRepository(currentClient);
+      const projectA = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Tenant A Orders",
+        slug: "tenant-a-orders"
+      });
+      const projectB = await projectRepository.create({
+        organizationId: tenantB.organization.id,
+        name: "Tenant B Orders",
+        slug: "tenant-b-orders"
+      });
+      const orderNumber = await counterRepository.nextOrderNumber({
+        organizationId: tenantA.organization.id,
+        projectId: projectA.id
+      });
+      const nextOrderNumber = await counterRepository.nextOrderNumber({
+        organizationId: tenantA.organization.id,
+        projectId: projectA.id
+      });
+
+      expect(orderNumber).toBe(1001);
+      expect(nextOrderNumber).toBe(1002);
+
+      const order = await orderRepository.create({
+        organizationId: tenantA.organization.id,
+        projectId: projectA.id,
+        orderNumber,
+        currency: "RUB",
+        subtotalMinor: 129900,
+        totalMinor: 129900,
+        customerName: "Анна",
+        customerEmail: "anna@example.com",
+        idempotencyKey: "8d30d36e-5984-4c21-a66f-40f6f7dc71c2",
+        idempotencyPayloadHash: "payload-hash",
+        publicHandleSnapshot: "demo-store",
+        publicTokenHash: "token-hash",
+        items: [
+          {
+            productId: null,
+            variantId: null,
+            productNameSnapshot: "Snapshot Product",
+            variantNameSnapshot: "Default",
+            skuSnapshot: "SKU-001",
+            unitPriceMinor: 129900,
+            quantity: 1,
+            lineTotalMinor: 129900,
+            currency: "RUB",
+            inventoryDecremented: true
+          }
+        ]
+      });
+
+      expect(order.items[0]).toMatchObject({
+        productNameSnapshot: "Snapshot Product",
+        unitPriceMinor: 129900
+      });
+      await expect(
+        orderRepository.findByProjectAndIdempotency({
+          projectId: projectA.id,
+          idempotencyKey: "8d30d36e-5984-4c21-a66f-40f6f7dc71c2"
+        })
+      ).resolves.toMatchObject({
+        id: order.id
+      });
+      await expect(
+        orderRepository.getByProjectAndId({
+          tenantContext: tenantBContext,
+          projectId: projectB.id,
+          orderId: order.id
+        })
+      ).resolves.toBeNull();
+      await expect(
+        orderRepository.findByPublicTokenHash("token-hash")
+      ).resolves.toMatchObject({
+        id: order.id
+      });
+      await expect(
+        orderRepository.listByProject({
+          tenantContext: tenantAContext,
+          projectId: projectA.id,
+          search: "anna"
+        })
+      ).resolves.toHaveLength(1);
     });
 
     it("manages product media with tenant and project isolation", async () => {
@@ -1255,6 +1350,9 @@ async function createOrganizationFixture(
 
 async function clearDatabase(client: DatabasePrismaClient): Promise<void> {
   await client.auditLog.deleteMany();
+  await client.orderItem.deleteMany();
+  await client.order.deleteMany();
+  await client.projectOrderCounter.deleteMany();
   await client.publishedPageState.deleteMany();
   await client.publishedPageSnapshot.deleteMany();
   await client.projectPublicationSettings.deleteMany();

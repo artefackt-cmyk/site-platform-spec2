@@ -138,6 +138,9 @@ function ProjectWorkspaceTopbar({
         <a className="ghost-button" href={`/projects/${project.id}/products`}>
           Товары
         </a>
+        <a className="ghost-button" href={`/projects/${project.id}/orders`}>
+          Заказы
+        </a>
         <a className="ghost-button" href={`/projects/${project.id}/media`}>
           Медиа
         </a>

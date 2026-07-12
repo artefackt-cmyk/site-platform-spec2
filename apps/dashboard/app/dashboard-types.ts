@@ -4,6 +4,12 @@ import type { PageDocumentV2 } from "@site-platform/editor-core";
 export type ProjectStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 export type SitePageStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type ProductStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+export type OrderStatus =
+  | "NEW"
+  | "CONFIRMED"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "CANCELLED";
 
 export type CurrentUserResponse = {
   readonly user?: {
@@ -167,6 +173,49 @@ export type ProductDetailResponse = {
 
 export type ProductMediaListResponse = {
   readonly images: readonly ProductGalleryImage[];
+};
+
+export type OrderSummary = {
+  readonly id: string;
+  readonly orderNumber: number;
+  readonly status: OrderStatus;
+  readonly customerName: string;
+  readonly customerEmail: string;
+  readonly totalMinor: number;
+  readonly currency: "RUB";
+  readonly itemsCount: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+};
+
+export type OrderItem = {
+  readonly productName: string;
+  readonly variantName: string;
+  readonly sku: string;
+  readonly unitPriceMinor: number;
+  readonly quantity: number;
+  readonly lineTotalMinor: number;
+  readonly currency: "RUB";
+  readonly productId: string | null;
+  readonly variantId: string | null;
+  readonly mediaUrl: string | null;
+};
+
+export type OrderDetail = OrderSummary & {
+  readonly customerPhone: string | null;
+  readonly customerComment: string | null;
+  readonly subtotalMinor: number;
+  readonly cancelledAt: string | null;
+  readonly completedAt: string | null;
+  readonly items: readonly OrderItem[];
+};
+
+export type OrdersListResponse = {
+  readonly orders: readonly OrderSummary[];
+  readonly pagination: {
+    readonly page: number;
+    readonly pageSize: number;
+  };
 };
 
 export type UploadMediaAssetResponse = {

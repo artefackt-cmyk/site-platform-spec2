@@ -8,6 +8,9 @@ import type {
   CurrentUserResponse,
   DeleteMediaAssetResponse,
   MediaAssetsListResponse,
+  OrderDetail,
+  OrderStatus,
+  OrdersListResponse,
   PublicationHistoryResponse,
   PublicationSettingsResponse,
   PublicationStatusResponse,
@@ -241,6 +244,22 @@ export type DashboardApiClient = {
       readonly orderedIds: readonly string[];
     }
   ) => Promise<ProductMediaListResponse>;
+  readonly listOrders: (
+    projectId: string,
+    input?: {
+      readonly status?: OrderStatus;
+      readonly search?: string;
+    }
+  ) => Promise<OrdersListResponse>;
+  readonly getOrder: (
+    projectId: string,
+    orderId: string
+  ) => Promise<OrderDetail>;
+  readonly updateOrderStatus: (
+    projectId: string,
+    orderId: string,
+    status: OrderStatus
+  ) => Promise<OrderDetail>;
   readonly getPublicationSettings: (
     projectId: string
   ) => Promise<PublicationSettingsResponse>;
@@ -644,6 +663,45 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
             "Content-Type": "application/json"
           },
           body: JSON.stringify(input)
+        }
+      ),
+    listOrders: (projectId, input) => {
+      const query = new URLSearchParams();
+
+      if (input?.status !== undefined) {
+        query.set("status", input.status);
+      }
+
+      if (input?.search !== undefined && input.search.trim() !== "") {
+        query.set("search", input.search.trim());
+      }
+
+      const suffix = query.size === 0 ? "" : `?${query.toString()}`;
+
+      return request<OrdersListResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/orders${suffix}`
+      );
+    },
+    getOrder: (projectId, orderId) =>
+      request<OrderDetail>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/orders/${encodeURIComponent(
+          orderId
+        )}`
+      ),
+    updateOrderStatus: (projectId, orderId, status) =>
+      request<OrderDetail>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/orders/${encodeURIComponent(
+          orderId
+        )}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ status })
         }
       ),
     getPublicationSettings: (projectId) =>

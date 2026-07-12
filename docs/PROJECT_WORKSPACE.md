@@ -187,6 +187,8 @@ Customer storefront system public URLs remain under `/s`:
 | `/s/[publicHandle]/[pageSlug]` | Render an active published page. |
 | `/s/[publicHandle]/products` | Render the active public catalog. |
 | `/s/[publicHandle]/products/[productSlug]` | Render an active product detail page. |
+| `/s/[publicHandle]/checkout` | Client-side cart checkout without payment or delivery. |
+| `/s/[publicHandle]/order/[publicToken]` | Public order success page by unguessable token. |
 
 Storefront pages:
 
@@ -200,6 +202,45 @@ Storefront pages:
 Published media URLs are materialized by the public API response. The immutable snapshot keeps the original PageDocument V2; the public DTO rewrites media-library image `src` values to `/api/public/media/:assetId/content`.
 
 Product blocks are rendered from public product DTOs prepared by the API. The renderer does not query the database. Product visibility is independent from page snapshot publication: active products can appear in product blocks and product routes without republishing a page.
+
+## Cart, Checkout And Orders
+
+The first commerce loop is intentionally limited to product → cart → checkout →
+order → dashboard management.
+
+Cart is client-side state in `apps/storefront`, persisted in `localStorage` only
+for cart lines and scoped by `publicHandle`. It stores product id, variant id,
+quantity and display labels. It does not store authoritative prices, stock truth
+or customer personal data.
+
+Checkout lives at `/s/[publicHandle]/checkout` and asks for:
+
+- customer name;
+- email;
+- optional phone;
+- optional comment;
+- consent checkbox.
+
+There is no payment, delivery, address, tax, discount, refund or invoice UI.
+The API recalculates totals and validates active published storefront, active
+products, active variants, quantity and stock before creating an order.
+
+Orders store immutable item snapshots. Product edits or archive actions do not
+change historical order names, SKU or prices. Order numbers start at `1001` per
+project and are allocated by `ProjectOrderCounter`, not by `count()+1`.
+
+Order lifecycle:
+
+- `NEW -> CONFIRMED`;
+- `NEW -> CANCELLED`;
+- `CONFIRMED -> PROCESSING`;
+- `CONFIRMED -> CANCELLED`;
+- `PROCESSING -> COMPLETED`;
+- `PROCESSING -> CANCELLED`.
+
+`COMPLETED` and `CANCELLED` are terminal. Cancelling restores stock once for
+items that were decremented during order creation. Completing does not change
+stock.
 
 ## Media Library
 
@@ -232,6 +273,8 @@ Dashboard routes:
 | `/projects/[projectId]/media` | Project media library. |
 | `/projects/[projectId]/products` | Project product catalog. |
 | `/projects/[projectId]/products/[productId]` | Product editor. |
+| `/projects/[projectId]/orders` | Project orders list. |
+| `/projects/[projectId]/orders/[orderId]` | Project order detail and status actions. |
 | `/projects/[projectId]/pages/[pageId]` | Page editor. |
 | `/projects/[projectId]/pages/[pageId]/preview` | Preview of the saved draft page document. |
 | `http://localhost:3001/` | Mercurio marketing homepage. |
@@ -239,6 +282,8 @@ Dashboard routes:
 | `http://localhost:3001/s/[publicHandle]/[pageSlug]` | Public published page. |
 | `http://localhost:3001/s/[publicHandle]/products` | Public product catalog. |
 | `http://localhost:3001/s/[publicHandle]/products/[productSlug]` | Public product detail page. |
+| `http://localhost:3001/s/[publicHandle]/checkout` | Storefront checkout. |
+| `http://localhost:3001/s/[publicHandle]/order/[publicToken]` | Storefront order success. |
 
 API routes:
 
@@ -274,6 +319,9 @@ API routes:
 | `PATCH /api/projects/:projectId/products/:productId/variants/:variantId` | Update a product variant. |
 | `DELETE /api/projects/:projectId/products/:productId/variants/:variantId` | Soft delete a product variant. |
 | `POST /api/projects/:projectId/products/:productId/variants/:variantId/set-default` | Set the default variant. |
+| `GET /api/projects/:projectId/orders` | List project orders for the dashboard. |
+| `GET /api/projects/:projectId/orders/:orderId` | Return one project order with item snapshots. |
+| `PATCH /api/projects/:projectId/orders/:orderId/status` | Move an order through the allowed status lifecycle. |
 | `GET /api/projects/:projectId/publication-settings` | Return public handle and system public URLs. |
 | `PATCH /api/projects/:projectId/publication-settings` | Update public handle. |
 | `GET /api/projects/:projectId/pages/:pageId/publication-status` | Return computed publication status. |
@@ -285,6 +333,8 @@ API routes:
 | `GET /api/public/sites/:publicHandle/pages/:pageSlug` | Return active published page. |
 | `GET /api/public/sites/:publicHandle/products` | Return active public catalog. |
 | `GET /api/public/sites/:publicHandle/products/:productSlug` | Return an active public product. |
+| `POST /api/public/sites/:publicHandle/orders` | Create a public checkout order after server-side validation. |
+| `GET /api/public/sites/:publicHandle/orders/:publicToken` | Return public order success data by hashed token lookup. |
 | `GET /api/public/media/:assetId/content` | Serve media only when used by an active published snapshot or active product. |
 
 All project, page and document queries are tenant-aware. Cross-tenant access returns `not found`.
