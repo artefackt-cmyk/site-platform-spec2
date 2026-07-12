@@ -5,7 +5,10 @@ import {
   DashboardApiError,
   createDashboardApiClient
 } from "./dashboard-api-client";
-import type { CreatePageFormValues } from "./dashboard-types";
+import type {
+  CreatePageFormValues,
+  ProjectSiteSettingsResponse
+} from "./dashboard-types";
 import { validateCreatePageForm } from "./page-form-model";
 import {
   ProjectWorkspaceView,
@@ -46,15 +49,17 @@ export function ProjectWorkspaceApp({
     });
 
     try {
-      const [project, pagesResponse] = await Promise.all([
+      const [project, pagesResponse, siteSettings] = await Promise.all([
         apiClient.getProject(projectId),
-        apiClient.listProjectPages(projectId)
+        apiClient.listProjectPages(projectId),
+        apiClient.getProjectSiteSettings(projectId)
       ]);
 
       setState({
         status: "ready",
         project,
-        pages: pagesResponse.pages
+        pages: pagesResponse.pages,
+        siteSettings
       });
     } catch (error) {
       setState({
@@ -145,6 +150,29 @@ export function ProjectWorkspaceApp({
     [apiClient, form.values, projectId]
   );
 
+  const updateSiteSettings = useCallback(
+    async (settings: ProjectSiteSettingsResponse): Promise<boolean> => {
+      try {
+        const updated = await apiClient.updateProjectSiteSettings(projectId, settings);
+
+        setState((currentState) =>
+          currentState.status !== "ready"
+            ? currentState
+            : {
+                ...currentState,
+                siteSettings: updated
+              }
+        );
+
+        return true;
+      } catch (error) {
+        window.alert(toUserFacingError(error));
+        return false;
+      }
+    },
+    [apiClient, projectId]
+  );
+
   return (
     <ProjectWorkspaceView
       state={state}
@@ -155,6 +183,7 @@ export function ProjectWorkspaceApp({
       onCloseCreatePageForm={closeCreatePageForm}
       onPageFormChange={changePageForm}
       onSubmitCreatePage={submitCreatePage}
+      onUpdateSiteSettings={updateSiteSettings}
     />
   );
 }

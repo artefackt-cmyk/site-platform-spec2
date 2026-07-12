@@ -175,6 +175,43 @@ describe("@site-platform/renderer", () => {
     expect(html).toContain("grid-template-columns:1fr 1fr");
   });
 
+  it("keeps hidden sections editable but omits them from storefront", () => {
+    const document = insertBlock(createEmptyPageDocument(), {
+      id: "text-1",
+      type: "text",
+      props: {
+        text: "Hidden draft copy",
+        align: "left"
+      }
+    });
+    const hiddenDocument = {
+      ...document,
+      root: {
+        ...document.root,
+        children: document.root.children.map((section) => ({
+          ...section,
+          isHidden: true
+        }))
+      }
+    };
+
+    const editorHtml = renderToStaticMarkup(
+      React.createElement(PageRenderer, {
+        document: hiddenDocument,
+        mode: "editor"
+      })
+    );
+    const storefrontHtml = renderToStaticMarkup(
+      React.createElement(PageRenderer, {
+        document: hiddenDocument,
+        mode: "storefront"
+      })
+    );
+
+    expect(editorHtml).toContain("Hidden draft copy");
+    expect(storefrontHtml).not.toContain("Hidden draft copy");
+  });
+
   it("renders image placeholders and safe image URLs", () => {
     const placeholderHtml = renderDocument([
       {

@@ -8,7 +8,8 @@ import type {
 import { validatePageDocument, type PageDocumentV2 } from "@site-platform/editor-core";
 import { SitePageRepository } from "./site-page-repository";
 import { toPrismaJson } from "./page-document-repository";
-import type { RepositoryPrismaClient } from "../types";
+import type { PrismaJsonInput, RepositoryPrismaClient } from "../types";
+import type { SiteSettingsSnapshotJson } from "./project-site-settings-repository";
 
 export type CreatePublishedPageSnapshotInput = {
   readonly tenantContext: TenantContext;
@@ -17,6 +18,7 @@ export type CreatePublishedPageSnapshotInput = {
   readonly pageTitle: string;
   readonly pageSlug: string;
   readonly document: PageDocumentV2;
+  readonly siteSettingsSnapshot?: SiteSettingsSnapshotJson | null;
   readonly sourceRevision: number;
   readonly publishedByUserId: string;
   readonly rollbackSourceSnapshotId?: string | null;
@@ -62,6 +64,12 @@ export class PublishedPageSnapshotRepository {
         pageTitle: input.pageTitle,
         pageSlug: input.pageSlug,
         documentJson: toPrismaJson(validation.document),
+        ...(input.siteSettingsSnapshot === undefined ||
+        input.siteSettingsSnapshot === null
+          ? {}
+          : {
+              siteSettingsJson: toSnapshotJson(input.siteSettingsSnapshot)
+            }),
         sourceRevision: input.sourceRevision,
         publishedByUserId: input.publishedByUserId,
         rollbackSourceSnapshotId: input.rollbackSourceSnapshotId ?? null,
@@ -208,6 +216,10 @@ export class PublishedPageSnapshotRepository {
 
     return (result._max.version ?? 0) + 1;
   }
+}
+
+function toSnapshotJson(value: SiteSettingsSnapshotJson): PrismaJsonInput {
+  return value as unknown as PrismaJsonInput;
 }
 
 function snapshotScope(

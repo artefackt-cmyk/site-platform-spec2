@@ -21,13 +21,18 @@ import {
   canSaveEditorState,
   convertSelectedSection,
   createEditorState,
+  duplicateSectionById,
+  insertSectionAdjacent,
   markSaveError,
   markSaved,
   markSaving,
   moveNode,
   removeNodeById,
+  removeSectionById,
+  renameSectionById,
   selectNode,
   selectImageAssetForSelectedBlock,
+  setSectionHiddenById,
   updateSelectedImageExternalUrl,
   updateSelectedNodeProps
 } from "./page-editor-state";
@@ -462,6 +467,21 @@ export function PageEditorApp({
       onAddSection={() => updateEditor((editor) => addSection(editor))}
       onAddHeroSection={() => updateEditor((editor) => addHeroSection(editor))}
       onAddTextSection={() => updateEditor((editor) => addTextSection(editor))}
+      onInsertSection={(sectionId, position) =>
+        updateEditor((editor) => insertSectionAdjacent(editor, sectionId, position))
+      }
+      onDuplicateSection={(sectionId) =>
+        updateEditor((editor) => duplicateSectionById(editor, sectionId))
+      }
+      onRenameSection={(sectionId, name) =>
+        updateEditor((editor) => renameSectionById(editor, sectionId, name))
+      }
+      onToggleSectionHidden={(sectionId, isHidden) =>
+        updateEditor((editor) => setSectionHiddenById(editor, sectionId, isHidden))
+      }
+      onRemoveSection={(sectionId) =>
+        updateEditor((editor) => removeSectionById(editor, sectionId))
+      }
       onAddBlock={(type: BlockType) => updateEditor((editor) => addBlock(editor, type))}
       onSelectNode={(nodeId) =>
         updateEditor((editor) => selectNode(editor, nodeId))

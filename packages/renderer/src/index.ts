@@ -86,13 +86,17 @@ export function PageRenderer({
           "@media (max-width: 768px) {.sp-section-columns{grid-template-columns:1fr!important;}}"
       }
     }),
-    document.root.children.map((section) =>
-      renderSection({
-        section,
-        mode,
-        selectedId,
-        context: rendererContext
-      })
+    document.root.children.flatMap((section) =>
+      section.isHidden === true && mode !== "editor"
+        ? []
+        : [
+            renderSection({
+              section,
+              mode,
+              selectedId,
+              context: rendererContext
+            })
+          ]
     )
   );
 }
@@ -156,6 +160,7 @@ function renderSection(input: {
       style: {
         ...createSectionStyle(input.section),
         ...editorSectionStyle,
+        ...(input.section.isHidden ? hiddenSectionStyle : {}),
         ...(selected ? selectedChromeStyle : {})
       }
     },
@@ -887,6 +892,10 @@ const editorBlockStyle: React.CSSProperties = {
 const selectedChromeStyle: React.CSSProperties = {
   borderColor: "#3b4c63",
   background: "#f3f6fa"
+};
+
+const hiddenSectionStyle: React.CSSProperties = {
+  opacity: 0.48
 };
 
 const emptyStateStyle: React.CSSProperties = {

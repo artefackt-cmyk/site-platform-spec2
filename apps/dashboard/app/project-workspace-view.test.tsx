@@ -71,7 +71,8 @@ function renderWorkspace(input: {
       onOpenCreatePageForm: () => undefined,
       onCloseCreatePageForm: () => undefined,
       onPageFormChange: () => undefined,
-      onSubmitCreatePage: () => undefined
+      onSubmitCreatePage: () => undefined,
+      onUpdateSiteSettings: async () => true
     })
   );
 }
@@ -97,7 +98,29 @@ function createReadyState(): ProjectWorkspaceLoadState {
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z"
       }
-    ]
+    ],
+    siteSettings: {
+      projectId: "project-1",
+      revision: 1,
+      headerEnabled: true,
+      footerEnabled: true,
+      header: {
+        brandText: "Demo Store",
+        logoUrl: "",
+        navigation: [],
+        cartLinkEnabled: true,
+        ctaLabel: "",
+        ctaUrl: ""
+      },
+      footer: {
+        brandText: "Demo Store",
+        description: "",
+        email: "",
+        phone: "",
+        legalText: "",
+        copyrightText: "© 2026 Demo Store"
+      }
+    }
   };
 }
 

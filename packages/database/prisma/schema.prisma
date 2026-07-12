@@ -128,6 +128,7 @@ model Organization {
   orderItems OrderItem[]
   projectOrderCounters ProjectOrderCounter[]
   publicationSettings ProjectPublicationSettings[]
+  projectSiteSettings ProjectSiteSettings[]
   publishedPageSnapshots PublishedPageSnapshot[]
   publishedPageStates PublishedPageState[]
   auditLogs   AuditLog[]
@@ -170,6 +171,7 @@ model Project {
   orderItems      OrderItem[]
   orderCounter    ProjectOrderCounter?
   publicationSettings ProjectPublicationSettings?
+  siteSettings ProjectSiteSettings?
   publishedPageSnapshots PublishedPageSnapshot[]
   publishedPageStates PublishedPageState[]
 
@@ -215,6 +217,24 @@ model ProjectPublicationSettings {
   @@map("project_publication_settings")
 }
 
+model ProjectSiteSettings {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  projectId      String       @unique @map("project_id")
+  headerDraft    Json         @map("header_draft")
+  footerDraft    Json         @map("footer_draft")
+  headerEnabled  Boolean      @default(true) @map("header_enabled")
+  footerEnabled  Boolean      @default(true) @map("footer_enabled")
+  revision       Int          @default(1)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@map("project_site_settings")
+}
+
 model PublishedPageSnapshot {
   id                       String       @id @default(cuid())
   organizationId           String       @map("organization_id")
@@ -224,6 +244,7 @@ model PublishedPageSnapshot {
   pageTitle                String       @map("page_title")
   pageSlug                 String       @map("page_slug")
   documentJson             Json         @map("document_json")
+  siteSettingsJson         Json?        @map("site_settings_json")
   sourceRevision           Int          @map("source_revision")
   rollbackSourceSnapshotId String?      @map("rollback_source_snapshot_id")
   publishedByUserId        String       @map("published_by_user_id")

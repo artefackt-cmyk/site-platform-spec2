@@ -90,6 +90,7 @@ pnpm db:migrate:test
 - `ProductMedia`;
 - `ProductVariant`;
 - `ProjectPublicationSettings`;
+- `ProjectSiteSettings`;
 - `PublishedPageSnapshot`;
 - `PublishedPageState`;
 - `AuditLog`.
@@ -108,7 +109,7 @@ pnpm db:reset:test
 
 `db:reset:test` откажется выполняться, если активное окружение не `test`, если `TEST_DATABASE_URL` совпадает с `DATABASE_URL`, или если URL не распознан как тестовая база.
 
-Commerce и integration-модели пока намеренно не добавлены. `PageDocument` хранит только текущий draft-документ страницы; published snapshot пока отсутствует.
+Commerce и integration-модели пока намеренно не добавлены. `PageDocument` хранит текущий draft-документ страницы, а публикация создает immutable snapshots.
 
 ## Development Seed
 
@@ -135,6 +136,16 @@ Seed работает только вне production и идемпотентно
 
 Seed не мигрирует и не перезаписывает существующие V1/V2 документы. V1 документы мигрируются в памяти при чтении и становятся V2 только после явного сохранения.
 Seed не публикует страницы автоматически: publication flow проверяется вручную через dashboard.
+
+## Page Structure v1
+
+Страница состоит из ordered list секций в `PageDocument.root.children`. Длина страницы определяется количеством и содержимым секций; отдельного свойства длины нет. Секция имеет стабильный `id`, пользовательское `name`, `isHidden`, layout props, content children и metadata. MVP limit: 64 секции на страницу, имя секции до 80 символов. Пустая страница и пустая секция допустимы.
+
+Редактор показывает section navigator для выбора, scroll-to-section, rename, duplicate, hide/show, delete и move up/down. Hidden section остаётся в draft и snapshot, но не рендерится в preview/storefront режимах renderer.
+
+`ProjectSiteSettings` хранит один глобальный header/footer на проект. Настройки header/footer попадают в published snapshot страницы, поэтому draft-изменения не протекают в storefront до следующей публикации. Legacy snapshots без `site_settings_json` получают fallback на основе имени проекта.
+
+Ограничения текущего milestone: нет Theme Engine, светлой/тёмной темы, выбора шрифтов, сложных header/footer layout, nested/mega menu, анимаций, horizontal page flow, component builder и template marketplace.
 
 Для повторного запуска seed после изменения локальных данных выполните:
 
@@ -176,6 +187,13 @@ API endpoints:
 - `PATCH /api/projects/:projectId/pages/:pageId` - обновление title, slug и home flag страницы;
 - `GET /api/projects/:projectId/pages/:pageId/document` - draft-документ страницы; если документа нет, API создает пустой документ.
 - `PUT /api/projects/:projectId/pages/:pageId/document` - сохранение draft-документа с optimistic concurrency по `revision`.
+- `POST /api/projects/:projectId/pages/:pageId/sections` - добавить секцию в конец или вставить до/после другой секции;
+- `POST /api/projects/:projectId/pages/:pageId/sections/:sectionId/duplicate` - дублировать секцию с новыми вложенными ids;
+- `PATCH /api/projects/:projectId/pages/:pageId/sections/:sectionId` - переименовать или скрыть/показать секцию;
+- `DELETE /api/projects/:projectId/pages/:pageId/sections/:sectionId` - удалить секцию из draft;
+- `POST /api/projects/:projectId/pages/:pageId/sections/reorder` - сохранить полный порядок секций по ids;
+- `GET /api/projects/:projectId/site-settings` - draft-настройки глобальных header/footer проекта;
+- `PATCH /api/projects/:projectId/site-settings` - обновление глобальных header/footer проекта;
 - `GET /api/projects/:projectId/media` - изображения проекта;
 - `POST /api/projects/:projectId/media` - загрузка JPEG, PNG или WebP до 10 MB;
 - `PATCH /api/projects/:projectId/media/:assetId` - обновление media metadata;

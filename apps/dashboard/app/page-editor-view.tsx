@@ -52,6 +52,14 @@ export type PageEditorViewProps = {
   readonly onAddSection: () => void;
   readonly onAddHeroSection: () => void;
   readonly onAddTextSection: () => void;
+  readonly onInsertSection: (
+    sectionId: string,
+    position: "before" | "after"
+  ) => void;
+  readonly onDuplicateSection: (sectionId: string) => void;
+  readonly onRenameSection: (sectionId: string, name: string) => void;
+  readonly onToggleSectionHidden: (sectionId: string, isHidden: boolean) => void;
+  readonly onRemoveSection: (sectionId: string) => void;
   readonly onAddBlock: (type: BlockType) => void;
   readonly onSelectNode: (nodeId: string | null) => void;
   readonly onMoveNode: (nodeId: string, direction: "up" | "down") => void;
@@ -107,6 +115,11 @@ export function PageEditorView({
   onAddSection,
   onAddHeroSection,
   onAddTextSection,
+  onInsertSection,
+  onDuplicateSection,
+  onRenameSection,
+  onToggleSectionHidden,
+  onRemoveSection,
   onAddBlock,
   onSelectNode,
   onMoveNode,
@@ -170,6 +183,20 @@ export function PageEditorView({
       ? null
       : findNodeById(state.editor.document, state.editor.selectedNodeId);
   const rendererContext = createRendererProductContext(state.products);
+  const selectAndScrollToNode = (nodeId: string | null) => {
+    onSelectNode(nodeId);
+
+    if (nodeId !== null) {
+      window.requestAnimationFrame(() => {
+        document
+          .querySelector(`[data-renderer-node-id="${CSS.escape(nodeId)}"]`)
+          ?.scrollIntoView({
+            block: "center",
+            behavior: "smooth"
+          });
+      });
+    }
+  };
 
   return (
     <main className="editor-shell">
@@ -191,9 +218,14 @@ export function PageEditorView({
           <StructureTree
             sections={state.editor.document.root.children}
             selectedNodeId={state.editor.selectedNodeId}
-            onSelectNode={onSelectNode}
+            onSelectNode={selectAndScrollToNode}
             onMoveNode={onMoveNode}
             onRemoveNode={onRemoveNode}
+            onInsertSection={onInsertSection}
+            onDuplicateSection={onDuplicateSection}
+            onRenameSection={onRenameSection}
+            onToggleSectionHidden={onToggleSectionHidden}
+            onRemoveSection={onRemoveSection}
           />
           <AddSectionPanel
             onAddSection={onAddSection}
@@ -499,13 +531,26 @@ function StructureTree({
   selectedNodeId,
   onSelectNode,
   onMoveNode,
-  onRemoveNode
+  onRemoveNode,
+  onInsertSection,
+  onDuplicateSection,
+  onRenameSection,
+  onToggleSectionHidden,
+  onRemoveSection
 }: {
   readonly sections: readonly SectionNode[];
   readonly selectedNodeId: string | null;
   readonly onSelectNode: (nodeId: string | null) => void;
   readonly onMoveNode: (nodeId: string, direction: "up" | "down") => void;
   readonly onRemoveNode: (nodeId: string) => void;
+  readonly onInsertSection: (
+    sectionId: string,
+    position: "before" | "after"
+  ) => void;
+  readonly onDuplicateSection: (sectionId: string) => void;
+  readonly onRenameSection: (sectionId: string, name: string) => void;
+  readonly onToggleSectionHidden: (sectionId: string, isHidden: boolean) => void;
+  readonly onRemoveSection: (sectionId: string) => void;
 }) {
   return (
     <section className="editor-panel-section">
@@ -524,6 +569,11 @@ function StructureTree({
               onSelectNode={onSelectNode}
               onMoveNode={onMoveNode}
               onRemoveNode={onRemoveNode}
+              onInsertSection={onInsertSection}
+              onDuplicateSection={onDuplicateSection}
+              onRenameSection={onRenameSection}
+              onToggleSectionHidden={onToggleSectionHidden}
+              onRemoveSection={onRemoveSection}
             />
           ))}
         </div>
@@ -539,7 +589,12 @@ function TreeSection({
   selectedNodeId,
   onSelectNode,
   onMoveNode,
-  onRemoveNode
+  onRemoveNode,
+  onInsertSection,
+  onDuplicateSection,
+  onRenameSection,
+  onToggleSectionHidden,
+  onRemoveSection
 }: {
   readonly section: SectionNode;
   readonly index: number;
@@ -548,13 +603,34 @@ function TreeSection({
   readonly onSelectNode: (nodeId: string | null) => void;
   readonly onMoveNode: (nodeId: string, direction: "up" | "down") => void;
   readonly onRemoveNode: (nodeId: string) => void;
+  readonly onInsertSection: (
+    sectionId: string,
+    position: "before" | "after"
+  ) => void;
+  readonly onDuplicateSection: (sectionId: string) => void;
+  readonly onRenameSection: (sectionId: string, name: string) => void;
+  readonly onToggleSectionHidden: (sectionId: string, isHidden: boolean) => void;
+  readonly onRemoveSection: (sectionId: string) => void;
 }) {
+  const sectionType =
+    section.metadata.preset === "image-text"
+      ? "Image + Text"
+      : section.metadata.preset === "product"
+        ? "Product"
+        : section.metadata.preset === "text"
+          ? "Text"
+          : section.props.layout === "two-columns"
+            ? "Two columns"
+            : "Empty";
+
   return (
     <article
       className={
         selectedNodeId === section.id
           ? "editor-block-list-item editor-block-list-item-selected"
-          : "editor-block-list-item"
+          : section.isHidden
+            ? "editor-block-list-item editor-section-hidden"
+            : "editor-block-list-item"
       }
     >
       <button
@@ -562,10 +638,56 @@ function TreeSection({
         className="editor-block-select"
         onClick={() => onSelectNode(section.id)}
       >
-        <strong>Секция</strong>
-        <span>{section.props.layout === "two-columns" ? "Две колонки" : "Одна колонка"}</span>
+        <strong>
+          {index + 1}. {section.name}
+        </strong>
+        <span>
+          {sectionType}
+          {section.isHidden ? " · скрыта" : ""}
+        </span>
       </button>
       <div className="editor-block-actions">
+        <button
+          type="button"
+          className="mini-button"
+          onClick={() => onInsertSection(section.id, "before")}
+        >
+          Вставить выше
+        </button>
+        <button
+          type="button"
+          className="mini-button"
+          onClick={() => onInsertSection(section.id, "after")}
+        >
+          Вставить ниже
+        </button>
+        <button
+          type="button"
+          className="mini-button"
+          onClick={() => {
+            const name = window.prompt("Название секции", section.name);
+
+            if (name !== null) {
+              onRenameSection(section.id, name);
+            }
+          }}
+        >
+          Rename
+        </button>
+        <button
+          type="button"
+          className="mini-button"
+          onClick={() => onDuplicateSection(section.id)}
+        >
+          Дублировать
+        </button>
+        <button
+          type="button"
+          className="mini-button"
+          onClick={() => onToggleSectionHidden(section.id, !section.isHidden)}
+        >
+          {section.isHidden ? "Показать" : "Скрыть"}
+        </button>
         <button
           type="button"
           className="mini-button"
@@ -585,7 +707,7 @@ function TreeSection({
         <button
           type="button"
           className="mini-button danger-mini-button"
-          onClick={() => onRemoveNode(section.id)}
+          onClick={() => onRemoveSection(section.id)}
         >
           Удалить
         </button>

@@ -17,6 +17,7 @@ import type {
   ProductDetailResponse,
   ProductMediaListResponse,
   ProductStatus,
+  ProjectSiteSettingsResponse,
   ProjectPagesListResponse,
   ProjectSummary,
   PageDocumentResponse,
@@ -112,6 +113,13 @@ export type DashboardApiClient = {
     pageId: string,
     input: SavePageDocumentRequest
   ) => Promise<PageDocumentResponse>;
+  readonly getProjectSiteSettings: (
+    projectId: string
+  ) => Promise<ProjectSiteSettingsResponse>;
+  readonly updateProjectSiteSettings: (
+    projectId: string,
+    input: ProjectSiteSettingsResponse
+  ) => Promise<ProjectSiteSettingsResponse>;
   readonly listProjectMedia: (projectId: string) => Promise<MediaAssetsListResponse>;
   readonly uploadProjectMedia: (
     projectId: string,
@@ -428,6 +436,23 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
         )}/document`,
         {
           method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    getProjectSiteSettings: (projectId) =>
+      request<ProjectSiteSettingsResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/site-settings`
+      ),
+    updateProjectSiteSettings: (projectId, input) =>
+      request<ProjectSiteSettingsResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/site-settings`,
+        {
+          method: "PATCH",
           headers: {
             "Content-Type": "application/json"
           },

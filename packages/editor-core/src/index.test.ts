@@ -2,17 +2,25 @@ import { describe, expect, it } from "vitest";
 import {
   PAGE_DOCUMENT_SCHEMA_VERSION,
   PageDocumentMigrationError,
+  PAGE_DOCUMENT_MAX_SECTIONS,
+  PageSectionOperationError,
+  addSectionAtEnd,
   convertSectionLayout,
   createDefaultBlock,
   createDefaultSection,
   createEmptyPageDocument,
+  deleteSection,
   detectPageDocumentVersion,
+  duplicateSection,
   findBlockById,
   findNodeById,
   findParentNode,
+  hideSection,
   insertBlock,
   insertBlockIntoColumn,
   insertBlockIntoSection,
+  insertSectionAfter,
+  insertSectionBefore,
   insertSection,
   migratePageDocumentToLatest,
   migratePageDocumentV1ToV2,
@@ -23,6 +31,9 @@ import {
   moveSectionUp,
   removeNode,
   removeSection,
+  renameSection,
+  reorderSectionsByIds,
+  showSection,
   collectPageDocumentImageAssetIds,
   updateImageBlockAsset,
   updateImageBlockExternalUrl,
@@ -355,6 +366,86 @@ describe("@site-platform/editor-core", () => {
       "first",
       "second"
     ]);
+  });
+
+  it("supports page section operations with deterministic order", () => {
+    const first = { ...createDefaultSection(), id: "first", name: "First" };
+    const second = { ...createDefaultSection(), id: "second", name: "Second" };
+    const document = addSectionAtEnd(createEmptyPageDocument(), first);
+    const insertedBefore = insertSectionBefore(document, "first", second);
+    const insertedAfter = insertSectionAfter(insertedBefore, "first", {
+      ...createDefaultSection(),
+      id: "third",
+      name: "Third"
+    });
+
+    expect(insertedAfter.root.children.map((section) => section.id)).toEqual([
+      "second",
+      "first",
+      "third"
+    ]);
+
+    const reordered = reorderSectionsByIds(insertedAfter, [
+      "third",
+      "first",
+      "second"
+    ]);
+
+    expect(reordered.root.children.map((section) => section.id)).toEqual([
+      "third",
+      "first",
+      "second"
+    ]);
+  });
+
+  it("renames, hides, shows and deletes sections", () => {
+    const document = insertSection(createEmptyPageDocument(), {
+      ...createDefaultSection(),
+      id: "section-1"
+    });
+    const renamed = renameSection(document, "section-1", "Первый экран");
+    const hidden = hideSection(renamed, "section-1");
+    const shown = showSection(hidden, "section-1");
+
+    expect(renamed.root.children[0]?.name).toBe("Первый экран");
+    expect(hidden.root.children[0]?.isHidden).toBe(true);
+    expect(shown.root.children[0]?.isHidden).toBe(false);
+    expect(deleteSection(shown, "section-1").root.children).toHaveLength(0);
+  });
+
+  it("duplicates sections with new nested ids", () => {
+    const document = insertSection(createEmptyPageDocument(), {
+      ...createDefaultSection(),
+      id: "section-1",
+      children: [{ ...createDefaultBlock("text"), id: "text-1" }]
+    });
+    const duplicated = duplicateSection(document, "section-1");
+
+    expect(duplicated.root.children).toHaveLength(2);
+    expect(duplicated.root.children[1]?.id).not.toBe("section-1");
+    expect(duplicated.root.children[1]?.children[0]?.id).not.toBe("text-1");
+  });
+
+  it("rejects invalid section order and section limits", () => {
+    const first = { ...createDefaultSection(), id: "first" };
+    const second = { ...createDefaultSection(), id: "second" };
+    const document = insertSection(insertSection(createEmptyPageDocument(), first), second);
+
+    expect(() => reorderSectionsByIds(document, ["first", "first"])).toThrow(
+      PageSectionOperationError
+    );
+    expect(() => renameSection(document, "first", "")).toThrow(
+      PageSectionOperationError
+    );
+
+    const fullDocument = Array.from({ length: PAGE_DOCUMENT_MAX_SECTIONS }).reduce(
+      (current) => insertSection(current, createDefaultSection()),
+      createEmptyPageDocument()
+    );
+
+    expect(() => insertSection(fullDocument, createDefaultSection())).toThrow(
+      PageSectionOperationError
+    );
   });
 
   it("converts section layouts without losing leaf blocks", () => {

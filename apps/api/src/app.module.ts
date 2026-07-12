@@ -29,6 +29,8 @@ import { ProductService, PublicCatalogService } from "./product.service";
 import { PROJECT_STORE, PrismaProjectStore } from "./project-store";
 import { ProjectsController } from "./projects.controller";
 import { ProjectsService } from "./projects.service";
+import { SiteSettingsController } from "./site-settings.controller";
+import { SiteSettingsService } from "./site-settings.service";
 
 @Module({
   controllers: [
@@ -36,6 +38,7 @@ import { ProjectsService } from "./projects.service";
     AuthController,
     MeController,
     ProjectsController,
+    SiteSettingsController,
     MediaController,
     PublicationController,
     PublicSiteController,
@@ -64,6 +67,7 @@ import { ProjectsService } from "./projects.service";
       useExisting: PrismaProjectStore
     },
     ProjectsService,
+    SiteSettingsService,
     MediaService,
     PublicationService,
     PublicSiteService,

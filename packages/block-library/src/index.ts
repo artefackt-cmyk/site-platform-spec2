@@ -572,6 +572,8 @@ export function createHeroSectionPreset(): SectionNode {
   return {
     id: sectionId,
     type: "section",
+    name: "Первый экран",
+    isHidden: false,
     props: {
       ...createSectionProps(),
       layout: "two-columns",
@@ -600,7 +602,10 @@ export function createHeroSectionPreset(): SectionNode {
         button
       ]),
       createColumn(`${sectionId}-column-2`, [image])
-    ]
+    ],
+    metadata: {
+      preset: "hero"
+    }
   };
 }
 
@@ -612,6 +617,8 @@ export function createTextSectionPreset(): SectionNode {
   return {
     id: sectionId,
     type: "section",
+    name: "Текст",
+    isHidden: false,
     props: createSectionProps(),
     children: [
       {
@@ -628,7 +635,10 @@ export function createTextSectionPreset(): SectionNode {
           text: "Основной текст секции."
         }
       }
-    ]
+    ],
+    metadata: {
+      preset: "text"
+    }
   };
 }
 

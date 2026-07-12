@@ -42,6 +42,16 @@ export {
   type UpdateProjectPublicationSettingsInput
 } from "./repositories/project-publication-settings-repository";
 export {
+  ProjectSiteSettingsRepository,
+  createDefaultFooterDraft,
+  createDefaultHeaderDraft,
+  toSiteSettingsSnapshotJson,
+  type SiteFooterDraftJson,
+  type SiteHeaderDraftJson,
+  type SiteSettingsSnapshotJson,
+  type UpdateProjectSiteSettingsDraftInput
+} from "./repositories/project-site-settings-repository";
+export {
   ProjectRepository,
   type CreateProjectInput,
   type ProjectTenantLookupInput,
@@ -132,6 +142,7 @@ export type {
   ProductVariant,
   Project,
   ProjectPublicationSettings,
+  ProjectSiteSettings,
   ProjectStatus,
   PublishedPageSnapshot,
   PublishedPageState,

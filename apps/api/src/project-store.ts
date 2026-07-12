@@ -44,6 +44,8 @@ export type SavePageDocumentInput = {
   readonly pageId: string;
   readonly document: PageDocumentV2;
   readonly expectedRevision: number;
+  readonly auditAction?: string;
+  readonly auditMetadata?: Record<string, unknown>;
 };
 
 export type ProjectStore = {
@@ -302,13 +304,14 @@ export class PrismaProjectStore implements ProjectStore {
       await auditLogRepository.create({
         organizationId: input.tenantContext.organizationId,
         actorUserId: input.tenantContext.userId,
-        action: "page.document.updated",
+        action: input.auditAction ?? "page.document.updated",
         entityType: "PageDocument",
         entityId: pageDocument.id,
         metadata: {
           projectId: input.projectId,
           pageId: input.pageId,
-          revision: pageDocument.revision
+          revision: pageDocument.revision,
+          ...(input.auditMetadata ?? {})
         }
       });
 

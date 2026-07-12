@@ -69,7 +69,7 @@ The editor route is `/projects/[projectId]/pages/[pageId]`.
 The editor has:
 
 - a sticky top bar with breadcrumb, page title, page status, save state, publication state, `Сохранить`, `Предпросмотр`, `Опубликовать`, `История`, `Снять` and `Назад к страницам`;
-- a left panel with the current section tree, section presets and add-block buttons;
+- a left panel with the current section navigator, section presets and add-block buttons;
 - a central canvas rendered through `packages/renderer`;
 - a right inspector for page settings or the selected section, column or block;
 - explicit save to PostgreSQL.
@@ -77,6 +77,7 @@ The editor has:
 Supported document structure:
 
 - sections;
+- section `name`, `isHidden` and metadata;
 - single-column sections;
 - two-column sections;
 - columns inside two-column sections;
@@ -95,6 +96,8 @@ Supported leaf blocks:
 The user can:
 
 - add an empty section;
+- insert a section before or after an existing section;
+- rename, duplicate, hide/show and delete sections;
 - add a Hero preset section;
 - add a text section preset;
 - select a section, column or leaf block;
@@ -115,6 +118,10 @@ The user can:
 Inspector changes update the canvas immediately in local editor state. They are persisted only after clicking `Сохранить`.
 
 Page settings changes are persisted through `PATCH /api/projects/:projectId/pages/:pageId`. Slug changes do not affect the current public URL until the next publication creates a new snapshot.
+
+The section navigator is independently scrollable for long pages. It shows section number, user-facing name, basic type, hidden state and selected state. Selecting a section scrolls the canvas to that section. Hidden sections remain editable in the editor and appear muted.
+
+Page length is derived from the ordered section list and section content. There is no separate page length property. The MVP allows up to 64 sections per page and section names up to 80 characters. Empty sections and empty pages are valid.
 
 The editor preview button opens `/projects/[projectId]/pages/[pageId]/preview`.
 
@@ -166,6 +173,7 @@ Publication:
 - validates that referenced media assets exist in the same project;
 - verifies local media files exist;
 - creates an immutable `PublishedPageSnapshot`;
+- stores the current `ProjectSiteSettings` header/footer snapshot in `PublishedPageSnapshot.siteSettingsJson`;
 - updates `PublishedPageState.activeSnapshotId`;
 - writes an audit log entry;
 - returns a public URL.
@@ -183,6 +191,18 @@ If the editor has unsaved changes, publishing offers two paths:
 - publish the last saved revision while keeping local dirty changes in the editor.
 
 Publication history shows snapshot version, publish time, source revision, page title, slug and active state. Rollback creates a new snapshot version copied from a selected historical snapshot and makes it active. Rollback does not change the draft.
+
+Header/footer changes are draft project settings until a page is published again. Publication status treats a changed site-settings revision as unpublished changes for deterministic storefront output.
+
+## Global Header And Footer
+
+The project workspace includes `Шапка и подвал`.
+
+Header supports enabled/disabled, brand text or logo URL, page menu items selected from project pages, cart link toggle and optional CTA label/URL.
+
+Footer supports enabled/disabled, brand text, short description, email, phone, legal/business text and copyright text.
+
+There is one header/footer pair per project. Page-level overrides, dropdowns, mega menus, social icons, sticky behavior, theme variants and a visual header/footer builder are deferred.
 
 Unpublish sets the active snapshot to null. History remains available and the public URL returns 404.
 
@@ -228,11 +248,13 @@ Storefront pages:
 - fetch data through public API endpoints without dashboard identity;
 - render PageDocument through `packages/renderer` with `mode="storefront"`;
 - do not show editor chrome;
-- show project name, navigation with active published pages, main content and a basic footer;
+- render the published global header, ordered visible sections and published global footer;
 - return noindex metadata for 404/API error states;
 - use title, first text block fallback description, canonical URL and Open Graph title for published pages.
 
 Published media URLs are materialized by the public API response. The immutable snapshot keeps the original PageDocument V2; the public DTO rewrites media-library image `src` values to `/api/public/media/:assetId/content`.
+
+Hidden sections stay in snapshots for compatibility and rollback but are omitted from storefront rendering. Legacy snapshots without global regions use a fallback header/footer based on project name.
 
 Product blocks are rendered from public product DTOs prepared by the API. The renderer does not query the database. Product visibility is independent from page snapshot publication: active products can appear in product blocks and product routes without republishing a page.
 

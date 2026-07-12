@@ -2,6 +2,7 @@ import * as React from "react";
 import type { FormEvent } from "react";
 import type {
   CreatePageFormValues,
+  ProjectSiteSettingsResponse,
   ProjectSummary,
   SitePageSummary
 } from "./dashboard-types";
@@ -19,6 +20,10 @@ export const WORKSPACE_SECTIONS = [
   {
     id: "design",
     label: "Дизайн"
+  },
+  {
+    id: "site-regions",
+    label: "Шапка и подвал"
   },
   {
     id: "settings",
@@ -44,6 +49,7 @@ export type ProjectWorkspaceLoadState =
       readonly status: "ready";
       readonly project: ProjectSummary;
       readonly pages: readonly SitePageSummary[];
+      readonly siteSettings: ProjectSiteSettingsResponse;
     };
 
 export type CreatePageFormState = {
@@ -62,6 +68,9 @@ export type ProjectWorkspaceViewProps = {
   readonly onCloseCreatePageForm: () => void;
   readonly onPageFormChange: (values: CreatePageFormValues) => void;
   readonly onSubmitCreatePage: (event: FormEvent<HTMLFormElement>) => void;
+  readonly onUpdateSiteSettings: (
+    settings: ProjectSiteSettingsResponse
+  ) => Promise<boolean>;
 };
 
 export function ProjectWorkspaceView({
@@ -72,7 +81,8 @@ export function ProjectWorkspaceView({
   onOpenCreatePageForm,
   onCloseCreatePageForm,
   onPageFormChange,
-  onSubmitCreatePage
+  onSubmitCreatePage,
+  onUpdateSiteSettings
 }: ProjectWorkspaceViewProps) {
   return (
     <MercurioAppShell
@@ -108,6 +118,12 @@ export function ProjectWorkspaceView({
                   onCloseCreatePageForm={onCloseCreatePageForm}
                   onPageFormChange={onPageFormChange}
                   onSubmitCreatePage={onSubmitCreatePage}
+                />
+              ) : activeSection === "site-regions" ? (
+                <SiteRegionsSection
+                  pages={state.pages}
+                  siteSettings={state.siteSettings}
+                  onUpdateSiteSettings={onUpdateSiteSettings}
                 />
               ) : (
                 <PlaceholderSection section={activeSection} />
@@ -346,6 +362,289 @@ function PageList({
         </article>
       ))}
     </section>
+  );
+}
+
+function SiteRegionsSection({
+  pages,
+  siteSettings,
+  onUpdateSiteSettings
+}: {
+  readonly pages: readonly SitePageSummary[];
+  readonly siteSettings: ProjectSiteSettingsResponse;
+  readonly onUpdateSiteSettings: (
+    settings: ProjectSiteSettingsResponse
+  ) => Promise<boolean>;
+}) {
+  const [draft, setDraft] = React.useState(siteSettings);
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    setDraft(siteSettings);
+  }, [siteSettings]);
+
+  return (
+    <form
+      className="create-form"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setSaving(true);
+        await onUpdateSiteSettings(draft);
+        setSaving(false);
+      }}
+    >
+      <div className="workspace-section-heading">
+        <div>
+          <p className="eyebrow">Глобальные регионы</p>
+          <h2>Шапка и подвал</h2>
+        </div>
+        <button className="primary-button" type="submit" disabled={saving}>
+          {saving ? "Сохраняем..." : "Сохранить"}
+        </button>
+      </div>
+
+      <section className="settings-grid">
+        <div className="dashboard-card">
+          <p className="eyebrow">Header</p>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={draft.headerEnabled}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  headerEnabled: event.currentTarget.checked
+                })
+              }
+            />
+            Включить шапку
+          </label>
+          <label>
+            Название
+            <input
+              value={draft.header.brandText}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  header: {
+                    ...draft.header,
+                    brandText: event.currentTarget.value
+                  }
+                })
+              }
+            />
+          </label>
+          <label>
+            Логотип URL
+            <input
+              value={draft.header.logoUrl}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  header: {
+                    ...draft.header,
+                    logoUrl: event.currentTarget.value
+                  }
+                })
+              }
+            />
+          </label>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={draft.header.cartLinkEnabled}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  header: {
+                    ...draft.header,
+                    cartLinkEnabled: event.currentTarget.checked
+                  }
+                })
+              }
+            />
+            Показывать корзину
+          </label>
+          <label>
+            CTA label
+            <input
+              value={draft.header.ctaLabel}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  header: {
+                    ...draft.header,
+                    ctaLabel: event.currentTarget.value
+                  }
+                })
+              }
+            />
+          </label>
+          <label>
+            CTA URL
+            <input
+              value={draft.header.ctaUrl}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  header: {
+                    ...draft.header,
+                    ctaUrl: event.currentTarget.value
+                  }
+                })
+              }
+            />
+          </label>
+          <div className="settings-checkbox-list">
+            <p className="eyebrow">Пункты меню</p>
+            {pages.map((page) => {
+              const checked = draft.header.navigation.some(
+                (item) => item.type === "page" && item.pageId === page.id
+              );
+
+              return (
+                <label className="checkbox-row" key={page.id}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(event) => {
+                      const navigation = event.currentTarget.checked
+                        ? [
+                            ...draft.header.navigation,
+                            {
+                              label: page.title,
+                              type: "page" as const,
+                              pageId: page.id
+                            }
+                          ]
+                        : draft.header.navigation.filter(
+                            (item) => item.type !== "page" || item.pageId !== page.id
+                          );
+
+                      setDraft({
+                        ...draft,
+                        header: {
+                          ...draft.header,
+                          navigation
+                        }
+                      });
+                    }}
+                  />
+                  {page.title}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="dashboard-card">
+          <p className="eyebrow">Footer</p>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={draft.footerEnabled}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  footerEnabled: event.currentTarget.checked
+                })
+              }
+            />
+            Включить подвал
+          </label>
+          <label>
+            Название
+            <input
+              value={draft.footer.brandText}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  footer: {
+                    ...draft.footer,
+                    brandText: event.currentTarget.value
+                  }
+                })
+              }
+            />
+          </label>
+          <label>
+            Описание
+            <textarea
+              value={draft.footer.description}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  footer: {
+                    ...draft.footer,
+                    description: event.currentTarget.value
+                  }
+                })
+              }
+            />
+          </label>
+          <label>
+            Email
+            <input
+              value={draft.footer.email}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  footer: {
+                    ...draft.footer,
+                    email: event.currentTarget.value
+                  }
+                })
+              }
+            />
+          </label>
+          <label>
+            Телефон
+            <input
+              value={draft.footer.phone}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  footer: {
+                    ...draft.footer,
+                    phone: event.currentTarget.value
+                  }
+                })
+              }
+            />
+          </label>
+          <label>
+            Юридический текст
+            <textarea
+              value={draft.footer.legalText}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  footer: {
+                    ...draft.footer,
+                    legalText: event.currentTarget.value
+                  }
+                })
+              }
+            />
+          </label>
+          <label>
+            Copyright
+            <input
+              value={draft.footer.copyrightText}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  footer: {
+                    ...draft.footer,
+                    copyrightText: event.currentTarget.value
+                  }
+                })
+              }
+            />
+          </label>
+        </div>
+      </section>
+    </form>
   );
 }
 

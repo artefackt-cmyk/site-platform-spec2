@@ -10,12 +10,39 @@ export type PublicSitePageResponse = {
   readonly publishedAt: string;
   readonly canonicalPath: string;
   readonly navigation: readonly {
+    readonly pageId: string;
     readonly title: string;
     readonly slug: string;
     readonly publicUrl: string;
   }[];
   readonly products: Readonly<Record<string, ProductRenderModel>>;
   readonly productList: readonly ProductRenderModel[];
+  readonly siteSettings: {
+    readonly headerEnabled: boolean;
+    readonly footerEnabled: boolean;
+    readonly header: {
+      readonly brandText: string;
+      readonly logoUrl: string;
+      readonly navigation: readonly {
+        readonly label: string;
+        readonly type: "page" | "external";
+        readonly pageId?: string;
+        readonly url?: string;
+      }[];
+      readonly cartLinkEnabled: boolean;
+      readonly ctaLabel: string;
+      readonly ctaUrl: string;
+    };
+    readonly footer: {
+      readonly brandText: string;
+      readonly description: string;
+      readonly email: string;
+      readonly phone: string;
+      readonly legalText: string;
+      readonly copyrightText: string;
+    };
+    readonly revision: number;
+  };
 };
 
 export type PublicProductVariantResponse = {

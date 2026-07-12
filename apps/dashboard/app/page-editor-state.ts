@@ -6,15 +6,22 @@ import {
   convertSectionLayout,
   createDefaultBlock,
   createDefaultSection,
+  deleteSection,
+  duplicateSection,
   findNodeById,
   findParentNode,
+  hideSection,
   insertBlockIntoColumn,
   insertBlockIntoSection,
   insertSection,
+  insertSectionAfter,
+  insertSectionBefore,
   moveBlockWithinParent,
   moveSectionDown,
   moveSectionUp,
+  renameSection,
   removeNode,
+  showSection,
   updateImageBlockAsset,
   updateImageBlockExternalUrl,
   updateNodeProps,
@@ -90,6 +97,86 @@ export function addTextSection(state: EditorState): EditorState {
     ...state,
     document: insertSection(state.document, section),
     selectedNodeId: section.id
+  });
+}
+
+export function insertSectionAdjacent(
+  state: EditorState,
+  targetSectionId: string,
+  position: "before" | "after"
+): EditorState {
+  const section = createDefaultSection();
+
+  return markDirty({
+    ...state,
+    document:
+      position === "before"
+        ? insertSectionBefore(state.document, targetSectionId, section)
+        : insertSectionAfter(state.document, targetSectionId, section),
+    selectedNodeId: section.id
+  });
+}
+
+export function duplicateSectionById(
+  state: EditorState,
+  sectionId: string
+): EditorState {
+  const nextDocument = duplicateSection(state.document, sectionId);
+  const originalIndex = state.document.root.children.findIndex(
+    (section) => section.id === sectionId
+  );
+
+  return markDirty({
+    ...state,
+    document: nextDocument,
+    selectedNodeId: nextDocument.root.children[originalIndex + 1]?.id ?? sectionId
+  });
+}
+
+export function renameSectionById(
+  state: EditorState,
+  sectionId: string,
+  name: string
+): EditorState {
+  return markDirty({
+    ...state,
+    document: renameSection(state.document, sectionId, name),
+    selectedNodeId: sectionId
+  });
+}
+
+export function setSectionHiddenById(
+  state: EditorState,
+  sectionId: string,
+  isHidden: boolean
+): EditorState {
+  return markDirty({
+    ...state,
+    document: isHidden
+      ? hideSection(state.document, sectionId)
+      : showSection(state.document, sectionId),
+    selectedNodeId: sectionId
+  });
+}
+
+export function removeSectionById(
+  state: EditorState,
+  sectionId: string
+): EditorState {
+  const index = state.document.root.children.findIndex(
+    (section) => section.id === sectionId
+  );
+  const document = deleteSection(state.document, sectionId);
+  const selectedNodeId =
+    state.selectedNodeId === sectionId
+      ? document.root.children[Math.min(index, document.root.children.length - 1)]
+          ?.id ?? null
+      : state.selectedNodeId;
+
+  return markDirty({
+    ...state,
+    document,
+    selectedNodeId
   });
 }
 

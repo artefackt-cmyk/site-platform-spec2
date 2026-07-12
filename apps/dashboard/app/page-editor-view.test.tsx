@@ -73,7 +73,7 @@ describe("PageEditorView", () => {
       "grid-template-columns: minmax(260px, 280px) minmax(0, 1fr) minmax(300px, 320px)"
     );
     expect(css).toContain("overflow: auto");
-    expect(css).toContain("min-width: 720px");
+    expect(css).toContain("min-width: 0");
     expect(css).toContain("editor-overflow-menu");
     expect(css).toContain("rgba(59, 76, 99");
   });
@@ -103,6 +103,11 @@ function renderEditor(input: {
       onAddSection: () => undefined,
       onAddHeroSection: () => undefined,
       onAddTextSection: () => undefined,
+      onInsertSection: () => undefined,
+      onDuplicateSection: () => undefined,
+      onRenameSection: () => undefined,
+      onToggleSectionHidden: () => undefined,
+      onRemoveSection: () => undefined,
       onAddBlock: () => undefined,
       onSelectNode: () => undefined,
       onMoveNode: () => undefined,

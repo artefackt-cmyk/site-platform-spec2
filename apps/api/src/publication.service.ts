@@ -9,9 +9,13 @@ import {
   ProductRepository,
   ProjectPublicationSettingsRepository,
   ProjectRepository,
+  ProjectSiteSettingsRepository,
   PublishedPageSnapshotRepository,
   PublishedPageStateRepository,
   SitePageRepository,
+  createDefaultFooterDraft,
+  createDefaultHeaderDraft,
+  toSiteSettingsSnapshotJson,
   type DatabasePrismaClient,
   type MediaAsset,
   type PageDocumentRecord,
@@ -19,6 +23,7 @@ import {
   type ProductWithPrimaryMedia,
   type PublishedPageSnapshot,
   type RepositoryPrismaClient,
+  type SiteSettingsSnapshotJson,
   type SitePage
 } from "@site-platform/database";
 import {
@@ -116,9 +121,11 @@ export type PublicSitePageResponse = {
   readonly navigation: readonly PublicSiteNavigationItem[];
   readonly products: Readonly<Record<string, PublicProductRenderModel>>;
   readonly productList: readonly PublicProductRenderModel[];
+  readonly siteSettings: SiteSettingsSnapshotJson;
 };
 
 export type PublicSiteNavigationItem = {
+  readonly pageId: string;
   readonly title: string;
   readonly slug: string;
   readonly publicUrl: string;
@@ -311,6 +318,10 @@ export class PublicationService {
       identity.tenantContext,
       projectId
     );
+    const siteSettingsSnapshot = await this.getSiteSettingsSnapshot(
+      identity.tenantContext,
+      projectId
+    );
     const activeSnapshot = await this.findActiveSnapshot(
       identity.tenantContext,
       projectId,
@@ -321,7 +332,8 @@ export class PublicationService {
       activeSnapshot !== null &&
       activeSnapshot.sourceRevision === pageDocument.revision &&
       activeSnapshot.pageTitle === page.title &&
-      activeSnapshot.pageSlug === page.slug
+      activeSnapshot.pageSlug === page.slug &&
+      getSnapshotSiteSettingsRevision(activeSnapshot) === siteSettingsSnapshot.revision
     ) {
       const status = await this.calculatePublicationStatus(
         identity.tenantContext,
@@ -351,6 +363,7 @@ export class PublicationService {
         pageTitle: page.title,
         pageSlug: page.slug,
         document: pageDocument.document,
+        siteSettingsSnapshot,
         sourceRevision: pageDocument.revision,
         publishedByUserId: identity.user.id,
         publishedAt
@@ -520,6 +533,10 @@ export class PublicationService {
       identity.tenantContext,
       projectId
     );
+    const siteSettingsSnapshot = await this.getSiteSettingsSnapshot(
+      identity.tenantContext,
+      projectId
+    );
     const validation = validatePageDocument(sourceSnapshot.documentJson);
 
     if (!validation.ok) {
@@ -541,6 +558,7 @@ export class PublicationService {
         pageTitle: sourceSnapshot.pageTitle,
         pageSlug: sourceSnapshot.pageSlug,
         document: validation.document,
+        siteSettingsSnapshot,
         sourceRevision: sourceSnapshot.sourceRevision,
         publishedByUserId: identity.user.id,
         rollbackSourceSnapshotId: sourceSnapshot.id,
@@ -699,11 +717,17 @@ export class PublicationService {
       };
     }
 
+    const siteSettingsSnapshot = await this.getSiteSettingsSnapshot(
+      context,
+      projectId
+    );
     const draftChanged =
       pageDocument === null ||
       pageDocument.revision !== activeSnapshot.sourceRevision ||
       page.title !== activeSnapshot.pageTitle ||
-      page.slug !== activeSnapshot.pageSlug;
+      page.slug !== activeSnapshot.pageSlug ||
+      getSnapshotSiteSettingsRevision(activeSnapshot) !==
+        siteSettingsSnapshot.revision;
 
     return {
       status: draftChanged ? "published-with-changes" : "published-current",
@@ -772,6 +796,22 @@ export class PublicationService {
 
       return settings;
     });
+  }
+
+  private async getSiteSettingsSnapshot(
+    context: TenantContext,
+    projectId: string
+  ): Promise<SiteSettingsSnapshotJson> {
+    const project = await this.getProjectOrThrow(context, projectId);
+    const settings = await new ProjectSiteSettingsRepository(
+      this.client
+    ).getOrCreateDefault(context, projectId, project.name);
+
+    if (settings === null) {
+      throw projectNotFoundError();
+    }
+
+    return toSiteSettingsSnapshotJson(settings);
   }
 
   private async getProjectOrThrow(
@@ -922,6 +962,7 @@ export class PublicSiteService {
       publishedAt: activePage.snapshot.publishedAt.toISOString(),
       canonicalPath: createPublicPagePath(publicHandle, activePage.snapshot.pageSlug),
       navigation: navigation.map((item) => ({
+        pageId: item.snapshot.pageId,
         title: item.snapshot.pageTitle,
         slug: item.snapshot.pageSlug,
         publicUrl: createPublicPageUrl(
@@ -931,7 +972,11 @@ export class PublicSiteService {
         )
       })),
       products,
-      productList
+      productList,
+      siteSettings: getSnapshotSiteSettings(
+        activePage.snapshot,
+        activePage.project.name
+      )
     };
   }
 
@@ -1189,6 +1234,42 @@ function materializeBlock(block: BlockNode, config: AppConfig): BlockNode {
         }
       }
     : block;
+}
+
+function getSnapshotSiteSettings(
+  snapshot: PublishedPageSnapshot,
+  projectName: string
+): SiteSettingsSnapshotJson {
+  if (isSiteSettingsSnapshotJson(snapshot.siteSettingsJson)) {
+    return snapshot.siteSettingsJson;
+  }
+
+  return {
+    headerEnabled: true,
+    footerEnabled: true,
+    header: createDefaultHeaderDraft(projectName),
+    footer: createDefaultFooterDraft(projectName),
+    revision: 0
+  };
+}
+
+function getSnapshotSiteSettingsRevision(snapshot: PublishedPageSnapshot): number {
+  return isSiteSettingsSnapshotJson(snapshot.siteSettingsJson)
+    ? snapshot.siteSettingsJson.revision
+    : 0;
+}
+
+function isSiteSettingsSnapshotJson(
+  value: unknown
+): value is SiteSettingsSnapshotJson {
+  return (
+    isRecord(value) &&
+    typeof value.headerEnabled === "boolean" &&
+    typeof value.footerEnabled === "boolean" &&
+    isRecord(value.header) &&
+    isRecord(value.footer) &&
+    typeof value.revision === "number"
+  );
 }
 
 function parsePublishPayload(body: unknown): {

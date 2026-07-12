@@ -82,6 +82,34 @@ export type PageDocumentResponse = {
   readonly document: PageDocumentV2;
 };
 
+export type ProjectSiteSettingsResponse = {
+  readonly projectId: string;
+  readonly revision: number;
+  readonly headerEnabled: boolean;
+  readonly footerEnabled: boolean;
+  readonly header: {
+    readonly brandText: string;
+    readonly logoUrl: string;
+    readonly navigation: readonly {
+      readonly label: string;
+      readonly type: "page" | "external";
+      readonly pageId?: string;
+      readonly url?: string;
+    }[];
+    readonly cartLinkEnabled: boolean;
+    readonly ctaLabel: string;
+    readonly ctaUrl: string;
+  };
+  readonly footer: {
+    readonly brandText: string;
+    readonly description: string;
+    readonly email: string;
+    readonly phone: string;
+    readonly legalText: string;
+    readonly copyrightText: string;
+  };
+};
+
 export type MediaAssetSummary = {
   readonly id: string;
   readonly originalFilename: string;

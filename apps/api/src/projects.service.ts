@@ -9,8 +9,23 @@ import {
 } from "@site-platform/database";
 import {
   PAGE_DOCUMENT_SCHEMA_VERSION,
+  PAGE_SECTION_OPERATION_ERROR_CODES,
+  PageSectionOperationError,
+  addSectionAtEnd,
   collectPageDocumentImageAssetReferences,
+  createDefaultBlock,
+  createDefaultColumn,
+  createDefaultSection,
+  deleteSection,
+  duplicateSection,
+  hideSection,
+  insertSectionAfter,
+  insertSectionBefore,
+  renameSection,
+  reorderSectionsByIds,
+  showSection,
   validatePageDocument,
+  type SectionNode,
   type PageDocumentV2
 } from "@site-platform/editor-core";
 import {
@@ -88,6 +103,10 @@ export type PageDocumentResponse = {
   readonly schemaVersion: 2;
   readonly revision: number;
   readonly document: PageDocumentV2;
+};
+
+export type PageSectionMutationResponse = PageDocumentResponse & {
+  readonly selectedSectionId: string | null;
 };
 
 @Injectable()
@@ -375,6 +394,290 @@ export class ProjectsService {
 
       return toPageDocumentResponse(pageDocument);
     } catch (error) {
+      if (error instanceof PageDocumentRevisionConflictError) {
+        throw conflict(
+          API_ERROR_CODES.pageDocumentRevisionConflict,
+          "Page document was changed by another save."
+        );
+      }
+
+      if (error instanceof PageDocumentInvalidError) {
+        throw badRequest(
+          API_ERROR_CODES.pageDocumentInvalid,
+          "Page document is invalid.",
+          toDocumentValidationIssues(error.errors)
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  async addPageSection(
+    projectId: string,
+    pageId: string,
+    body: unknown
+  ): Promise<PageSectionMutationResponse> {
+    const payload = parseSectionCreatePayload(body);
+    const section = createSectionFromPreset(payload.type, payload.name);
+
+    return this.mutatePageSections({
+      projectId,
+      pageId,
+      revision: payload.revision,
+      auditAction: "PAGE_SECTION_ADDED",
+      auditMetadata: {
+        sectionId: section.id,
+        insert: payload.insert
+      },
+      mutate: (document) => {
+        if (payload.insert?.beforeSectionId !== undefined) {
+          return {
+            document: insertSectionBefore(
+              document,
+              payload.insert.beforeSectionId,
+              section
+            ),
+            selectedSectionId: section.id
+          };
+        }
+
+        if (payload.insert?.afterSectionId !== undefined) {
+          return {
+            document: insertSectionAfter(
+              document,
+              payload.insert.afterSectionId,
+              section
+            ),
+            selectedSectionId: section.id
+          };
+        }
+
+        return {
+          document: addSectionAtEnd(document, section),
+          selectedSectionId: section.id
+        };
+      }
+    });
+  }
+
+  async duplicatePageSection(
+    projectId: string,
+    pageId: string,
+    sectionId: string,
+    body: unknown
+  ): Promise<PageSectionMutationResponse> {
+    const payload = parseRevisionOnlyPayload(body);
+
+    return this.mutatePageSections({
+      projectId,
+      pageId,
+      revision: payload.revision,
+      auditAction: "PAGE_SECTION_DUPLICATED",
+      auditMetadata: {
+        sectionId
+      },
+      mutate: (document) => {
+        const nextDocument = duplicateSection(document, sectionId);
+        const originalIndex = document.root.children.findIndex(
+          (section) => section.id === sectionId
+        );
+
+        return {
+          document: nextDocument,
+          selectedSectionId: nextDocument.root.children[originalIndex + 1]?.id ?? null
+        };
+      }
+    });
+  }
+
+  async updatePageSection(
+    projectId: string,
+    pageId: string,
+    sectionId: string,
+    body: unknown
+  ): Promise<PageSectionMutationResponse> {
+    const payload = parseSectionPatchPayload(body);
+    const auditAction =
+      payload.name !== undefined
+        ? "PAGE_SECTION_RENAMED"
+        : payload.isHidden === true
+          ? "PAGE_SECTION_HIDDEN"
+          : "PAGE_SECTION_SHOWN";
+
+    return this.mutatePageSections({
+      projectId,
+      pageId,
+      revision: payload.revision,
+      auditAction,
+      auditMetadata: {
+        sectionId,
+        nameChanged: payload.name !== undefined,
+        hiddenChanged: payload.isHidden !== undefined
+      },
+      mutate: (document) => {
+        let nextDocument = document;
+
+        if (payload.name !== undefined) {
+          nextDocument = renameSection(nextDocument, sectionId, payload.name);
+        }
+
+        if (payload.isHidden === true) {
+          nextDocument = hideSection(nextDocument, sectionId);
+        }
+
+        if (payload.isHidden === false) {
+          nextDocument = showSection(nextDocument, sectionId);
+        }
+
+        return {
+          document: nextDocument,
+          selectedSectionId: sectionId
+        };
+      }
+    });
+  }
+
+  async deletePageSection(
+    projectId: string,
+    pageId: string,
+    sectionId: string,
+    body: unknown
+  ): Promise<PageSectionMutationResponse> {
+    const payload = parseRevisionOnlyPayload(body);
+
+    return this.mutatePageSections({
+      projectId,
+      pageId,
+      revision: payload.revision,
+      auditAction: "PAGE_SECTION_DELETED",
+      auditMetadata: {
+        sectionId
+      },
+      mutate: (document) => {
+        const index = document.root.children.findIndex(
+          (section) => section.id === sectionId
+        );
+        const nextDocument = deleteSection(document, sectionId);
+
+        return {
+          document: nextDocument,
+          selectedSectionId:
+            nextDocument.root.children[Math.min(index, nextDocument.root.children.length - 1)]
+              ?.id ?? null
+        };
+      }
+    });
+  }
+
+  async reorderPageSections(
+    projectId: string,
+    pageId: string,
+    body: unknown
+  ): Promise<PageSectionMutationResponse> {
+    const payload = parseSectionReorderPayload(body);
+
+    return this.mutatePageSections({
+      projectId,
+      pageId,
+      revision: payload.revision,
+      auditAction: "PAGE_SECTION_REORDERED",
+      auditMetadata: {
+        sectionIds: payload.sectionIds
+      },
+      mutate: (document) => ({
+        document: reorderSectionsByIds(document, payload.sectionIds),
+        selectedSectionId: payload.sectionIds[0] ?? null
+      })
+    });
+  }
+
+  private async mutatePageSections(input: {
+    readonly projectId: string;
+    readonly pageId: string;
+    readonly revision: number;
+    readonly auditAction: string;
+    readonly auditMetadata: Record<string, unknown>;
+    readonly mutate: (document: PageDocumentV2) => {
+      readonly document: PageDocumentV2;
+      readonly selectedSectionId: string | null;
+    };
+  }): Promise<PageSectionMutationResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, input.projectId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.pageUpdate)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to update pages."
+      );
+    }
+
+    await this.getPageOrThrow(
+      identity.tenantContext,
+      input.projectId,
+      input.pageId
+    );
+
+    const pageDocument = await this.projectStore.getOrCreatePageDocument(
+      identity.tenantContext,
+      input.projectId,
+      input.pageId
+    );
+
+    if (pageDocument === null) {
+      throw pageNotFoundError();
+    }
+
+    if (pageDocument.revision !== input.revision) {
+      throw conflict(
+        API_ERROR_CODES.pageDocumentRevisionConflict,
+        "Page document was changed by another save."
+      );
+    }
+
+    try {
+      const mutation = input.mutate(pageDocument.document);
+      const mediaIssues = await validatePageDocumentMediaAssets({
+        tenantContext: identity.tenantContext,
+        projectId: input.projectId,
+        document: mutation.document,
+        projectStore: this.projectStore,
+        config: this.config
+      });
+
+      if (mediaIssues.length > 0) {
+        throw badRequest(
+          API_ERROR_CODES.pageDocumentInvalid,
+          "Page document is invalid.",
+          mediaIssues
+        );
+      }
+
+      const saved = await this.projectStore.savePageDocumentWithAudit({
+        tenantContext: identity.tenantContext,
+        projectId: input.projectId,
+        pageId: input.pageId,
+        document: mutation.document,
+        expectedRevision: input.revision,
+        auditAction: input.auditAction,
+        auditMetadata: input.auditMetadata
+      });
+
+      if (saved === null) {
+        throw pageNotFoundError();
+      }
+
+      return {
+        ...toPageDocumentResponse(saved),
+        selectedSectionId: mutation.selectedSectionId
+      };
+    } catch (error) {
+      if (error instanceof PageSectionOperationError) {
+        throw toPageSectionApiError(error);
+      }
+
       if (error instanceof PageDocumentRevisionConflictError) {
         throw conflict(
           API_ERROR_CODES.pageDocumentRevisionConflict,
@@ -845,6 +1148,277 @@ function parseSavePageDocumentPayload(body: unknown): {
     revision,
     document: documentValidation.document
   };
+}
+
+function parseRevisionOnlyPayload(body: unknown): { readonly revision: number } {
+  if (!isRecord(body)) {
+    throw badRequest(API_ERROR_CODES.validationFailed, "Request body is invalid.", [
+      {
+        field: "body",
+        code: "FIELD_INVALID_TYPE",
+        message: "Request body must be an object."
+      }
+    ]);
+  }
+
+  return {
+    revision: parseRevision(body.revision)
+  };
+}
+
+function parseSectionCreatePayload(body: unknown): {
+  readonly revision: number;
+  readonly type: "empty" | "text" | "image-text" | "product";
+  readonly name: string | null;
+  readonly insert:
+    | {
+        readonly beforeSectionId?: string | undefined;
+        readonly afterSectionId?: string | undefined;
+      }
+    | undefined;
+} {
+  if (!isRecord(body)) {
+    throw badRequest(API_ERROR_CODES.validationFailed, "Request body is invalid.", [
+      {
+        field: "body",
+        code: "FIELD_INVALID_TYPE",
+        message: "Request body must be an object."
+      }
+    ]);
+  }
+
+  const type =
+    body.type === undefined || body.type === "empty"
+      ? "empty"
+      : body.type === "text" ||
+          body.type === "image-text" ||
+          body.type === "product"
+        ? body.type
+        : null;
+
+  if (type === null) {
+    throw badRequest(API_ERROR_CODES.validationFailed, "Section payload is invalid.", [
+      {
+        field: "type",
+        code: "FIELD_INVALID_VALUE",
+        message: "Section type is invalid."
+      }
+    ]);
+  }
+
+  const beforeSectionId =
+    typeof body.beforeSectionId === "string" && body.beforeSectionId.trim() !== ""
+      ? body.beforeSectionId.trim()
+      : undefined;
+  const afterSectionId =
+    typeof body.afterSectionId === "string" && body.afterSectionId.trim() !== ""
+      ? body.afterSectionId.trim()
+      : undefined;
+
+  if (beforeSectionId !== undefined && afterSectionId !== undefined) {
+    throw badRequest(API_ERROR_CODES.pageSectionOrderInvalid, "Section insert position is invalid.");
+  }
+
+  const name = body.name === undefined || body.name === null ? null : parseSectionNamePayload(body.name);
+
+  return {
+    revision: parseRevision(body.revision),
+    type,
+    name,
+    insert:
+      beforeSectionId === undefined && afterSectionId === undefined
+        ? undefined
+        : {
+            beforeSectionId,
+            afterSectionId
+          }
+  };
+}
+
+function parseSectionPatchPayload(body: unknown): {
+  readonly revision: number;
+  readonly name?: string | undefined;
+  readonly isHidden?: boolean | undefined;
+} {
+  if (!isRecord(body)) {
+    throw badRequest(API_ERROR_CODES.validationFailed, "Request body is invalid.", [
+      {
+        field: "body",
+        code: "FIELD_INVALID_TYPE",
+        message: "Request body must be an object."
+      }
+    ]);
+  }
+
+  if (body.name === undefined && body.isHidden === undefined) {
+    throw badRequest(API_ERROR_CODES.validationFailed, "Section patch is empty.");
+  }
+
+  if (body.isHidden !== undefined && typeof body.isHidden !== "boolean") {
+    throw badRequest(API_ERROR_CODES.validationFailed, "Section hidden state is invalid.", [
+      {
+        field: "isHidden",
+        code: "FIELD_INVALID_TYPE",
+        message: "isHidden must be a boolean."
+      }
+    ]);
+  }
+
+  return {
+    revision: parseRevision(body.revision),
+    ...(body.name === undefined
+      ? {}
+      : {
+          name: parseSectionNamePayload(body.name)
+        }),
+    ...(body.isHidden === undefined
+      ? {}
+      : {
+          isHidden: body.isHidden
+        })
+  };
+}
+
+function parseSectionReorderPayload(body: unknown): {
+  readonly revision: number;
+  readonly sectionIds: readonly string[];
+} {
+  if (!isRecord(body)) {
+    throw badRequest(API_ERROR_CODES.validationFailed, "Request body is invalid.", [
+      {
+        field: "body",
+        code: "FIELD_INVALID_TYPE",
+        message: "Request body must be an object."
+      }
+    ]);
+  }
+
+  if (!Array.isArray(body.sectionIds)) {
+    throw badRequest(API_ERROR_CODES.pageSectionOrderInvalid, "Section order is invalid.");
+  }
+
+  const sectionIds = body.sectionIds.map((sectionId) =>
+    typeof sectionId === "string" ? sectionId.trim() : ""
+  );
+
+  if (sectionIds.some((sectionId) => sectionId === "")) {
+    throw badRequest(API_ERROR_CODES.pageSectionOrderInvalid, "Section order is invalid.");
+  }
+
+  return {
+    revision: parseRevision(body.revision),
+    sectionIds
+  };
+}
+
+function parseRevision(value: unknown): number {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 1) {
+    return value;
+  }
+
+  throw badRequest(API_ERROR_CODES.validationFailed, "Revision is invalid.", [
+    {
+      field: "revision",
+      code: "FIELD_INVALID_VALUE",
+      message: "revision must be a positive integer."
+    }
+  ]);
+}
+
+function parseSectionNamePayload(value: unknown): string {
+  if (typeof value !== "string") {
+    throw badRequest(API_ERROR_CODES.pageSectionNameInvalid, "Section name is invalid.");
+  }
+
+  const name = value.trim();
+
+  if (name.length === 0 || name.length > 80) {
+    throw badRequest(API_ERROR_CODES.pageSectionNameInvalid, "Section name is invalid.");
+  }
+
+  return name;
+}
+
+function createSectionFromPreset(
+  type: "empty" | "text" | "image-text" | "product",
+  name: string | null
+): SectionNode {
+  const section = {
+    ...createDefaultSection(),
+    name: name ?? defaultSectionName(type),
+    metadata: {
+      preset: type
+    }
+  };
+
+  if (type === "text") {
+    return {
+      ...section,
+      children: [createDefaultBlock("heading"), createDefaultBlock("text")]
+    };
+  }
+
+  if (type === "image-text") {
+    const leftColumn = createDefaultColumn();
+    const rightColumn = createDefaultColumn();
+
+    return {
+      ...section,
+      props: {
+        ...section.props,
+        layout: "two-columns"
+      },
+      children: [
+        {
+          ...leftColumn,
+          children: [createDefaultBlock("image")]
+        },
+        {
+          ...rightColumn,
+          children: [createDefaultBlock("heading"), createDefaultBlock("text")]
+        }
+      ]
+    };
+  }
+
+  if (type === "product") {
+    return {
+      ...section,
+      children: [createDefaultBlock("product-grid")]
+    };
+  }
+
+  return section;
+}
+
+function defaultSectionName(type: "empty" | "text" | "image-text" | "product"): string {
+  switch (type) {
+    case "empty":
+      return "Пустая секция";
+    case "text":
+      return "Текст";
+    case "image-text":
+      return "Изображение и текст";
+    case "product":
+      return "Товары";
+  }
+}
+
+function toPageSectionApiError(error: PageSectionOperationError) {
+  switch (error.code) {
+    case PAGE_SECTION_OPERATION_ERROR_CODES.sectionNotFound:
+      return notFound(API_ERROR_CODES.pageSectionNotFound, error.message);
+    case PAGE_SECTION_OPERATION_ERROR_CODES.sectionLimitReached:
+      return badRequest(API_ERROR_CODES.pageSectionLimitReached, error.message);
+    case PAGE_SECTION_OPERATION_ERROR_CODES.sectionNameInvalid:
+      return badRequest(API_ERROR_CODES.pageSectionNameInvalid, error.message);
+    case PAGE_SECTION_OPERATION_ERROR_CODES.sectionOrderInvalid:
+      return badRequest(API_ERROR_CODES.pageSectionOrderInvalid, error.message);
+    case PAGE_SECTION_OPERATION_ERROR_CODES.sectionDuplicationFailed:
+      return badRequest(API_ERROR_CODES.pageSectionDuplicationFailed, error.message);
+    case PAGE_SECTION_OPERATION_ERROR_CODES.globalRegionInvalid:
+      return badRequest(API_ERROR_CODES.pageGlobalRegionInvalid, error.message);
+  }
 }
 
 function duplicateSlugError() {

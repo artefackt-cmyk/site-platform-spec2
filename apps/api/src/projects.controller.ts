@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Put } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put } from "@nestjs/common";
 import {
   type CreateProjectPageResponse,
   type CreateProjectResponse,
   type PageDocumentResponse,
+  type PageSectionMutationResponse,
   type ProjectPagesListResponse,
   type ProjectResponse,
   type ProjectsListResponse,
@@ -82,5 +83,58 @@ export class ProjectsController {
     @Body() body: unknown
   ): Promise<PageDocumentResponse> {
     return this.projectsService.saveProjectPageDocument(projectId, pageId, body);
+  }
+
+  @Post(":projectId/pages/:pageId/sections")
+  async addPageSection(
+    @Param("projectId") projectId: string,
+    @Param("pageId") pageId: string,
+    @Body() body: unknown
+  ): Promise<PageSectionMutationResponse> {
+    return this.projectsService.addPageSection(projectId, pageId, body);
+  }
+
+  @Post(":projectId/pages/:pageId/sections/reorder")
+  async reorderPageSections(
+    @Param("projectId") projectId: string,
+    @Param("pageId") pageId: string,
+    @Body() body: unknown
+  ): Promise<PageSectionMutationResponse> {
+    return this.projectsService.reorderPageSections(projectId, pageId, body);
+  }
+
+  @Post(":projectId/pages/:pageId/sections/:sectionId/duplicate")
+  async duplicatePageSection(
+    @Param("projectId") projectId: string,
+    @Param("pageId") pageId: string,
+    @Param("sectionId") sectionId: string,
+    @Body() body: unknown
+  ): Promise<PageSectionMutationResponse> {
+    return this.projectsService.duplicatePageSection(
+      projectId,
+      pageId,
+      sectionId,
+      body
+    );
+  }
+
+  @Patch(":projectId/pages/:pageId/sections/:sectionId")
+  async updatePageSection(
+    @Param("projectId") projectId: string,
+    @Param("pageId") pageId: string,
+    @Param("sectionId") sectionId: string,
+    @Body() body: unknown
+  ): Promise<PageSectionMutationResponse> {
+    return this.projectsService.updatePageSection(projectId, pageId, sectionId, body);
+  }
+
+  @Delete(":projectId/pages/:pageId/sections/:sectionId")
+  async deletePageSection(
+    @Param("projectId") projectId: string,
+    @Param("pageId") pageId: string,
+    @Param("sectionId") sectionId: string,
+    @Body() body: unknown
+  ): Promise<PageSectionMutationResponse> {
+    return this.projectsService.deletePageSection(projectId, pageId, sectionId, body);
   }
 }

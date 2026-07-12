@@ -6,6 +6,8 @@ export const PAGE_DOCUMENT_V1_SCHEMA_VERSION = 1 as const;
 export const PAGE_DOCUMENT_SCHEMA_VERSION = 2 as const;
 export const PAGE_DOCUMENT_LATEST_SCHEMA_VERSION = PAGE_DOCUMENT_SCHEMA_VERSION;
 export const PAGE_DOCUMENT_MAX_DEPTH = 4 as const;
+export const PAGE_DOCUMENT_MAX_SECTIONS = 64 as const;
+export const PAGE_SECTION_NAME_MAX_LENGTH = 80 as const;
 
 export const LEAF_BLOCK_TYPES = [
   "heading",
@@ -65,6 +67,12 @@ export type ProductGridLimit = (typeof PRODUCT_GRID_LIMITS)[number];
 
 const NodeIdSchema = z.string().trim().min(1);
 const TextAlignmentSchema = z.enum(TEXT_ALIGNMENTS);
+const SectionNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(PAGE_SECTION_NAME_MAX_LENGTH);
+const SectionMetadataSchema = z.record(z.string(), z.unknown());
 
 export const HeadingBlockPropsSchema = z
   .object({
@@ -257,8 +265,11 @@ export const SectionNodeSchema = z
   .object({
     id: NodeIdSchema,
     type: z.literal("section"),
+    name: SectionNameSchema.default("Секция"),
+    isHidden: z.boolean().default(false),
     props: SectionNodePropsSchema,
-    children: z.array(z.union([LeafBlockNodeSchema, ColumnNodeSchema]))
+    children: z.array(z.union([LeafBlockNodeSchema, ColumnNodeSchema])),
+    metadata: SectionMetadataSchema.default({})
   })
   .strict()
   .superRefine((section, context) => {
@@ -324,6 +335,13 @@ export const PageDocumentV2Schema = z
   })
   .strict()
   .superRefine((document, context) => {
+    if (document.root.children.length > PAGE_DOCUMENT_MAX_SECTIONS) {
+      context.addIssue({
+        code: "custom",
+        path: ["root", "children"],
+        message: `Page document cannot contain more than ${PAGE_DOCUMENT_MAX_SECTIONS} sections.`
+      });
+    }
     addDuplicateIdIssues(collectV2Nodes(document), context);
     addDepthIssues(document, context);
   });
@@ -376,6 +394,28 @@ export type PageDocumentValidationError = {
   readonly message: string;
 };
 
+export const PAGE_SECTION_OPERATION_ERROR_CODES = {
+  sectionNotFound: "PAGE_SECTION_NOT_FOUND",
+  sectionLimitReached: "PAGE_SECTION_LIMIT_REACHED",
+  sectionNameInvalid: "PAGE_SECTION_NAME_INVALID",
+  sectionOrderInvalid: "PAGE_SECTION_ORDER_INVALID",
+  sectionDuplicationFailed: "PAGE_SECTION_DUPLICATION_FAILED",
+  globalRegionInvalid: "PAGE_GLOBAL_REGION_INVALID"
+} as const;
+
+export type PageSectionOperationErrorCode =
+  (typeof PAGE_SECTION_OPERATION_ERROR_CODES)[keyof typeof PAGE_SECTION_OPERATION_ERROR_CODES];
+
+export class PageSectionOperationError extends Error {
+  readonly code: PageSectionOperationErrorCode;
+
+  constructor(code: PageSectionOperationErrorCode, message: string) {
+    super(message);
+    this.name = "PageSectionOperationError";
+    this.code = code;
+  }
+}
+
 export type PageDocumentValidationResult =
   | {
       readonly ok: true;
@@ -412,8 +452,11 @@ export function createDefaultSection(): SectionNode {
   return {
     id: createNodeId("section"),
     type: "section",
+    name: "Новая секция",
+    isHidden: false,
     props: createDefaultSectionProps("single"),
-    children: []
+    children: [],
+    metadata: {}
   };
 }
 
@@ -574,8 +617,13 @@ export function migratePageDocumentV1ToV2(document: unknown): PageDocumentV2 {
         {
           id: `${result.data.root.id}-section-v2`,
           type: "section",
+          name: "Секция",
+          isHidden: false,
           props: createDefaultSectionProps("single"),
-          children: result.data.root.children.map((block) => ({ ...block }))
+          children: result.data.root.children.map((block) => ({ ...block })),
+          metadata: {
+            migratedFrom: "v1"
+          }
         }
       ]
     }
@@ -780,11 +828,150 @@ export function insertSection(
   index?: number
 ): PageDocumentV2 {
   const children = [...document.root.children];
+  if (children.length >= PAGE_DOCUMENT_MAX_SECTIONS) {
+    throw new PageSectionOperationError(
+      PAGE_SECTION_OPERATION_ERROR_CODES.sectionLimitReached,
+      "Page section limit reached."
+    );
+  }
   const safeIndex = clampIndex(index, children.length);
 
   children.splice(safeIndex, 0, section);
 
   return withSections(document, children);
+}
+
+export function addSectionAtEnd(
+  document: PageDocumentV2,
+  section: SectionNode = createDefaultSection()
+): PageDocumentV2 {
+  return insertSection(document, normalizeSection(section));
+}
+
+export function insertSectionBefore(
+  document: PageDocumentV2,
+  targetSectionId: string,
+  section: SectionNode = createDefaultSection()
+): PageDocumentV2 {
+  const index = findSectionIndexOrThrow(document, targetSectionId);
+
+  return insertSection(document, normalizeSection(section), index);
+}
+
+export function insertSectionAfter(
+  document: PageDocumentV2,
+  targetSectionId: string,
+  section: SectionNode = createDefaultSection()
+): PageDocumentV2 {
+  const index = findSectionIndexOrThrow(document, targetSectionId);
+
+  return insertSection(document, normalizeSection(section), index + 1);
+}
+
+export function duplicateSection(
+  document: PageDocumentV2,
+  sectionId: string
+): PageDocumentV2 {
+  const index = findSectionIndexOrThrow(document, sectionId);
+
+  if (document.root.children.length >= PAGE_DOCUMENT_MAX_SECTIONS) {
+    throw new PageSectionOperationError(
+      PAGE_SECTION_OPERATION_ERROR_CODES.sectionLimitReached,
+      "Page section limit reached."
+    );
+  }
+
+  try {
+    const copy = cloneSectionWithNewIds(document.root.children[index]);
+
+    return insertSection(document, copy, index + 1);
+  } catch (error) {
+    if (error instanceof PageSectionOperationError) {
+      throw error;
+    }
+
+    throw new PageSectionOperationError(
+      PAGE_SECTION_OPERATION_ERROR_CODES.sectionDuplicationFailed,
+      "Section could not be duplicated."
+    );
+  }
+}
+
+export function deleteSection(
+  document: PageDocumentV2,
+  sectionId: string
+): PageDocumentV2 {
+  findSectionIndexOrThrow(document, sectionId);
+
+  return removeSection(document, sectionId);
+}
+
+export function hideSection(
+  document: PageDocumentV2,
+  sectionId: string
+): PageDocumentV2 {
+  return setSectionHidden(document, sectionId, true);
+}
+
+export function showSection(
+  document: PageDocumentV2,
+  sectionId: string
+): PageDocumentV2 {
+  return setSectionHidden(document, sectionId, false);
+}
+
+export function renameSection(
+  document: PageDocumentV2,
+  sectionId: string,
+  name: string
+): PageDocumentV2 {
+  const parsedName = parseSectionName(name);
+
+  findSectionIndexOrThrow(document, sectionId);
+
+  return updateNode(document, sectionId, (node) =>
+    node.type === "section"
+      ? {
+          ...node,
+          name: parsedName
+        }
+      : node
+  );
+}
+
+export function reorderSectionsByIds(
+  document: PageDocumentV2,
+  orderedSectionIds: readonly string[]
+): PageDocumentV2 {
+  const sectionsById = new Map(
+    document.root.children.map((section) => [section.id, section])
+  );
+
+  if (orderedSectionIds.length !== document.root.children.length) {
+    throw new PageSectionOperationError(
+      PAGE_SECTION_OPERATION_ERROR_CODES.sectionOrderInvalid,
+      "Section order must include every section exactly once."
+    );
+  }
+
+  const seen = new Set<string>();
+  const orderedSections: SectionNode[] = [];
+
+  for (const sectionId of orderedSectionIds) {
+    const section = sectionsById.get(sectionId);
+
+    if (section === undefined || seen.has(sectionId)) {
+      throw new PageSectionOperationError(
+        PAGE_SECTION_OPERATION_ERROR_CODES.sectionOrderInvalid,
+        "Section order contains duplicate or unknown section ids."
+      );
+    }
+
+    seen.add(sectionId);
+    orderedSections.push(section);
+  }
+
+  return withSections(document, orderedSections);
 }
 
 export function removeSection(
@@ -1345,6 +1532,106 @@ function moveSection(
     document,
     moveArrayItem(document.root.children, index, targetIndex)
   );
+}
+
+function findSectionIndexOrThrow(
+  document: PageDocumentV2,
+  sectionId: string
+): number {
+  const index = document.root.children.findIndex((section) => section.id === sectionId);
+
+  if (index < 0) {
+    throw new PageSectionOperationError(
+      PAGE_SECTION_OPERATION_ERROR_CODES.sectionNotFound,
+      "Page section was not found."
+    );
+  }
+
+  return index;
+}
+
+function parseSectionName(name: string): string {
+  const result = SectionNameSchema.safeParse(name);
+
+  if (!result.success) {
+    throw new PageSectionOperationError(
+      PAGE_SECTION_OPERATION_ERROR_CODES.sectionNameInvalid,
+      "Section name is invalid."
+    );
+  }
+
+  return result.data;
+}
+
+function setSectionHidden(
+  document: PageDocumentV2,
+  sectionId: string,
+  isHidden: boolean
+): PageDocumentV2 {
+  findSectionIndexOrThrow(document, sectionId);
+
+  return updateNode(document, sectionId, (node) =>
+    node.type === "section"
+      ? {
+          ...node,
+          isHidden
+        }
+      : node
+  );
+}
+
+function normalizeSection(section: SectionNode): SectionNode {
+  return SectionNodeSchema.parse(section);
+}
+
+function cloneSectionWithNewIds(section: SectionNode | undefined): SectionNode {
+  if (section === undefined) {
+    throw new PageSectionOperationError(
+      PAGE_SECTION_OPERATION_ERROR_CODES.sectionNotFound,
+      "Page section was not found."
+    );
+  }
+
+  return {
+    ...section,
+    id: createNodeId("section"),
+    name: `${section.name} copy`,
+    metadata: {
+      ...section.metadata,
+      duplicatedFromSectionId: section.id
+    },
+    children: section.children.map(cloneSectionChildWithNewIds)
+  };
+}
+
+function cloneSectionChildWithNewIds(
+  child: ColumnNode | LeafBlockNode
+): ColumnNode | LeafBlockNode {
+  if (child.type === "column") {
+    return {
+      ...child,
+      id: createNodeId("column"),
+      children: child.children.map(cloneLeafBlockWithNewId)
+    };
+  }
+
+  return cloneLeafBlockWithNewId(child);
+}
+
+function cloneLeafBlockWithNewId(block: LeafBlockNode): LeafBlockNode {
+  switch (block.type) {
+    case "heading":
+    case "text":
+    case "button":
+    case "spacer":
+    case "image":
+    case "product-card":
+    case "product-grid":
+      return {
+        ...block,
+        id: createNodeId(block.type)
+      };
+  }
 }
 
 function withSections(

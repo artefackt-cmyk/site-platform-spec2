@@ -494,6 +494,8 @@ function createSeedPageDocument(slug: string): PageDocumentV2 {
             {
               id: "seed-home-hero",
               type: "section",
+              name: "Первый экран",
+              isHidden: false,
               props: {
                 background: "accent",
                 paddingY: "large",
@@ -562,7 +564,10 @@ function createSeedPageDocument(slug: string): PageDocumentV2 {
                     }
                   ]
                 }
-              ]
+              ],
+              metadata: {
+                preset: "image-text"
+              }
             }
           ]
         }
@@ -599,6 +604,8 @@ function createCatalogSeedDocument(): PageDocumentV2 {
         {
           id: "seed-catalog-section",
           type: "section",
+          name: "Каталог",
+          isHidden: false,
           props: {
             background: "white",
             paddingY: "medium",
@@ -630,7 +637,10 @@ function createCatalogSeedDocument(): PageDocumentV2 {
                 limit: 8
               }
             }
-          ]
+          ],
+          metadata: {
+            preset: "product"
+          }
         }
       ]
     }
@@ -653,6 +663,8 @@ function createTextSeedDocument(input: {
         {
           id: input.sectionId,
           type: "section",
+          name: input.heading,
+          isHidden: false,
           props: {
             background: "white",
             paddingY: "medium",
@@ -679,7 +691,10 @@ function createTextSeedDocument(input: {
                 align: "left"
               }
             }
-          ]
+          ],
+          metadata: {
+            preset: "text"
+          }
         }
       ]
     }

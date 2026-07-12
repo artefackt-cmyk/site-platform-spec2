@@ -121,6 +121,8 @@ function createFilledDocument(): PageDocumentV2 {
         {
           id: "section-1",
           type: "section",
+          name: "Первый экран",
+          isHidden: false,
           props: {
             background: "white",
             paddingY: "medium",
@@ -157,7 +159,8 @@ function createFilledDocument(): PageDocumentV2 {
                 variant: "primary"
               }
             }
-          ]
+          ],
+          metadata: {}
         }
       ]
     }
