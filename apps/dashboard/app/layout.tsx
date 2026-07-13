@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { MerkurioThemeProvider, MerkurioThemeScript } from "@site-platform/ui";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="ru">
       <head>
+        <MerkurioThemeScript />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
@@ -21,7 +23,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <MerkurioThemeProvider>{children}</MerkurioThemeProvider>
+      </body>
     </html>
   );
 }

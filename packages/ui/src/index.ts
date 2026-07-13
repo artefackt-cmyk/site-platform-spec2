@@ -1,4 +1,5 @@
 import * as React from "react";
+import { mergeClassNames } from "./components";
 
 export const packageName = "@site-platform/ui" as const;
 
@@ -155,97 +156,8 @@ function toCssSize(size: MercurioLogoSize): string {
   return typeof size === "number" ? `${size}px` : size;
 }
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
-
-export function Button({
-  variant = "secondary",
-  loading = false,
-  children,
-  className,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  readonly variant?: ButtonVariant;
-  readonly loading?: boolean;
-}): React.ReactElement {
-  return React.createElement(
-    "button",
-    {
-      ...props,
-      className: mergeClassNames(`ui-button ui-button-${variant}`, className),
-      disabled: props.disabled === true || loading,
-      "aria-busy": loading ? "true" : undefined
-    },
-    loading ? "Загрузка..." : children
-  );
-}
-
-export function Badge({
-  tone = "neutral",
-  children,
-  className
-}: {
-  readonly tone?: "neutral" | "success" | "warning" | "danger" | "accent";
-  readonly children: React.ReactNode;
-  readonly className?: string;
-}): React.ReactElement {
-  return React.createElement(
-    "span",
-    {
-      className: mergeClassNames(`ui-badge ui-badge-${tone}`, className)
-    },
-    children
-  );
-}
-
-export function Card({
-  children,
-  className
-}: {
-  readonly children: React.ReactNode;
-  readonly className?: string;
-}): React.ReactElement {
-  return React.createElement(
-    "section",
-    {
-      className: mergeClassNames("ui-card", className)
-    },
-    children
-  );
-}
-
-export function Modal({
-  title,
-  children,
-  onCloseLabel = "Закрыть"
-}: {
-  readonly title: string;
-  readonly children: React.ReactNode;
-  readonly onCloseLabel?: string;
-}): React.ReactElement {
-  return React.createElement(
-    "section",
-    {
-      className: "ui-modal",
-      role: "dialog",
-      "aria-modal": "true",
-      "aria-labelledby": "ui-modal-title"
-    },
-    React.createElement("h2", { id: "ui-modal-title" }, title),
-    children,
-    React.createElement(
-      "button",
-      {
-        type: "button",
-        className: "ui-button ui-button-ghost",
-        "aria-label": onCloseLabel
-      },
-      onCloseLabel
-    )
-  );
-}
-
-export function mergeClassNames(
-  ...classNames: readonly (string | undefined | false)[]
-): string {
-  return classNames.filter(Boolean).join(" ");
-}
+export * from "./components";
+export * from "./editor-components";
+export * from "./icons";
+export * from "./theme";
+export * from "./tokens";

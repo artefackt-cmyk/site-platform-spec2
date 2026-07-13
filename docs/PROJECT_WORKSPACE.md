@@ -54,6 +54,17 @@ The workspace has:
 - a default `Страницы` section;
 - placeholder sections for `Обзор`, `Дизайн`, `Настройки` and `Домен`.
 
+## Design System Route
+
+The dashboard includes an internal protected `/design-system` route for Design
+System Foundation v1. It is intentionally not linked from the production
+workspace navigation yet. The route demonstrates Merkurio UI tokens, light/dark
+editor mode, core components, editor primitives and a prototype
+`DualViewportPreview`.
+
+Merkurio UI theme state is independent from Site Theme preview state. Changing
+the editor UI theme must not mutate the previewed site theme.
+
 The `Страницы` section shows:
 
 - page title;

@@ -38,6 +38,7 @@ export const config = {
     "/forgot-password",
     "/reset-password",
     "/onboarding",
+    "/design-system",
     "/projects/:path*"
   ]
 };

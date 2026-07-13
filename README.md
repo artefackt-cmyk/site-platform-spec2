@@ -147,6 +147,19 @@ Seed не публикует страницы автоматически: public
 
 Ограничения текущего milestone: нет Theme Engine, светлой/тёмной темы, выбора шрифтов, сложных header/footer layout, nested/mega menu, анимаций, horizontal page flow, component builder и template marketplace.
 
+## Design System Foundation v1
+
+Merkurio UI и Site Theme разделены как две независимые token-системы. Источник
+истины для foundation-токенов находится в `packages/ui/src/tokens/`; Figma export
+лежит в `docs/design-system/merkurio-ui-tokens.json`. Dashboard подключает
+SSR-safe light/dark/system provider для интерфейса Merkurio UI, но это не
+переключает тему previewed site.
+
+Внутренняя защищённая витрина доступна по `/design-system`. Она показывает
+palette, typography, spacing, icons, core components, editor primitives и
+prototype `DualViewportPreview` с независимым site preview Light/Dark. Страница
+не добавлена в основную production navigation.
+
 Для повторного запуска seed после изменения локальных данных выполните:
 
 ```bash
