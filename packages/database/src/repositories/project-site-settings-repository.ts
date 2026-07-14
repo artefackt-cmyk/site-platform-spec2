@@ -45,6 +45,15 @@ export type UpdateProjectSiteSettingsDraftInput = {
   readonly footerDraft: SiteFooterDraftJson;
 };
 
+export type SyncGeneratedSiteBrandInput = {
+  readonly tenantContext: TenantContext;
+  readonly projectId: string;
+  readonly siteId: string;
+  readonly previousSiteName: string;
+  readonly nextSiteName: string;
+  readonly projectName: string;
+};
+
 export class ProjectSiteSettingsRepository {
   constructor(private readonly client: RepositoryPrismaClient) {}
 
@@ -127,6 +136,79 @@ export class ProjectSiteSettingsRepository {
         headerEnabled: true,
         footerEnabled: true,
         revision: 1
+      }
+    });
+  }
+
+  async syncGeneratedBrandForSiteRename(
+    input: SyncGeneratedSiteBrandInput
+  ): Promise<ProjectSiteSettings | null> {
+    const existing = await this.findBySite(
+      input.tenantContext,
+      input.projectId,
+      input.siteId
+    );
+
+    if (existing === null) {
+      return this.getOrCreateDefaultForSite(
+        input.tenantContext,
+        input.projectId,
+        input.siteId,
+        input.nextSiteName
+      );
+    }
+
+    const currentHeader = existing.headerDraft as unknown as SiteHeaderDraftJson;
+    const currentFooter = existing.footerDraft as unknown as SiteFooterDraftJson;
+    const nextHeaderDefault = createDefaultHeaderDraft(input.nextSiteName);
+    const nextFooterDefault = createDefaultFooterDraft(input.nextSiteName);
+    const shouldReplaceHeaderBrand = isGeneratedBrandText(
+      currentHeader.brandText,
+      input.previousSiteName,
+      input.projectName
+    );
+    const shouldReplaceFooterBrand = isGeneratedBrandText(
+      currentFooter.brandText,
+      input.previousSiteName,
+      input.projectName
+    );
+    const shouldReplaceCopyright = isGeneratedCopyrightText(
+      currentFooter.copyrightText,
+      input.previousSiteName,
+      input.projectName
+    );
+
+    if (
+      !shouldReplaceHeaderBrand &&
+      !shouldReplaceFooterBrand &&
+      !shouldReplaceCopyright
+    ) {
+      return existing;
+    }
+
+    return this.client.projectSiteSettings.update({
+      where: {
+        id: existing.id
+      },
+      data: {
+        headerDraft: toJson({
+          ...currentHeader,
+          ...(shouldReplaceHeaderBrand
+            ? { brandText: nextHeaderDefault.brandText }
+            : {})
+        }),
+        footerDraft: toJson({
+          ...currentFooter,
+          ...(shouldReplaceFooterBrand
+            ? { brandText: nextFooterDefault.brandText }
+            : {}),
+          ...(shouldReplaceCopyright
+            ? { copyrightText: nextFooterDefault.copyrightText }
+            : {})
+        }),
+        revision: {
+          increment: 1
+        }
       }
     });
   }
@@ -226,4 +308,23 @@ function siteSettingsScope(
 
 function toJson(value: SiteHeaderDraftJson | SiteFooterDraftJson): PrismaJsonInput {
   return value as unknown as PrismaJsonInput;
+}
+
+function isGeneratedBrandText(
+  value: string,
+  previousSiteName: string,
+  projectName: string
+): boolean {
+  return value === previousSiteName || value === projectName;
+}
+
+function isGeneratedCopyrightText(
+  value: string,
+  previousSiteName: string,
+  projectName: string
+): boolean {
+  return (
+    value === createDefaultFooterDraft(previousSiteName).copyrightText ||
+    value === createDefaultFooterDraft(projectName).copyrightText
+  );
 }

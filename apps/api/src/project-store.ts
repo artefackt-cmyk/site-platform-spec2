@@ -4,6 +4,7 @@ import {
   MediaAssetRepository,
   PageDocumentRepository,
   ProjectRepository,
+  ProjectSiteSettingsRepository,
   SiteRepository,
   SitePageRepository,
   type DatabasePrismaClient,
@@ -251,6 +252,7 @@ export class PrismaProjectStore implements ProjectStore {
   async createSiteWithAudit(input: CreateProjectSiteInput): Promise<Site | null> {
     return this.client.$transaction(async (transaction) => {
       const siteRepository = new SiteRepository(transaction);
+      const siteSettingsRepository = new ProjectSiteSettingsRepository(transaction);
       const auditLogRepository = new AuditLogRepository(transaction);
       const site = await siteRepository.create({
         tenantContext: input.tenantContext,
@@ -263,6 +265,13 @@ export class PrismaProjectStore implements ProjectStore {
       if (site === null) {
         return null;
       }
+
+      await siteSettingsRepository.getOrCreateDefaultForSite(
+        input.tenantContext,
+        input.projectId,
+        site.id,
+        site.name
+      );
 
       await auditLogRepository.create({
         organizationId: input.tenantContext.organizationId,
@@ -284,11 +293,41 @@ export class PrismaProjectStore implements ProjectStore {
   async updateSiteWithAudit(input: UpdateProjectSiteInput): Promise<Site | null> {
     return this.client.$transaction(async (transaction) => {
       const siteRepository = new SiteRepository(transaction);
+      const projectRepository = new ProjectRepository(transaction);
+      const siteSettingsRepository = new ProjectSiteSettingsRepository(transaction);
       const auditLogRepository = new AuditLogRepository(transaction);
+      const existingSite = await siteRepository.findById(
+        input.tenantContext,
+        input.projectId,
+        input.siteId
+      );
+
+      if (existingSite === null) {
+        return null;
+      }
+
       const site = await siteRepository.update(input);
 
       if (site === null) {
         return null;
+      }
+
+      if (input.name !== undefined && input.name !== existingSite.name) {
+        const project = await projectRepository.findByTenantContextAndId({
+          tenantContext: input.tenantContext,
+          projectId: input.projectId
+        });
+
+        if (project !== null) {
+          await siteSettingsRepository.syncGeneratedBrandForSiteRename({
+            tenantContext: input.tenantContext,
+            projectId: input.projectId,
+            siteId: site.id,
+            previousSiteName: existingSite.name,
+            nextSiteName: site.name,
+            projectName: project.name
+          });
+        }
       }
 
       await auditLogRepository.create({

@@ -64,6 +64,24 @@ RBAC is reflected in the UI:
 - Editor unpublish/history/rollback remain on compatibility publish APIs until explicit
   site-scoped command routes are introduced.
 
+## Storefront Settings Resolution
+
+Public storefront resolution is Site-scoped:
+
+1. `publicHandle` resolves through `ProjectPublicationSettings.siteId`.
+2. The active published page state and snapshot must belong to that Site.
+3. The public response uses the snapshot's `siteSettingsJson` when present.
+4. For legacy snapshots without `siteSettingsJson`, the public API reads current
+   `ProjectSiteSettings` for the same `siteId`.
+5. Only if no settings exist for that Site, legacy fallback reads the active default Site settings
+   for the Project; if that is also absent, deterministic defaults are generated from the current
+   Site name.
+
+New Sites create their own `ProjectSiteSettings` during creation. Generated brand text is updated
+on Site rename only while the stored header/footer brand values still match generated defaults
+from the previous Site name or legacy Project name. Manually customized settings remain
+independent and are not overwritten by Site rename or default-Site changes.
+
 ## Follow-Up
 
 MERCURIO-004 should add template selection and starter Site/Page instantiation.
