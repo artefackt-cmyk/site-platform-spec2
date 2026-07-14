@@ -27,6 +27,7 @@ import { DATABASE_CLIENT } from "./database.provider";
 
 export type ProjectSiteSettingsResponse = {
   readonly projectId: string;
+  readonly siteId: string;
   readonly revision: number;
   readonly headerEnabled: boolean;
   readonly footerEnabled: boolean;
@@ -58,6 +59,36 @@ export class SiteSettingsService {
     const settings = await new ProjectSiteSettingsRepository(
       this.client
     ).getOrCreateDefault(identity.tenantContext, projectId, project.name);
+
+    if (settings === null) {
+      throw projectNotFoundError();
+    }
+
+    return toProjectSiteSettingsResponse(settings);
+  }
+
+  async getSiteSettings(
+    projectId: string,
+    siteId: string
+  ): Promise<ProjectSiteSettingsResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    if (!hasPermission(identity.role, PERMISSIONS.projectRead)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to read project settings."
+      );
+    }
+
+    const project = await this.getProjectOrThrow(identity.tenantContext, projectId);
+    const settings = await new ProjectSiteSettingsRepository(
+      this.client
+    ).getOrCreateDefaultForSite(
+      identity.tenantContext,
+      projectId,
+      siteId,
+      project.name
+    );
 
     if (settings === null) {
       throw projectNotFoundError();
@@ -142,6 +173,76 @@ export class SiteSettingsService {
     return toProjectSiteSettingsResponse(updated);
   }
 
+  async updateSiteSettings(
+    projectId: string,
+    siteId: string,
+    body: unknown
+  ): Promise<ProjectSiteSettingsResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    if (!hasPermission(identity.role, PERMISSIONS.projectUpdate)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to update project settings."
+      );
+    }
+
+    const project = await this.getProjectOrThrow(identity.tenantContext, projectId);
+    const repository = new ProjectSiteSettingsRepository(this.client);
+    const existing = await repository.getOrCreateDefaultForSite(
+      identity.tenantContext,
+      projectId,
+      siteId,
+      project.name
+    );
+
+    if (existing === null) {
+      throw projectNotFoundError();
+    }
+
+    const payload = await parseSiteSettingsPayload({
+      body,
+      context: identity.tenantContext,
+      projectId,
+      siteId,
+      client: this.client
+    });
+    const updated = await this.client.$transaction(async (transaction) => {
+      const transactionRepository = new ProjectSiteSettingsRepository(transaction);
+      const auditLogRepository = new AuditLogRepository(transaction);
+      const saved = await transactionRepository.updateDraft({
+        tenantContext: identity.tenantContext,
+        projectId,
+        siteId,
+        headerEnabled: payload.headerEnabled,
+        footerEnabled: payload.footerEnabled,
+        headerDraft: payload.header,
+        footerDraft: payload.footer
+      });
+
+      if (saved === null) {
+        throw projectNotFoundError();
+      }
+
+      await auditLogRepository.create({
+        organizationId: identity.tenantContext.organizationId,
+        actorUserId: identity.user.id,
+        action: headerAction(existing.headerEnabled, payload.headerEnabled),
+        entityType: "ProjectSiteSettings",
+        entityId: saved.id,
+        metadata: {
+          projectId,
+          siteId,
+          revision: saved.revision
+        }
+      });
+
+      return saved;
+    });
+
+    return toProjectSiteSettingsResponse(updated);
+  }
+
   private async getProjectOrThrow(
     context: TenantContext,
     projectId: string
@@ -163,6 +264,7 @@ async function parseSiteSettingsPayload(input: {
   readonly body: unknown;
   readonly context: TenantContext;
   readonly projectId: string;
+  readonly siteId?: string;
   readonly client: DatabasePrismaClient;
 }): Promise<{
   readonly headerEnabled: boolean;
@@ -190,6 +292,7 @@ async function parseSiteSettingsPayload(input: {
     await validateNavigationPages({
       context: input.context,
       projectId: input.projectId,
+      ...(input.siteId === undefined ? {} : { siteId: input.siteId }),
       client: input.client,
       header,
       issues
@@ -365,6 +468,7 @@ function parseNavigation(
 async function validateNavigationPages(input: {
   readonly context: TenantContext;
   readonly projectId: string;
+  readonly siteId?: string;
   readonly client: DatabasePrismaClient;
   readonly header: SiteHeaderDraftJson;
   readonly issues: ApiValidationIssue[];
@@ -381,6 +485,7 @@ async function validateNavigationPages(input: {
     where: {
       organizationId: input.context.organizationId,
       projectId: input.projectId,
+      ...(input.siteId === undefined ? {} : { siteId: input.siteId }),
       id: {
         in: pageIds
       },
@@ -500,6 +605,7 @@ function footerAction(wasEnabled: boolean, isEnabled: boolean): string {
 
 function toProjectSiteSettingsResponse(settings: {
   readonly projectId: string;
+  readonly siteId: string;
   readonly revision: number;
   readonly headerEnabled: boolean;
   readonly footerEnabled: boolean;
@@ -508,6 +614,7 @@ function toProjectSiteSettingsResponse(settings: {
 }): ProjectSiteSettingsResponse {
   return {
     projectId: settings.projectId,
+    siteId: settings.siteId,
     revision: settings.revision,
     headerEnabled: settings.headerEnabled,
     footerEnabled: settings.footerEnabled,

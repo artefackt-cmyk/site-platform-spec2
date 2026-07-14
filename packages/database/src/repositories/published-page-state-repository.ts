@@ -1,6 +1,5 @@
 import type { TenantContext } from "@site-platform/domain";
 import type { PublishedPageState } from "@prisma/client";
-import { SitePageRepository } from "./site-page-repository";
 import type { RepositoryPrismaClient } from "../types";
 
 export type ActivatePublishedPageInput = {
@@ -27,11 +26,23 @@ export class PublishedPageStateRepository {
   async activate(
     input: ActivatePublishedPageInput
   ): Promise<PublishedPageState | null> {
-    const page = await new SitePageRepository(this.client).findById(
-      input.tenantContext,
-      input.projectId,
-      input.pageId
-    );
+    const page = await this.client.sitePage.findFirst({
+      where: {
+        organizationId: input.tenantContext.organizationId,
+        projectId: input.projectId,
+        id: input.pageId,
+        deletedAt: null,
+        site: {
+          organizationId: input.tenantContext.organizationId,
+          projectId: input.projectId,
+          status: "ACTIVE"
+        },
+        project: {
+          organizationId: input.tenantContext.organizationId,
+          deletedAt: null
+        }
+      }
+    });
 
     if (page === null) {
       return null;
@@ -44,6 +55,7 @@ export class PublishedPageStateRepository {
       create: {
         organizationId: input.tenantContext.organizationId,
         projectId: input.projectId,
+        siteId: page.siteId,
         pageId: input.pageId,
         activeSnapshotId: input.snapshotId,
         publishedAt: input.publishedAt,
@@ -92,6 +104,11 @@ function activeStateScope(
       organizationId: context.organizationId,
       projectId,
       deletedAt: null,
+      site: {
+        organizationId: context.organizationId,
+        projectId,
+        status: "ACTIVE" as const
+      },
       project: {
         organizationId: context.organizationId,
         deletedAt: null

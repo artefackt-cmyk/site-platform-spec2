@@ -45,12 +45,46 @@ export class PublicationController {
     return this.publicationService.updatePublicationSettings(projectId, body);
   }
 
+  @Get("sites/:siteId/publication-settings")
+  async getSitePublicationSettings(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string
+  ): Promise<PublicationSettingsResponse> {
+    return this.publicationService.getSitePublicationSettings(projectId, siteId);
+  }
+
+  @Patch("sites/:siteId/publication-settings")
+  async updateSitePublicationSettings(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string,
+    @Body() body: unknown
+  ): Promise<PublicationSettingsResponse> {
+    return this.publicationService.updateSitePublicationSettings(
+      projectId,
+      siteId,
+      body
+    );
+  }
+
   @Get("pages/:pageId/publication-status")
   async getPagePublicationStatus(
     @Param("projectId") projectId: string,
     @Param("pageId") pageId: string
   ): Promise<PublicationStatusResponse> {
     return this.publicationService.getPagePublicationStatus(projectId, pageId);
+  }
+
+  @Get("sites/:siteId/pages/:pageId/publication-status")
+  async getSitePagePublicationStatus(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string,
+    @Param("pageId") pageId: string
+  ): Promise<PublicationStatusResponse> {
+    return this.publicationService.getSitePagePublicationStatus(
+      projectId,
+      siteId,
+      pageId
+    );
   }
 
   @Post("pages/:pageId/publish")
@@ -60,6 +94,21 @@ export class PublicationController {
     @Body() body: unknown
   ): Promise<PublishPageResponse> {
     return this.publicationService.publishPage(projectId, pageId, body);
+  }
+
+  @Post("sites/:siteId/pages/:pageId/publish")
+  async publishSitePage(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string,
+    @Param("pageId") pageId: string,
+    @Body() body: unknown
+  ): Promise<PublishPageResponse> {
+    return this.publicationService.publishSitePage(
+      projectId,
+      siteId,
+      pageId,
+      body
+    );
   }
 
   @Post("pages/:pageId/unpublish")

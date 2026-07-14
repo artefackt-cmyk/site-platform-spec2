@@ -1,10 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { AppConfig } from "@site-platform/config";
 import {
+  CannotArchiveDefaultSiteError,
+  CannotArchiveOnlyActiveSiteError,
   PageDocumentInvalidError,
   PageDocumentRevisionConflictError,
   type PageDocumentRecord,
   type Project,
+  type Site,
   type SitePage
 } from "@site-platform/database";
 import {
@@ -78,12 +81,36 @@ export type CreateProjectResponse = {
 export type SitePageResponse = {
   readonly id: string;
   readonly projectId: string;
+  readonly siteId: string;
   readonly title: string;
   readonly slug: string;
   readonly status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   readonly isHome: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
+};
+
+export type SiteResponse = {
+  readonly id: string;
+  readonly projectId: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly status: "ACTIVE" | "ARCHIVED";
+  readonly isDefault: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+};
+
+export type SitesListResponse = {
+  readonly sites: readonly SiteResponse[];
+};
+
+export type CreateSiteResponse = {
+  readonly site: SiteResponse;
+};
+
+export type UpdateSiteResponse = {
+  readonly site: SiteResponse;
 };
 
 export type ProjectPagesListResponse = {
@@ -173,6 +200,212 @@ export class ProjectsService {
     }
   }
 
+  async listProjectSites(projectId: string): Promise<SitesListResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.projectRead)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to read sites."
+      );
+    }
+
+    const sites = await this.projectStore.listSitesByProject(
+      identity.tenantContext,
+      projectId
+    );
+
+    return {
+      sites: sites.map(toSiteResponse)
+    };
+  }
+
+  async createProjectSite(
+    projectId: string,
+    body: unknown
+  ): Promise<CreateSiteResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.projectUpdate)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to create sites."
+      );
+    }
+
+    const payload = parseCreateSitePayload(body);
+
+    try {
+      const site = await this.projectStore.createSiteWithAudit({
+        tenantContext: identity.tenantContext,
+        projectId,
+        name: payload.name,
+        slug: payload.slug,
+        isDefault: payload.isDefault
+      });
+
+      if (site === null) {
+        throw siteNotFoundError();
+      }
+
+      return {
+        site: toSiteResponse(site)
+      };
+    } catch (error) {
+      if (isProjectSlugUniqueError(error)) {
+        throw duplicateSiteSlugError();
+      }
+
+      throw error;
+    }
+  }
+
+  async getProjectSite(projectId: string, siteId: string): Promise<SiteResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.projectRead)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to read sites."
+      );
+    }
+
+    const site = await this.getSiteOrThrow(
+      identity.tenantContext,
+      projectId,
+      siteId
+    );
+
+    return toSiteResponse(site);
+  }
+
+  async updateProjectSite(
+    projectId: string,
+    siteId: string,
+    body: unknown
+  ): Promise<UpdateSiteResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.projectUpdate)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to update sites."
+      );
+    }
+
+    await this.getSiteOrThrow(identity.tenantContext, projectId, siteId);
+    const payload = parseUpdateSitePayload(body);
+
+    try {
+      const site = await this.projectStore.updateSiteWithAudit({
+        tenantContext: identity.tenantContext,
+        projectId,
+        siteId,
+        ...payload
+      });
+
+      if (site === null) {
+        throw siteNotFoundError();
+      }
+
+      return {
+        site: toSiteResponse(site)
+      };
+    } catch (error) {
+      if (isProjectSlugUniqueError(error)) {
+        throw duplicateSiteSlugError();
+      }
+
+      throw error;
+    }
+  }
+
+  async archiveProjectSite(
+    projectId: string,
+    siteId: string
+  ): Promise<UpdateSiteResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.projectUpdate)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to archive sites."
+      );
+    }
+
+    try {
+      const site = await this.projectStore.archiveSiteWithAudit(
+        identity.tenantContext,
+        projectId,
+        siteId
+      );
+
+      if (site === null) {
+        throw siteNotFoundError();
+      }
+
+      return {
+        site: toSiteResponse(site)
+      };
+    } catch (error) {
+      if (error instanceof CannotArchiveOnlyActiveSiteError) {
+        throw badRequest(
+          API_ERROR_CODES.siteCannotArchiveOnlyActive,
+          "Cannot archive the only active site in a project."
+        );
+      }
+
+      if (error instanceof CannotArchiveDefaultSiteError) {
+        throw badRequest(
+          API_ERROR_CODES.siteCannotArchiveDefault,
+          "Cannot archive the default site before choosing another default."
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  async setDefaultProjectSite(
+    projectId: string,
+    siteId: string
+  ): Promise<UpdateSiteResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.projectUpdate)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to update sites."
+      );
+    }
+
+    const site = await this.projectStore.setDefaultSiteWithAudit(
+      identity.tenantContext,
+      projectId,
+      siteId
+    );
+
+    if (site === null) {
+      throw siteNotFoundError();
+    }
+
+    return {
+      site: toSiteResponse(site)
+    };
+  }
+
   async listProjectPages(projectId: string): Promise<ProjectPagesListResponse> {
     const identity = await this.currentIdentityResolver.getCurrentIdentity();
 
@@ -188,6 +421,33 @@ export class ProjectsService {
     const pages = await this.projectStore.listPagesByProject(
       identity.tenantContext,
       projectId
+    );
+
+    return {
+      pages: pages.map(toSitePageResponse)
+    };
+  }
+
+  async listSitePages(
+    projectId: string,
+    siteId: string
+  ): Promise<ProjectPagesListResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+    await this.getSiteOrThrow(identity.tenantContext, projectId, siteId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.pageRead)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to read pages."
+      );
+    }
+
+    const pages = await this.projectStore.listPagesBySite(
+      identity.tenantContext,
+      projectId,
+      siteId
     );
 
     return {
@@ -237,6 +497,51 @@ export class ProjectsService {
     }
   }
 
+  async createSitePage(
+    projectId: string,
+    siteId: string,
+    body: unknown
+  ): Promise<CreateProjectPageResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+    await this.getSiteOrThrow(identity.tenantContext, projectId, siteId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.pageCreate)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to create pages."
+      );
+    }
+
+    const payload = parseCreatePagePayload(body);
+
+    try {
+      const page = await this.projectStore.createPageWithAudit({
+        tenantContext: identity.tenantContext,
+        projectId,
+        siteId,
+        title: payload.title,
+        slug: payload.slug,
+        isHome: payload.isHome
+      });
+
+      if (page === null) {
+        throw siteNotFoundError();
+      }
+
+      return {
+        page: toSitePageResponse(page)
+      };
+    } catch (error) {
+      if (isPageSlugUniqueError(error)) {
+        throw duplicatePageSlugError();
+      }
+
+      throw error;
+    }
+  }
+
   async getProjectPage(
     projectId: string,
     pageId: string
@@ -268,6 +573,37 @@ export class ProjectsService {
     return toSitePageResponse(page);
   }
 
+  async getSitePage(
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ): Promise<SitePageResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+    await this.getSiteOrThrow(identity.tenantContext, projectId, siteId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.pageRead)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to read pages."
+      );
+    }
+
+    const page = await this.projectStore.findPageByIdForSite(
+      identity.tenantContext,
+      projectId,
+      siteId,
+      pageId
+    );
+
+    if (page === null) {
+      throw pageNotFoundError();
+    }
+
+    return toSitePageResponse(page);
+  }
+
   async updateProjectPage(
     projectId: string,
     pageId: string,
@@ -292,6 +628,60 @@ export class ProjectsService {
       const page = await this.projectStore.updatePageWithAudit({
         tenantContext: identity.tenantContext,
         projectId,
+        pageId,
+        title: payload.title,
+        slug: payload.slug,
+        isHome: payload.isHome
+      });
+
+      if (page === null) {
+        throw pageNotFoundError();
+      }
+
+      return {
+        page: toSitePageResponse(page)
+      };
+    } catch (error) {
+      if (isPageSlugUniqueError(error)) {
+        throw duplicatePageSlugError();
+      }
+
+      throw error;
+    }
+  }
+
+  async updateSitePage(
+    projectId: string,
+    siteId: string,
+    pageId: string,
+    body: unknown
+  ): Promise<UpdateProjectPageResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+    await this.getSiteOrThrow(identity.tenantContext, projectId, siteId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.pageUpdate)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to update pages."
+      );
+    }
+
+    await this.getPageForSiteOrThrow(
+      identity.tenantContext,
+      projectId,
+      siteId,
+      pageId
+    );
+
+    const payload = parseUpdatePagePayload(body);
+
+    try {
+      const page = await this.projectStore.updatePageWithAudit({
+        tenantContext: identity.tenantContext,
+        projectId,
+        siteId,
         pageId,
         title: payload.title,
         slug: payload.slug,
@@ -344,6 +734,44 @@ export class ProjectsService {
     return toPageDocumentResponse(pageDocument);
   }
 
+  async getSitePageDocument(
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ): Promise<PageDocumentResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+    await this.getSiteOrThrow(identity.tenantContext, projectId, siteId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.pageRead)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to read pages."
+      );
+    }
+
+    await this.getPageForSiteOrThrow(
+      identity.tenantContext,
+      projectId,
+      siteId,
+      pageId
+    );
+
+    const pageDocument = await this.projectStore.getOrCreatePageDocumentForSite(
+      identity.tenantContext,
+      projectId,
+      siteId,
+      pageId
+    );
+
+    if (pageDocument === null) {
+      throw pageNotFoundError();
+    }
+
+    return toPageDocumentResponse(pageDocument);
+  }
+
   async saveProjectPageDocument(
     projectId: string,
     pageId: string,
@@ -383,6 +811,83 @@ export class ProjectsService {
       const pageDocument = await this.projectStore.savePageDocumentWithAudit({
         tenantContext: identity.tenantContext,
         projectId,
+        pageId,
+        document: payload.document,
+        expectedRevision: payload.revision
+      });
+
+      if (pageDocument === null) {
+        throw pageNotFoundError();
+      }
+
+      return toPageDocumentResponse(pageDocument);
+    } catch (error) {
+      if (error instanceof PageDocumentRevisionConflictError) {
+        throw conflict(
+          API_ERROR_CODES.pageDocumentRevisionConflict,
+          "Page document was changed by another save."
+        );
+      }
+
+      if (error instanceof PageDocumentInvalidError) {
+        throw badRequest(
+          API_ERROR_CODES.pageDocumentInvalid,
+          "Page document is invalid.",
+          toDocumentValidationIssues(error.errors)
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  async saveSitePageDocument(
+    projectId: string,
+    siteId: string,
+    pageId: string,
+    body: unknown
+  ): Promise<PageDocumentResponse> {
+    const identity = await this.currentIdentityResolver.getCurrentIdentity();
+
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+    await this.getSiteOrThrow(identity.tenantContext, projectId, siteId);
+
+    if (!hasPermission(identity.role, PERMISSIONS.pageUpdate)) {
+      throw forbidden(
+        API_ERROR_CODES.permissionDenied,
+        "Current user does not have permission to update pages."
+      );
+    }
+
+    await this.getPageForSiteOrThrow(
+      identity.tenantContext,
+      projectId,
+      siteId,
+      pageId
+    );
+
+    const payload = parseSavePageDocumentPayload(body);
+    const mediaIssues = await validatePageDocumentMediaAssets({
+      tenantContext: identity.tenantContext,
+      projectId,
+      document: payload.document,
+      projectStore: this.projectStore,
+      config: this.config
+    });
+
+    if (mediaIssues.length > 0) {
+      throw badRequest(
+        API_ERROR_CODES.pageDocumentInvalid,
+        "Page document is invalid.",
+        mediaIssues
+      );
+    }
+
+    try {
+      const pageDocument = await this.projectStore.savePageDocumentForSiteWithAudit({
+        tenantContext: identity.tenantContext,
+        projectId,
+        siteId,
         pageId,
         document: payload.document,
         expectedRevision: payload.revision
@@ -730,6 +1235,44 @@ export class ProjectsService {
 
     return page;
   }
+
+  private async getSiteOrThrow(
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string
+  ): Promise<Site> {
+    const site = await this.projectStore.findSiteById(
+      tenantContext,
+      projectId,
+      siteId
+    );
+
+    if (site === null) {
+      throw siteNotFoundError();
+    }
+
+    return site;
+  }
+
+  private async getPageForSiteOrThrow(
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ): Promise<SitePage> {
+    const page = await this.projectStore.findPageByIdForSite(
+      tenantContext,
+      projectId,
+      siteId,
+      pageId
+    );
+
+    if (page === null) {
+      throw pageNotFoundError();
+    }
+
+    return page;
+  }
 }
 
 async function validatePageDocumentMediaAssets(input: {
@@ -786,12 +1329,26 @@ export function toSitePageResponse(page: SitePage): SitePageResponse {
   return {
     id: page.id,
     projectId: page.projectId,
+    siteId: page.siteId,
     title: page.title,
     slug: page.slug,
     status: page.status,
     isHome: page.isHome,
     createdAt: page.createdAt.toISOString(),
     updatedAt: page.updatedAt.toISOString()
+  };
+}
+
+export function toSiteResponse(site: Site): SiteResponse {
+  return {
+    id: site.id,
+    projectId: site.projectId,
+    name: site.name,
+    slug: site.slug,
+    status: site.status,
+    isDefault: site.isDefault,
+    createdAt: site.createdAt.toISOString(),
+    updatedAt: site.updatedAt.toISOString()
   };
 }
 
@@ -885,6 +1442,182 @@ function parseCreateProjectPayload(body: unknown): {
   return {
     name: nameResult.value,
     slug: slugResult.value
+  };
+}
+
+function parseCreateSitePayload(body: unknown): {
+  readonly name: string;
+  readonly slug: string;
+  readonly isDefault: boolean;
+} {
+  if (!isRecord(body)) {
+    throw badRequest(API_ERROR_CODES.validationFailed, "Request body is invalid.", [
+      {
+        field: "body",
+        code: "FIELD_INVALID_TYPE",
+        message: "Request body must be an object."
+      }
+    ]);
+  }
+
+  if ("organizationId" in body || "projectId" in body) {
+    throw badRequest(
+      API_ERROR_CODES.organizationIdNotAllowed,
+      "organizationId and projectId must not be provided in the request body."
+    );
+  }
+
+  const issues: ApiValidationIssue[] = [];
+  const rawName = body.name;
+  const rawSlug = body.slug;
+  const rawIsDefault = body.isDefault;
+
+  if (typeof rawName !== "string") {
+    issues.push({
+      field: "name",
+      code: rawName === undefined ? "FIELD_REQUIRED" : "FIELD_INVALID_TYPE",
+      message: "Site name is required."
+    });
+  }
+
+  if (typeof rawSlug !== "string") {
+    issues.push({
+      field: "slug",
+      code: rawSlug === undefined ? "FIELD_REQUIRED" : "FIELD_INVALID_TYPE",
+      message: "Site slug is required."
+    });
+  }
+
+  if (rawIsDefault !== undefined && typeof rawIsDefault !== "boolean") {
+    issues.push({
+      field: "isDefault",
+      code: "FIELD_INVALID_TYPE",
+      message: "isDefault must be a boolean."
+    });
+  }
+
+  if (typeof rawName !== "string" || typeof rawSlug !== "string") {
+    throw badRequest(
+      API_ERROR_CODES.validationFailed,
+      "Site payload is invalid.",
+      issues
+    );
+  }
+
+  const nameResult = validateProjectName(rawName);
+  const slugResult = validateProjectSlug(rawSlug);
+
+  if (!nameResult.ok) {
+    issues.push({
+      field: "name",
+      code: nameResult.code,
+      message: toValidationMessage(nameResult.code)
+    });
+  }
+
+  if (!slugResult.ok) {
+    issues.push({
+      field: "slug",
+      code: slugResult.code,
+      message: toValidationMessage(slugResult.code)
+    });
+  }
+
+  if (!nameResult.ok || !slugResult.ok || issues.length > 0) {
+    throw badRequest(
+      API_ERROR_CODES.validationFailed,
+      "Site payload is invalid.",
+      issues
+    );
+  }
+
+  return {
+    name: nameResult.value,
+    slug: slugResult.value,
+    isDefault: rawIsDefault === true
+  };
+}
+
+function parseUpdateSitePayload(body: unknown): {
+  readonly name?: string;
+  readonly slug?: string;
+} {
+  if (!isRecord(body)) {
+    throw badRequest(API_ERROR_CODES.validationFailed, "Request body is invalid.", [
+      {
+        field: "body",
+        code: "FIELD_INVALID_TYPE",
+        message: "Request body must be an object."
+      }
+    ]);
+  }
+
+  if ("organizationId" in body || "projectId" in body || "isDefault" in body) {
+    throw badRequest(
+      API_ERROR_CODES.validationFailed,
+      "organizationId, projectId and isDefault must not be provided in the request body."
+    );
+  }
+
+  const issues: ApiValidationIssue[] = [];
+  const rawName = body.name;
+  const rawSlug = body.slug;
+  const nameResult =
+    rawName === undefined
+      ? undefined
+      : typeof rawName === "string"
+        ? validateProjectName(rawName)
+        : null;
+  const slugResult =
+    rawSlug === undefined
+      ? undefined
+      : typeof rawSlug === "string"
+        ? validateProjectSlug(rawSlug)
+        : null;
+
+  if (nameResult === null) {
+    issues.push({
+      field: "name",
+      code: "FIELD_INVALID_TYPE",
+      message: "Site name must be a string."
+    });
+  } else if (nameResult !== undefined && !nameResult.ok) {
+    issues.push({
+      field: "name",
+      code: nameResult.code,
+      message: toValidationMessage(nameResult.code)
+    });
+  }
+
+  if (slugResult === null) {
+    issues.push({
+      field: "slug",
+      code: "FIELD_INVALID_TYPE",
+      message: "Site slug must be a string."
+    });
+  } else if (slugResult !== undefined && !slugResult.ok) {
+    issues.push({
+      field: "slug",
+      code: slugResult.code,
+      message: toValidationMessage(slugResult.code)
+    });
+  }
+
+  if (issues.length > 0) {
+    throw badRequest(
+      API_ERROR_CODES.validationFailed,
+      "Site payload is invalid.",
+      issues
+    );
+  }
+
+  return {
+    ...(nameResult === undefined || nameResult === null || !nameResult.ok
+      ? {}
+      : { name: nameResult.value }),
+    ...(slugResult === undefined || slugResult === null || !slugResult.ok
+      ? {}
+      : { slug: slugResult.value })
   };
 }
 
@@ -1431,12 +2164,23 @@ function duplicateSlugError() {
 function duplicatePageSlugError() {
   return conflict(
     API_ERROR_CODES.pageSlugAlreadyExists,
-    "Page slug already exists inside this project."
+    "Page slug already exists inside this site."
+  );
+}
+
+function duplicateSiteSlugError() {
+  return conflict(
+    API_ERROR_CODES.siteSlugAlreadyExists,
+    "Site slug already exists inside this project."
   );
 }
 
 function projectNotFoundError() {
   return notFound(API_ERROR_CODES.projectNotFound, "Project was not found.");
+}
+
+function siteNotFoundError() {
+  return notFound(API_ERROR_CODES.siteNotFound, "Site was not found.");
 }
 
 function pageNotFoundError() {

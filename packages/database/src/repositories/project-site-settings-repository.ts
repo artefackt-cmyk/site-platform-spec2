@@ -2,6 +2,7 @@ import type { TenantContext } from "@site-platform/domain";
 import type { ProjectSiteSettings } from "@prisma/client";
 import type { PrismaJsonInput, RepositoryPrismaClient } from "../types";
 import { ProjectRepository } from "./project-repository";
+import { SiteRepository } from "./site-repository";
 
 export type SiteHeaderDraftJson = {
   readonly brandText: string;
@@ -37,6 +38,7 @@ export type SiteSettingsSnapshotJson = {
 export type UpdateProjectSiteSettingsDraftInput = {
   readonly tenantContext: TenantContext;
   readonly projectId: string;
+  readonly siteId?: string;
   readonly headerEnabled: boolean;
   readonly footerEnabled: boolean;
   readonly headerDraft: SiteHeaderDraftJson;
@@ -50,17 +52,57 @@ export class ProjectSiteSettingsRepository {
     context: TenantContext,
     projectId: string
   ): Promise<ProjectSiteSettings | null> {
+    const site = await new SiteRepository(this.client).findDefaultOrCreate(
+      context,
+      projectId
+    );
+
+    return site === null ? null : this.findBySite(context, projectId, site.id);
+  }
+
+  async findBySite(
+    context: TenantContext,
+    projectId: string,
+    siteId: string
+  ): Promise<ProjectSiteSettings | null> {
     return this.client.projectSiteSettings.findFirst({
-      where: siteSettingsScope(context, projectId)
+      where: siteSettingsScope(context, projectId, siteId)
     });
   }
 
   async getOrCreateDefault(
     context: TenantContext,
     projectId: string,
+    siteIdOrProjectName: string,
+    projectNameOrUndefined?: string
+  ): Promise<ProjectSiteSettings | null> {
+    const site =
+      projectNameOrUndefined === undefined
+        ? await new SiteRepository(this.client).findDefaultOrCreate(context, projectId)
+        : await new SiteRepository(this.client).findById(
+            context,
+            projectId,
+            siteIdOrProjectName
+          );
+    const projectName =
+      projectNameOrUndefined === undefined
+        ? siteIdOrProjectName
+        : projectNameOrUndefined;
+
+    if (site === null || site.status !== "ACTIVE") {
+      return null;
+    }
+
+    return this.getOrCreateDefaultForSite(context, projectId, site.id, projectName);
+  }
+
+  async getOrCreateDefaultForSite(
+    context: TenantContext,
+    projectId: string,
+    siteId: string,
     projectName: string
   ): Promise<ProjectSiteSettings | null> {
-    const existing = await this.findByProject(context, projectId);
+    const existing = await this.findBySite(context, projectId, siteId);
 
     if (existing !== null) {
       return existing;
@@ -79,6 +121,7 @@ export class ProjectSiteSettingsRepository {
       data: {
         organizationId: context.organizationId,
         projectId,
+        siteId,
         headerDraft: toJson(createDefaultHeaderDraft(projectName)),
         footerDraft: toJson(createDefaultFooterDraft(projectName)),
         headerEnabled: true,
@@ -91,10 +134,14 @@ export class ProjectSiteSettingsRepository {
   async updateDraft(
     input: UpdateProjectSiteSettingsDraftInput
   ): Promise<ProjectSiteSettings | null> {
-    const existing = await this.findByProject(
-      input.tenantContext,
-      input.projectId
-    );
+    const existing =
+      input.siteId === undefined
+        ? await this.findByProject(input.tenantContext, input.projectId)
+        : await this.findBySite(
+            input.tenantContext,
+            input.projectId,
+            input.siteId
+          );
 
     if (existing === null) {
       return null;
@@ -155,13 +202,24 @@ export function toSiteSettingsSnapshotJson(
   };
 }
 
-function siteSettingsScope(context: TenantContext, projectId: string) {
+function siteSettingsScope(
+  context: TenantContext,
+  projectId: string,
+  siteId: string
+) {
   return {
     organizationId: context.organizationId,
     projectId,
+    siteId,
     project: {
       organizationId: context.organizationId,
       deletedAt: null
+    },
+    site: {
+      organizationId: context.organizationId,
+      projectId,
+      id: siteId,
+      status: "ACTIVE" as const
     }
   };
 }

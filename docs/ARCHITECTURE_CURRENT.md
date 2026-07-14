@@ -63,6 +63,7 @@ Main models:
 - `Organization`
 - `Membership`
 - `Project`
+- `Site`
 - `SitePage`
 - `PageDocument`
 - `ProjectPublicationSettings`
@@ -78,13 +79,24 @@ Main models:
 - `OrderItem`
 - `AuditLog`
 
-Ownership is mostly represented through `organizationId` and `projectId`. Repository methods
-accept a `TenantContext` for tenant-scoped access.
+Core ownership hierarchy:
+
+`Organization -> Project -> Site -> SitePage -> PageDocument`
+
+`Project` can contain multiple `Site` rows. Each existing Project is backfilled with one active
+default Site. Pages, page documents, site settings, publication settings, published snapshots, and
+published states now carry required `siteId`. `projectId` remains on those rows as a transitional
+compatibility field while project-level dashboard routes are migrated.
+
+Repository methods accept a `TenantContext` for tenant-scoped access and validate Site access
+through `Organization -> Project -> Site`.
 
 Delete/archive strategy:
 
 - `Organization`, `Project`, `SitePage`, `Product`, and `ProductVariant` have soft delete or
   archive fields/statuses.
+- `Site` has `SiteStatus` (`ACTIVE`, `ARCHIVED`) and cannot archive the only active site or the
+  default active site without selecting another default.
 - Most foreign keys use `onDelete: Restrict`; auth sessions/credentials cascade from user;
   order items cascade from order.
 - Sections are JSON nodes inside `PageDocument`, so section deletion is document mutation, not
@@ -133,7 +145,11 @@ Delete/archive strategy:
 - Public landing page is static.
 - Dynamic public routes under `/s/[publicHandle]` fetch public API data for pages, products,
   checkout, and orders.
-- Storefront requires the API and database for complete published-site flows.
+- Storefront public page lookup resolves active snapshots through
+  `Site -> ProjectPublicationSettings.publicHandle`.
+- Existing `/s/[publicHandle]` routes continue to work for default Sites. Additional Sites can be
+  exposed with their own deterministic `publicHandle`.
+- Product/catalog/order data remains project-level and shared across Sites for this milestone.
 
 ## Background jobs
 

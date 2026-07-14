@@ -2,12 +2,16 @@ import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put } from "
 import {
   type CreateProjectPageResponse,
   type CreateProjectResponse,
+  type CreateSiteResponse,
   type PageDocumentResponse,
   type PageSectionMutationResponse,
   type ProjectPagesListResponse,
   type ProjectResponse,
   type ProjectsListResponse,
+  type SiteResponse,
+  type SitesListResponse,
   type SitePageResponse,
+  type UpdateSiteResponse,
   type UpdateProjectPageResponse,
   ProjectsService
 } from "./projects.service";
@@ -34,6 +38,114 @@ export class ProjectsController {
     @Param("projectId") projectId: string
   ): Promise<ProjectResponse> {
     return this.projectsService.getProject(projectId);
+  }
+
+  @Get(":projectId/sites")
+  async listProjectSites(
+    @Param("projectId") projectId: string
+  ): Promise<SitesListResponse> {
+    return this.projectsService.listProjectSites(projectId);
+  }
+
+  @Post(":projectId/sites")
+  async createProjectSite(
+    @Param("projectId") projectId: string,
+    @Body() body: unknown
+  ): Promise<CreateSiteResponse> {
+    return this.projectsService.createProjectSite(projectId, body);
+  }
+
+  @Get(":projectId/sites/:siteId")
+  async getProjectSite(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string
+  ): Promise<SiteResponse> {
+    return this.projectsService.getProjectSite(projectId, siteId);
+  }
+
+  @Patch(":projectId/sites/:siteId")
+  async updateProjectSite(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string,
+    @Body() body: unknown
+  ): Promise<UpdateSiteResponse> {
+    return this.projectsService.updateProjectSite(projectId, siteId, body);
+  }
+
+  @Delete(":projectId/sites/:siteId")
+  async archiveProjectSite(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string
+  ): Promise<UpdateSiteResponse> {
+    return this.projectsService.archiveProjectSite(projectId, siteId);
+  }
+
+  @Post(":projectId/sites/:siteId/set-default")
+  async setDefaultProjectSite(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string
+  ): Promise<UpdateSiteResponse> {
+    return this.projectsService.setDefaultProjectSite(projectId, siteId);
+  }
+
+  @Get(":projectId/sites/:siteId/pages")
+  async listSitePages(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string
+  ): Promise<ProjectPagesListResponse> {
+    return this.projectsService.listSitePages(projectId, siteId);
+  }
+
+  @Post(":projectId/sites/:siteId/pages")
+  async createSitePage(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string,
+    @Body() body: unknown
+  ): Promise<CreateProjectPageResponse> {
+    return this.projectsService.createSitePage(projectId, siteId, body);
+  }
+
+  @Get(":projectId/sites/:siteId/pages/:pageId")
+  async getSitePage(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string,
+    @Param("pageId") pageId: string
+  ): Promise<SitePageResponse> {
+    return this.projectsService.getSitePage(projectId, siteId, pageId);
+  }
+
+  @Patch(":projectId/sites/:siteId/pages/:pageId")
+  async updateSitePage(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string,
+    @Param("pageId") pageId: string,
+    @Body() body: unknown
+  ): Promise<UpdateProjectPageResponse> {
+    return this.projectsService.updateSitePage(projectId, siteId, pageId, body);
+  }
+
+  @Get(":projectId/sites/:siteId/pages/:pageId/document")
+  async getSitePageDocument(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string,
+    @Param("pageId") pageId: string
+  ): Promise<PageDocumentResponse> {
+    return this.projectsService.getSitePageDocument(projectId, siteId, pageId);
+  }
+
+  @Put(":projectId/sites/:siteId/pages/:pageId/document")
+  async saveSitePageDocument(
+    @Param("projectId") projectId: string,
+    @Param("siteId") siteId: string,
+    @Param("pageId") pageId: string,
+    @Body() body: unknown
+  ): Promise<PageDocumentResponse> {
+    return this.projectsService.saveSitePageDocument(
+      projectId,
+      siteId,
+      pageId,
+      body
+    );
   }
 
   @Get(":projectId/pages")

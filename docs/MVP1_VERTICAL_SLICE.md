@@ -53,18 +53,22 @@ Missing or incomplete:
 
 Existing:
 
-- Site behavior exists indirectly through project-level:
-  - `ProjectPublicationSettings`;
-  - `ProjectSiteSettings`;
-  - public handle;
-  - header/footer draft JSON.
-- Storefront routes use `publicHandle`.
+- `Site` is a first-class Prisma model under `Project`.
+- Every new Project gets a default active Site through `ProjectRepository.create`.
+- Existing Projects are backfilled with a default Site by migration.
+- `SitePage`, `PageDocument`, `ProjectPublicationSettings`, `ProjectSiteSettings`,
+  `PublishedPageSnapshot`, and `PublishedPageState` carry required `siteId`.
+- API exposes Site CRUD under `/api/projects/:projectId/sites`.
+- API exposes site-scoped pages under `/api/projects/:projectId/sites/:siteId/pages`.
+- Site settings and publication settings have site-scoped routes.
+- Storefront public page lookup resolves through Site-owned publication settings.
 
 Missing or incomplete:
 
-- No first-class `Site` model.
-- Current schema cannot represent multiple sites per project without overloading `Project`.
-- Domain and publication settings are project-level, not site-level.
+- No dashboard UI for selecting/managing Sites yet.
+- Historical Prisma model/table names `ProjectPublicationSettings` and `ProjectSiteSettings`
+  remain for compatibility, despite site-level ownership.
+- Products/media/orders are still project-level shared resources.
 
 ## 5. Template
 
@@ -84,7 +88,7 @@ Missing or incomplete:
 
 Existing:
 
-- `SitePage` model scoped by project and organization.
+- `SitePage` model scoped by site, project, and organization.
 - `PageDocument` stores the page document JSON and revision.
 - API supports page list/create/get/update.
 - API supports page document get/save.
@@ -96,7 +100,7 @@ Missing or incomplete:
 
 - There is no relational `Section` model.
 - Sections have no independent ownership, timestamps, or indexes outside document JSON.
-- Page model is tied directly to Project, not Site.
+- Project-level page routes are compatibility routes that resolve through the default Site.
 
 ## 7. Editor
 
@@ -123,8 +127,7 @@ Existing:
 
 Missing or incomplete:
 
-- Preview depends on project-level public settings and page publication state.
-- No first-class site preview mode for multiple sites per project.
+- No dashboard site selector/preview switcher for multiple Sites per project.
 
 ## 9. Publish
 
@@ -133,18 +136,20 @@ Existing:
 - `PublishedPageSnapshot` and `PublishedPageState`.
 - Publication API routes for settings, status, publish, unpublish, history, rollback.
 - Public site endpoints and storefront dynamic routes.
+- Published snapshots/states carry `siteId`.
+- Publication settings are site-owned through required `siteId`.
 
 Missing or incomplete:
 
-- Publish is page-centric and project/public-handle-centric.
+- Publish commands are still primarily exposed through compatibility project-level page routes.
 - No first-class site deployment entity.
 - Domain management UI is placeholder-level.
 
 ## Recommended next vertical step
 
-Before extending editor/storefront/template work, implement the domain kernel that makes the
-product hierarchy explicit:
+Next, expose the new Site kernel in dashboard workflows:
 
-`Organization -> Project -> Site -> Page -> Section`
+`MERCURIO-003 Site Management Dashboard`
 
-This should be `MERCURIO-002 Domain Kernel: Project, Site, Page and Section`.
+Focus: list/select Sites in the project workspace, create/update/archive Sites, switch default
+Site, and route page/settings/publication screens through explicit `siteId`.

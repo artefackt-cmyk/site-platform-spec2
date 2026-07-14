@@ -15,6 +15,8 @@ const DEMO_ORGANIZATION_NAME = "Demo Brand";
 const DEMO_ORGANIZATION_SLUG = "demo-brand";
 const DEMO_PROJECT_NAME = "Demo Store";
 const DEMO_PROJECT_SLUG = "demo-store";
+const DEMO_SECONDARY_SITE_NAME = "Demo Landing";
+const DEMO_SECONDARY_SITE_SLUG = "demo-landing";
 const DEMO_PAGES = [
   {
     title: "Главная",
@@ -139,21 +141,100 @@ export async function seedDevelopmentDatabase(
     }
   });
 
-  await client.projectPublicationSettings.upsert({
+  const defaultSite = await client.site.upsert({
     where: {
-      projectId: project.id
+      projectId_slug: {
+        projectId: project.id,
+        slug: DEMO_PROJECT_SLUG
+      }
     },
     create: {
       organizationId: organization.id,
       projectId: project.id,
+      name: DEMO_PROJECT_NAME,
+      slug: DEMO_PROJECT_SLUG,
+      status: "ACTIVE",
+      isDefault: true
+    },
+    update: {
+      name: DEMO_PROJECT_NAME,
+      status: "ACTIVE",
+      isDefault: true
+    }
+  });
+  const secondarySite = await client.site.upsert({
+    where: {
+      projectId_slug: {
+        projectId: project.id,
+        slug: DEMO_SECONDARY_SITE_SLUG
+      }
+    },
+    create: {
+      organizationId: organization.id,
+      projectId: project.id,
+      name: DEMO_SECONDARY_SITE_NAME,
+      slug: DEMO_SECONDARY_SITE_SLUG,
+      status: "ACTIVE",
+      isDefault: false
+    },
+    update: {
+      name: DEMO_SECONDARY_SITE_NAME,
+      status: "ACTIVE",
+      isDefault: false
+    }
+  });
+
+  await client.projectPublicationSettings.upsert({
+    where: {
+      siteId: defaultSite.id
+    },
+    create: {
+      organizationId: organization.id,
+      projectId: project.id,
+      siteId: defaultSite.id,
       publicHandle: DEMO_PROJECT_SLUG
     },
-    update: {}
+    update: {
+      publicHandle: DEMO_PROJECT_SLUG
+    }
+  });
+  await client.projectPublicationSettings.upsert({
+    where: {
+      siteId: secondarySite.id
+    },
+    create: {
+      organizationId: organization.id,
+      projectId: project.id,
+      siteId: secondarySite.id,
+      publicHandle: DEMO_SECONDARY_SITE_SLUG
+    },
+    update: {
+      publicHandle: DEMO_SECONDARY_SITE_SLUG
+    }
   });
 
   await seedDemoPages(client, {
     organizationId: organization.id,
-    projectId: project.id
+    projectId: project.id,
+    siteId: defaultSite.id,
+    pages: DEMO_PAGES
+  });
+  await seedDemoPages(client, {
+    organizationId: organization.id,
+    projectId: project.id,
+    siteId: secondarySite.id,
+    pages: [
+      {
+        title: "Лендинг",
+        slug: "home",
+        isHome: true
+      },
+      {
+        title: "Спасибо",
+        slug: "thanks",
+        isHome: false
+      }
+    ]
   });
   await seedDemoProducts(client, {
     organizationId: organization.id,
@@ -202,6 +283,12 @@ async function seedDemoPages(
   input: {
     readonly organizationId: string;
     readonly projectId: string;
+    readonly siteId: string;
+    readonly pages: readonly {
+      readonly title: string;
+      readonly slug: string;
+      readonly isHome: boolean;
+    }[];
   }
 ): Promise<void> {
   await client.$transaction(async (transaction) => {
@@ -209,24 +296,26 @@ async function seedDemoPages(
       where: {
         organizationId: input.organizationId,
         projectId: input.projectId,
+        siteId: input.siteId,
         deletedAt: null,
         isHome: true
       }
     });
 
-    for (const page of DEMO_PAGES) {
+    for (const page of input.pages) {
       const shouldAssignHome = existingHomePage === null && page.isHome;
 
       await transaction.sitePage.upsert({
         where: {
-          projectId_slug: {
-            projectId: input.projectId,
+          siteId_slug: {
+            siteId: input.siteId,
             slug: page.slug
           }
         },
         create: {
           organizationId: input.organizationId,
           projectId: input.projectId,
+          siteId: input.siteId,
           title: page.title,
           slug: page.slug,
           status: "DRAFT",
@@ -241,8 +330,8 @@ async function seedDemoPages(
 
       const sitePage = await transaction.sitePage.findUniqueOrThrow({
         where: {
-          projectId_slug: {
-            projectId: input.projectId,
+          siteId_slug: {
+            siteId: input.siteId,
             slug: page.slug
           }
         }
@@ -260,6 +349,7 @@ async function seedDemoPages(
           data: {
             organizationId: input.organizationId,
             projectId: input.projectId,
+            siteId: input.siteId,
             pageId: sitePage.id,
             schemaVersion: document.schemaVersion,
             document: toPrismaJson(document),

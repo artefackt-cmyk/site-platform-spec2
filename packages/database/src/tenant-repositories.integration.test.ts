@@ -26,6 +26,7 @@ import {
   ProjectRepository,
   PublishedPageSnapshotRepository,
   PublishedPageStateRepository,
+  SiteRepository,
   SitePageRepository,
   UserRepository,
   type DatabasePrismaClient
@@ -210,6 +211,180 @@ describe.skipIf(integrationConfig === undefined)(
       await expect(
         projectRepository.listByOrganization(tenantA.organization.id)
       ).resolves.toEqual([]);
+    });
+
+    it("creates a default site when creating a project", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const siteRepository = new SiteRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const project = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Site Kernel",
+        slug: "site-kernel"
+      });
+
+      await expect(siteRepository.listByProject(context, project.id)).resolves.toEqual([
+        expect.objectContaining({
+          projectId: project.id,
+          slug: "site-kernel",
+          isDefault: true,
+          status: "ACTIVE"
+        })
+      ]);
+    });
+
+    it("allows two sites in one project and switches default transactionally", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const siteRepository = new SiteRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const project = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Multi Site Project",
+        slug: "multi-site-project"
+      });
+      const secondSite = await siteRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        name: "Campaign",
+        slug: "campaign",
+        isDefault: false
+      });
+
+      if (secondSite === null) {
+        throw new Error("Expected second site fixture.");
+      }
+
+      await siteRepository.setDefault(context, project.id, secondSite.id);
+
+      const sites = await siteRepository.listByProject(context, project.id);
+
+      expect(sites).toHaveLength(2);
+      expect(sites.filter((site) => site.isDefault)).toEqual([
+        expect.objectContaining({
+          id: secondSite.id
+        })
+      ]);
+    });
+
+    it("enforces site slug uniqueness inside a project", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const siteRepository = new SiteRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const firstProject = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "First Site Slug Project",
+        slug: "first-site-slug-project"
+      });
+      const secondProject = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Second Site Slug Project",
+        slug: "second-site-slug-project"
+      });
+
+      await expect(
+        siteRepository.create({
+          tenantContext: context,
+          projectId: firstProject.id,
+          name: "Campaign",
+          slug: "campaign"
+        })
+      ).resolves.toMatchObject({
+        slug: "campaign"
+      });
+      await expect(
+        siteRepository.create({
+          tenantContext: context,
+          projectId: secondProject.id,
+          name: "Campaign",
+          slug: "campaign"
+        })
+      ).resolves.toMatchObject({
+        slug: "campaign"
+      });
+      await expect(
+        siteRepository.create({
+          tenantContext: context,
+          projectId: firstProject.id,
+          name: "Duplicate Campaign",
+          slug: "campaign"
+        })
+      ).rejects.toThrow();
+    });
+
+    it("does not let one site read another site's page", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const siteRepository = new SiteRepository(currentClient);
+      const sitePageRepository = new SitePageRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const project = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Scoped Pages",
+        slug: "scoped-pages"
+      });
+      const defaultSite = await siteRepository.findDefault(context, project.id);
+      const secondSite = await siteRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        name: "Second Site",
+        slug: "second-site"
+      });
+
+      if (defaultSite === null || secondSite === null) {
+        throw new Error("Expected site fixtures.");
+      }
+
+      const secondSitePage = await sitePageRepository.createForSite(
+        context,
+        project.id,
+        secondSite.id,
+        {
+          title: "Scoped Page",
+          slug: "scoped"
+        }
+      );
+
+      if (secondSitePage === null) {
+        throw new Error("Expected page fixture.");
+      }
+
+      await expect(
+        sitePageRepository.findByIdForSite(
+          context,
+          project.id,
+          defaultSite.id,
+          secondSitePage.id
+        )
+      ).resolves.toBeNull();
+    });
+
+    it("does not archive the only active site", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const siteRepository = new SiteRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const project = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Single Site",
+        slug: "single-site"
+      });
+      const site = await siteRepository.findDefault(context, project.id);
+
+      if (site === null) {
+        throw new Error("Expected default site fixture.");
+      }
+
+      await expect(
+        siteRepository.archive(context, project.id, site.id)
+      ).rejects.toThrow("Cannot archive the only active site");
     });
 
     it("allows the same page slug in different projects", async () => {
@@ -939,6 +1114,7 @@ describe.skipIf(integrationConfig === undefined)(
         data: {
           organizationId: context.organizationId,
           projectId: project.id,
+          siteId: page.siteId,
           pageId: page.id,
           schemaVersion: 1,
           revision: 1,
@@ -1356,12 +1532,14 @@ async function clearDatabase(client: DatabasePrismaClient): Promise<void> {
   await client.publishedPageState.deleteMany();
   await client.publishedPageSnapshot.deleteMany();
   await client.projectPublicationSettings.deleteMany();
+  await client.projectSiteSettings.deleteMany();
   await client.productMedia.deleteMany();
   await client.productVariant.deleteMany();
   await client.product.deleteMany();
   await client.mediaAsset.deleteMany();
   await client.pageDocument.deleteMany();
   await client.sitePage.deleteMany();
+  await client.site.deleteMany();
   await client.project.deleteMany();
   await client.membership.deleteMany();
   await client.organization.deleteMany();

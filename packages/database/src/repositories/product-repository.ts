@@ -146,16 +146,20 @@ export class ProductRepository {
     readonly publicHandle: string;
     readonly productSlug: string;
   }): Promise<ProductWithPrimaryMedia | null> {
+    const settings = await this.client.projectPublicationSettings.findUnique({
+      where: {
+        publicHandle: input.publicHandle
+      }
+    });
+
+    if (settings === null) {
+      return null;
+    }
+
     return this.client.product.findFirst({
       where: {
         slug: input.productSlug,
-        ...publicActiveProductScope(undefined),
-        project: {
-          deletedAt: null,
-          publicationSettings: {
-            publicHandle: input.publicHandle
-          }
-        }
+        ...publicActiveProductScope(settings.projectId)
       },
       include: {
         primaryMediaAsset: {

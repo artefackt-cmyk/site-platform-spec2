@@ -6,7 +6,7 @@ Last audited: 2026-07-14
 
 The intended hierarchy is:
 
-`Organization / Workspace -> Projects -> Sites -> Pages -> Sections / Blocks`
+`Organization / Workspace -> Projects -> Sites -> Pages -> PageDocument.sections JSON`
 
 One project can contain multiple sites.
 
@@ -14,9 +14,10 @@ One project can contain multiple sites.
 
 Current relational hierarchy:
 
-`Organization -> Project -> SitePage -> PageDocument`
+`Organization -> Project -> Site -> SitePage -> PageDocument`
 
-Related project-level site/publication models:
+Site-owned publication/settings models retain their historical table/model names for a
+compatibility milestone, but now carry required `siteId`:
 
 - `ProjectPublicationSettings`
 - `ProjectSiteSettings`
@@ -30,35 +31,42 @@ Sections and blocks are currently nested JSON nodes in `PageDocument.document`.
 - `Organization`: root tenant container.
 - `Membership`: joins `User` to `Organization` with `OrganizationRole`.
 - `Project`: has `organizationId`.
-- `SitePage`: has `organizationId` and `projectId`.
-- `PageDocument`: has `organizationId`, `projectId`, `pageId`.
-- Media, products, orders, publication snapshots and states carry `organizationId` and mostly
-  `projectId`.
+- `Site`: has `organizationId`, `projectId`, unique `(projectId, slug)`, status, and
+  `isDefault`.
+- `SitePage`: has `organizationId`, `projectId`, and required `siteId`.
+- `PageDocument`: has `organizationId`, `projectId`, required `siteId`, and `pageId`.
+- Publication settings, site settings, published snapshots, and published states have required
+  `siteId`.
+- Media, products, and orders remain project-level shared resources in this milestone.
 
-This is good for tenant enforcement, but the missing `siteId` prevents a true multi-site project.
+`projectId` remains on page/document/publication rows as a transitional denormalized field for
+compatibility routes and existing project-scoped services. Repositories validate consistency via
+`Organization -> Project -> Site`.
 
-## Proposed target hierarchy
+## Implemented hierarchy
 
 ```text
 Organization
   -> Project
       -> Site
-          -> Page
-              -> Section
+          -> SitePage
+              -> PageDocument
+                  -> sections / blocks in JSON
 ```
 
 Suggested model responsibilities:
 
 - `Organization`: account/workspace boundary.
 - `Project`: commercial/customer workspace containing one or more sites and shared commerce/media.
-- `Site`: website instance inside a project; owns public handle/domain/theme/header/footer.
-- `Page`: page inside a site; owns route slug, status, SEO, ordering/home flag.
-- `Section`: ordered editable page region/block with type, data JSON, visibility, and responsive
-  override metadata.
+- `Site`: website instance inside a project; owns active/default state and site-level
+  publication/settings rows.
+- `SitePage`: page inside a site; owns route slug, status, and home flag.
+- `PageDocument`: versioned editable page document. Sections and blocks remain nested JSON nodes
+  for MERCURIO-002.
 
-## Candidate Prisma changes for MERCURIO-002
+## MERCURIO-002 Prisma changes
 
-Add `Site`:
+Added `Site`:
 
 - `id`
 - `organizationId`
@@ -66,51 +74,36 @@ Add `Site`:
 - `name`
 - `slug`
 - `status`
-- `publicHandle`
-- `primaryDomainId?`
-- `themeDraft Json?`
-- `headerDraft Json`
-- `footerDraft Json`
-- `headerEnabled Boolean`
-- `footerEnabled Boolean`
-- `createdAt`, `updatedAt`, `deletedAt?`
+- `createdAt`, `updatedAt`
 
-Add or rename `Page`:
+Updated page/document/publication models:
 
-- Either migrate `SitePage` to `Page`, or keep table name initially and add `siteId`.
-- Add `siteId` and unique constraints such as `[siteId, slug]`.
-- Home uniqueness should become one active home page per site, not per project.
+- `SitePage.siteId` is required.
+- Page slug uniqueness moved from `(projectId, slug)` to `(siteId, slug)`.
+- Home-page uniqueness moved from one active home page per project to one active home page per
+  site through a PostgreSQL partial unique index.
+- `PageDocument.siteId`, `ProjectPublicationSettings.siteId`, `ProjectSiteSettings.siteId`,
+  `PublishedPageSnapshot.siteId`, and `PublishedPageState.siteId` are required.
+- `ProjectPublicationSettings.projectId` and `ProjectSiteSettings.projectId` are no longer unique;
+  `siteId` is unique.
+- Published page public lookup resolves through `Site -> ProjectPublicationSettings.publicHandle`.
 
-Add `Section`:
+Not added:
 
-- `id`
-- `organizationId`
-- `projectId`
-- `siteId`
-- `pageId`
-- `type`
-- `name`
-- `position`
-- `data Json`
-- `visible Boolean`
-- `responsiveOverrides Json?`
-- `createdAt`, `updatedAt`, `deletedAt?`
-
-Move or duplicate project-level settings:
-
-- `ProjectPublicationSettings` likely becomes `SitePublicationSettings` or fields on `Site`.
-- `ProjectSiteSettings` likely becomes `SiteSettings`.
-- Publication snapshots need `siteId`.
-- Public storefront lookups should use `Site.publicHandle`.
+- Relational `Section`.
+- Custom domains/locales/billing/template marketplace fields.
+- Final rename from `ProjectPublicationSettings` / `ProjectSiteSettings` to site-named tables.
 
 ## Migration strategy
 
-1. Add `Site` with a default site per existing project.
-2. Backfill each `SitePage` with `siteId` for the default site.
-3. Add `siteId` to publication/settings/media relations where needed.
-4. Keep compatibility APIs temporarily while dashboard migrates from project-level site settings.
-5. Move section data from `PageDocument.document` into `Section` only when editor behavior is ready,
-   or introduce `Section` as metadata while preserving document JSON initially.
+1. Migration `20260714120000_add_first_class_sites` creates `sites`, creates one deterministic
+   default Site per existing Project, adds nullable `siteId` to dependent rows, backfills through
+   the default Site, validates no nulls remain, then makes `siteId` required.
+2. Migration `20260714123000_align_first_class_site_schema` aligns indexes/defaults with Prisma's
+   datamodel.
+3. Existing project-level page routes are preserved and resolve through the default active Site.
+4. New target routes are available under `/api/projects/:projectId/sites/:siteId/pages`.
+5. Section data remains in `PageDocument.document` JSON until a later milestone.
 
 ## Questions requiring product decisions
 

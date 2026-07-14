@@ -1,6 +1,7 @@
 import type { TenantContext } from "@site-platform/domain";
 import type { PrismaClient, SitePage, SitePageStatus } from "@prisma/client";
 import { ProjectRepository } from "./project-repository";
+import { SiteRepository } from "./site-repository";
 import type { RepositoryPrismaClient } from "../types";
 
 export type CreateSitePageInput = {
@@ -23,8 +24,35 @@ export class SitePageRepository {
     context: TenantContext,
     projectId: string
   ): Promise<readonly SitePage[]> {
+    const site = await new SiteRepository(this.client).findDefaultOrCreate(
+      context,
+      projectId
+    );
+
+    if (site === null) {
+      return [];
+    }
+
+    return this.listBySite(context, projectId, site.id);
+  }
+
+  async listBySite(
+    context: TenantContext,
+    projectId: string,
+    siteId: string
+  ): Promise<readonly SitePage[]> {
+    const site = await new SiteRepository(this.client).findById(
+      context,
+      projectId,
+      siteId
+    );
+
+    if (site === null || site.status !== "ACTIVE") {
+      return [];
+    }
+
     return this.client.sitePage.findMany({
-      where: activeSitePageScope(context, projectId),
+      where: activeSitePageScope(context, projectId, siteId),
       orderBy: [
         {
           isHome: "desc"
@@ -41,9 +69,27 @@ export class SitePageRepository {
     projectId: string,
     pageId: string
   ): Promise<SitePage | null> {
+    const site = await new SiteRepository(this.client).findDefaultOrCreate(
+      context,
+      projectId
+    );
+
+    if (site === null) {
+      return null;
+    }
+
+    return this.findByIdForSite(context, projectId, site.id, pageId);
+  }
+
+  async findByIdForSite(
+    context: TenantContext,
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ): Promise<SitePage | null> {
     return this.client.sitePage.findFirst({
       where: {
-        ...activeSitePageScope(context, projectId),
+        ...activeSitePageScope(context, projectId, siteId),
         id: pageId
       }
     });
@@ -52,6 +98,24 @@ export class SitePageRepository {
   async create(
     context: TenantContext,
     projectId: string,
+    input: CreateSitePageInput
+  ): Promise<SitePage | null> {
+    const site = await new SiteRepository(this.client).findDefaultOrCreate(
+      context,
+      projectId
+    );
+
+    if (site === null) {
+      return null;
+    }
+
+    return this.createForSite(context, projectId, site.id, input);
+  }
+
+  async createForSite(
+    context: TenantContext,
+    projectId: string,
+    siteId: string,
     input: CreateSitePageInput
   ): Promise<SitePage | null> {
     const project = await new ProjectRepository(
@@ -65,13 +129,23 @@ export class SitePageRepository {
       return null;
     }
 
+    const site = await new SiteRepository(this.client).findById(
+      context,
+      projectId,
+      siteId
+    );
+
+    if (site === null || site.status !== "ACTIVE") {
+      return null;
+    }
+
     if (input.isHome === true) {
       return this.runInTransaction((repository) =>
-        repository.createInCurrentScope(context, projectId, input)
+        repository.createInCurrentScope(context, projectId, siteId, input)
       );
     }
 
-    return this.createInCurrentScope(context, projectId, input);
+    return this.createInCurrentScope(context, projectId, siteId, input);
   }
 
   async softDelete(
@@ -79,9 +153,18 @@ export class SitePageRepository {
     projectId: string,
     pageId: string
   ): Promise<SitePage | null> {
+    const site = await new SiteRepository(this.client).findDefaultOrCreate(
+      context,
+      projectId
+    );
+
+    if (site === null) {
+      return null;
+    }
+
     const result = await this.client.sitePage.updateMany({
       where: {
-        ...activeSitePageScope(context, projectId),
+        ...activeSitePageScope(context, projectId, site.id),
         id: pageId
       },
       data: {
@@ -97,6 +180,7 @@ export class SitePageRepository {
       where: {
         organizationId: context.organizationId,
         projectId,
+        siteId: site.id,
         id: pageId
       }
     });
@@ -107,8 +191,17 @@ export class SitePageRepository {
     projectId: string,
     pageId: string
   ): Promise<SitePage | null> {
+    const site = await new SiteRepository(this.client).findDefaultOrCreate(
+      context,
+      projectId
+    );
+
+    if (site === null) {
+      return null;
+    }
+
     return this.runInTransaction((repository) =>
-      repository.setHomePageInCurrentScope(context, projectId, pageId)
+      repository.setHomePageInCurrentScope(context, projectId, site.id, pageId)
     );
   }
 
@@ -118,19 +211,45 @@ export class SitePageRepository {
     pageId: string,
     input: UpdateSitePageSettingsInput
   ): Promise<SitePage | null> {
+    const site = await new SiteRepository(this.client).findDefaultOrCreate(
+      context,
+      projectId
+    );
+
+    if (site === null) {
+      return null;
+    }
+
+    return this.updateSettingsForSite(context, projectId, site.id, pageId, input);
+  }
+
+  async updateSettingsForSite(
+    context: TenantContext,
+    projectId: string,
+    siteId: string,
+    pageId: string,
+    input: UpdateSitePageSettingsInput
+  ): Promise<SitePage | null> {
     return this.runInTransaction((repository) =>
-      repository.updateSettingsInCurrentScope(context, projectId, pageId, input)
+      repository.updateSettingsInCurrentScope(
+        context,
+        projectId,
+        siteId,
+        pageId,
+        input
+      )
     );
   }
 
   private async createInCurrentScope(
     context: TenantContext,
     projectId: string,
+    siteId: string,
     input: CreateSitePageInput
   ): Promise<SitePage> {
     if (input.isHome === true) {
       await this.client.sitePage.updateMany({
-        where: activeSitePageScope(context, projectId),
+        where: activeSitePageScope(context, projectId, siteId),
         data: {
           isHome: false
         }
@@ -141,6 +260,7 @@ export class SitePageRepository {
       data: {
         organizationId: context.organizationId,
         projectId,
+        siteId,
         title: input.title,
         slug: input.slug,
         ...(input.status === undefined ? {} : { status: input.status }),
@@ -152,16 +272,17 @@ export class SitePageRepository {
   private async setHomePageInCurrentScope(
     context: TenantContext,
     projectId: string,
+    siteId: string,
     pageId: string
   ): Promise<SitePage | null> {
-    const page = await this.findById(context, projectId, pageId);
+    const page = await this.findByIdForSite(context, projectId, siteId, pageId);
 
     if (page === null) {
       return null;
     }
 
     await this.client.sitePage.updateMany({
-      where: activeSitePageScope(context, projectId),
+      where: activeSitePageScope(context, projectId, siteId),
       data: {
         isHome: false
       }
@@ -169,7 +290,7 @@ export class SitePageRepository {
 
     await this.client.sitePage.updateMany({
       where: {
-        ...activeSitePageScope(context, projectId),
+        ...activeSitePageScope(context, projectId, siteId),
         id: pageId
       },
       data: {
@@ -177,16 +298,17 @@ export class SitePageRepository {
       }
     });
 
-    return this.findById(context, projectId, pageId);
+    return this.findByIdForSite(context, projectId, siteId, pageId);
   }
 
   private async updateSettingsInCurrentScope(
     context: TenantContext,
     projectId: string,
+    siteId: string,
     pageId: string,
     input: UpdateSitePageSettingsInput
   ): Promise<SitePage | null> {
-    const page = await this.findById(context, projectId, pageId);
+    const page = await this.findByIdForSite(context, projectId, siteId, pageId);
 
     if (page === null) {
       return null;
@@ -194,7 +316,7 @@ export class SitePageRepository {
 
     if (input.isHome) {
       await this.client.sitePage.updateMany({
-        where: activeSitePageScope(context, projectId),
+        where: activeSitePageScope(context, projectId, siteId),
         data: {
           isHome: false
         }
@@ -203,7 +325,7 @@ export class SitePageRepository {
 
     const result = await this.client.sitePage.updateMany({
       where: {
-        ...activeSitePageScope(context, projectId),
+        ...activeSitePageScope(context, projectId, siteId),
         id: pageId
       },
       data: {
@@ -217,7 +339,7 @@ export class SitePageRepository {
       return null;
     }
 
-    return this.findById(context, projectId, pageId);
+    return this.findByIdForSite(context, projectId, siteId, pageId);
   }
 
   private async runInTransaction<TResult>(
@@ -233,11 +355,21 @@ export class SitePageRepository {
   }
 }
 
-function activeSitePageScope(context: TenantContext, projectId: string) {
+function activeSitePageScope(
+  context: TenantContext,
+  projectId: string,
+  siteId: string
+) {
   return {
     organizationId: context.organizationId,
     projectId,
+    siteId,
     deletedAt: null,
+    site: {
+      organizationId: context.organizationId,
+      projectId,
+      status: "ACTIVE" as const
+    },
     project: {
       organizationId: context.organizationId,
       deletedAt: null
