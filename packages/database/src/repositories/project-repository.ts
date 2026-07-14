@@ -29,7 +29,7 @@ export class ProjectRepository {
   constructor(private readonly client: RepositoryPrismaClient) {}
 
   async create(input: CreateProjectInput): Promise<Project> {
-    return this.client.project.create({
+    const project = await this.client.project.create({
       data: {
         organizationId: input.organizationId,
         name: input.name,
@@ -37,6 +37,19 @@ export class ProjectRepository {
         ...(input.status === undefined ? {} : { status: input.status })
       }
     });
+
+    await this.client.site.create({
+      data: {
+        organizationId: input.organizationId,
+        projectId: project.id,
+        name: input.name,
+        slug: input.slug,
+        status: "ACTIVE",
+        isDefault: true
+      }
+    });
+
+    return project;
   }
 
   async findByOrganizationAndId(

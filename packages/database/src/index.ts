@@ -107,6 +107,14 @@ export {
   type ActivatePublishedPageInput
 } from "./repositories/published-page-state-repository";
 export {
+  CannotArchiveDefaultSiteError,
+  CannotArchiveOnlyActiveSiteError,
+  SITE_REPOSITORY_ERROR_CODES,
+  SiteRepository,
+  type CreateSiteInput,
+  type UpdateSiteInput
+} from "./repositories/site-repository";
+export {
   SitePageRepository,
   type CreateSitePageInput
 } from "./repositories/site-page-repository";
@@ -146,6 +154,8 @@ export type {
   ProjectStatus,
   PublishedPageSnapshot,
   PublishedPageState,
+  Site,
   SitePage,
-  SitePageStatus
+  SitePageStatus,
+  SiteStatus
 } from "@prisma/client";

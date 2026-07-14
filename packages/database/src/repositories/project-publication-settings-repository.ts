@@ -1,11 +1,13 @@
 import type { TenantContext } from "@site-platform/domain";
-import type { Project, ProjectPublicationSettings } from "@prisma/client";
+import type { Project, ProjectPublicationSettings, Site } from "@prisma/client";
 import { ProjectRepository } from "./project-repository";
+import { SiteRepository } from "./site-repository";
 import type { RepositoryPrismaClient } from "../types";
 
 export type CreateProjectPublicationSettingsInput = {
   readonly tenantContext: TenantContext;
   readonly projectId: string;
+  readonly siteId?: string;
   readonly publicHandle: string;
 };
 
@@ -15,6 +17,7 @@ export type UpdateProjectPublicationSettingsInput =
 export type PublicProjectLookup = {
   readonly settings: ProjectPublicationSettings;
   readonly project: Project;
+  readonly site: Site;
 };
 
 export class ProjectPublicationSettingsRepository {
@@ -24,13 +27,32 @@ export class ProjectPublicationSettingsRepository {
     context: TenantContext,
     projectId: string
   ): Promise<ProjectPublicationSettings | null> {
+    const site = await new SiteRepository(this.client).findDefaultOrCreate(
+      context,
+      projectId
+    );
+
+    return site === null ? null : this.findBySite(context, projectId, site.id);
+  }
+
+  async findBySite(
+    context: TenantContext,
+    projectId: string,
+    siteId: string
+  ): Promise<ProjectPublicationSettings | null> {
     return this.client.projectPublicationSettings.findFirst({
       where: {
         organizationId: context.organizationId,
         projectId,
+        siteId,
         project: {
           organizationId: context.organizationId,
           deletedAt: null
+        },
+        site: {
+          organizationId: context.organizationId,
+          projectId,
+          status: "ACTIVE"
         }
       }
     });
@@ -50,10 +72,27 @@ export class ProjectPublicationSettingsRepository {
       return null;
     }
 
+    const site =
+      input.siteId === undefined
+        ? await new SiteRepository(this.client).findDefaultOrCreate(
+            input.tenantContext,
+            input.projectId
+          )
+        : await new SiteRepository(this.client).findById(
+            input.tenantContext,
+            input.projectId,
+            input.siteId
+          );
+
+    if (site === null || site.status !== "ACTIVE") {
+      return null;
+    }
+
     return this.client.projectPublicationSettings.create({
       data: {
         organizationId: input.tenantContext.organizationId,
         projectId: input.projectId,
+        siteId: site.id,
         publicHandle: input.publicHandle
       }
     });
@@ -62,10 +101,14 @@ export class ProjectPublicationSettingsRepository {
   async getOrCreate(
     input: CreateProjectPublicationSettingsInput
   ): Promise<ProjectPublicationSettings | null> {
-    const existingSettings = await this.findByProject(
-      input.tenantContext,
-      input.projectId
-    );
+    const existingSettings =
+      input.siteId === undefined
+        ? await this.findByProject(input.tenantContext, input.projectId)
+        : await this.findBySite(
+            input.tenantContext,
+            input.projectId,
+            input.siteId
+          );
 
     if (existingSettings !== null) {
       return existingSettings;
@@ -91,7 +134,8 @@ export class ProjectPublicationSettingsRepository {
     const result = await this.client.projectPublicationSettings.updateMany({
       where: {
         organizationId: input.tenantContext.organizationId,
-        projectId: input.projectId
+        projectId: input.projectId,
+        ...(input.siteId === undefined ? {} : { siteId: input.siteId })
       },
       data: {
         publicHandle: input.publicHandle
@@ -102,7 +146,9 @@ export class ProjectPublicationSettingsRepository {
       return this.create(input);
     }
 
-    return this.findByProject(input.tenantContext, input.projectId);
+    return input.siteId === undefined
+      ? this.findByProject(input.tenantContext, input.projectId)
+      : this.findBySite(input.tenantContext, input.projectId, input.siteId);
   }
 
   async findProjectByPublicHandle(
@@ -116,7 +162,8 @@ export class ProjectPublicationSettingsRepository {
         }
       },
       include: {
-        project: true
+        project: true,
+        site: true
       }
     });
 
@@ -124,7 +171,8 @@ export class ProjectPublicationSettingsRepository {
       ? null
       : {
           settings,
-          project: settings.project
+          project: settings.project,
+          site: settings.site
         };
   }
 }

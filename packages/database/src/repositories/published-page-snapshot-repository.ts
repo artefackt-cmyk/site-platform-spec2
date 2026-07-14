@@ -3,10 +3,10 @@ import type {
   Prisma,
   Project,
   PublishedPageSnapshot,
-  PublishedPageState
+  PublishedPageState,
+  Site
 } from "@prisma/client";
 import { validatePageDocument, type PageDocumentV2 } from "@site-platform/editor-core";
-import { SitePageRepository } from "./site-page-repository";
 import { toPrismaJson } from "./page-document-repository";
 import type { PrismaJsonInput, RepositoryPrismaClient } from "../types";
 import type { SiteSettingsSnapshotJson } from "./project-site-settings-repository";
@@ -27,6 +27,7 @@ export type CreatePublishedPageSnapshotInput = {
 
 export type ActivePublishedPageLookup = {
   readonly project: Project;
+  readonly site: Site;
   readonly state: PublishedPageState;
   readonly snapshot: PublishedPageSnapshot;
 };
@@ -37,7 +38,8 @@ export class PublishedPageSnapshotRepository {
   async create(
     input: CreatePublishedPageSnapshotInput
   ): Promise<PublishedPageSnapshot | null> {
-    const page = await new SitePageRepository(this.client).findById(
+    const page = await findActivePageInProject(
+      this.client,
       input.tenantContext,
       input.projectId,
       input.pageId
@@ -59,6 +61,7 @@ export class PublishedPageSnapshotRepository {
       data: {
         organizationId: input.tenantContext.organizationId,
         projectId: input.projectId,
+        siteId: page.siteId,
         pageId: input.pageId,
         version,
         pageTitle: input.pageTitle,
@@ -131,7 +134,8 @@ export class PublishedPageSnapshotRepository {
       where: publicActiveStateScope(publicHandle, pageSlug),
       include: {
         activeSnapshot: true,
-        project: true
+        project: true,
+        site: true
       }
     });
 
@@ -139,6 +143,7 @@ export class PublishedPageSnapshotRepository {
       ? null
       : {
           project: state.project,
+          site: state.site,
           state,
           snapshot: state.activeSnapshot
         };
@@ -151,7 +156,8 @@ export class PublishedPageSnapshotRepository {
       where: publicActiveStateScope(publicHandle, undefined, true),
       include: {
         activeSnapshot: true,
-        project: true
+        project: true,
+        site: true
       },
       orderBy: {
         publishedAt: "desc"
@@ -162,6 +168,7 @@ export class PublishedPageSnapshotRepository {
       ? null
       : {
           project: state.project,
+          site: state.site,
           state,
           snapshot: state.activeSnapshot
         };
@@ -175,6 +182,7 @@ export class PublishedPageSnapshotRepository {
       include: {
         activeSnapshot: true,
         project: true,
+        site: true,
         page: true
       },
       orderBy: [
@@ -197,6 +205,7 @@ export class PublishedPageSnapshotRepository {
         : [
             {
               project: state.project,
+              site: state.site,
               state,
               snapshot: state.activeSnapshot
             }
@@ -235,6 +244,11 @@ function snapshotScope(
       organizationId: context.organizationId,
       projectId,
       deletedAt: null,
+      site: {
+        organizationId: context.organizationId,
+        projectId,
+        status: "ACTIVE" as const
+      },
       project: {
         organizationId: context.organizationId,
         deletedAt: null
@@ -254,6 +268,9 @@ function publicActiveStateScope(
     },
     project: {
       deletedAt: null,
+    },
+    site: {
+      status: "ACTIVE",
       publicationSettings: {
         publicHandle
       }
@@ -273,4 +290,29 @@ function publicActiveStateScope(
             }
           }
   };
+}
+
+async function findActivePageInProject(
+  client: RepositoryPrismaClient,
+  context: TenantContext,
+  projectId: string,
+  pageId: string
+) {
+  return client.sitePage.findFirst({
+    where: {
+      organizationId: context.organizationId,
+      projectId,
+      id: pageId,
+      deletedAt: null,
+      site: {
+        organizationId: context.organizationId,
+        projectId,
+        status: "ACTIVE"
+      },
+      project: {
+        organizationId: context.organizationId,
+        deletedAt: null
+      }
+    }
+  });
 }

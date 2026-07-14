@@ -149,12 +149,16 @@ export class AuthService {
           | null = null;
 
         if (payload.value.projectName !== undefined) {
-          project = await transaction.project.create({
-            data: {
-              organizationId: organization.id,
-              name: payload.value.projectName,
-              slug: createSlug(payload.value.projectName, "project"),
-              status: "DRAFT"
+          project = await new ProjectRepository(transaction).create({
+            organizationId: organization.id,
+            name: payload.value.projectName,
+            slug: createSlug(payload.value.projectName, "project"),
+            status: "DRAFT"
+          });
+          const site = await transaction.site.findFirstOrThrow({
+            where: {
+              projectId: project.id,
+              isDefault: true
             }
           });
 
@@ -162,6 +166,7 @@ export class AuthService {
             data: {
               organizationId: organization.id,
               projectId: project.id,
+              siteId: site.id,
               publicHandle: project.slug
             }
           });
@@ -537,12 +542,16 @@ export class AuthService {
       );
 
       if (projects.length === 0 && projectName !== null) {
-        const project = await transaction.project.create({
-          data: {
-            organizationId: identity.organization.id,
-            name: projectName,
-            slug: createSlug(projectName, "project"),
-            status: "DRAFT"
+        const project = await projectRepository.create({
+          organizationId: identity.organization.id,
+          name: projectName,
+          slug: createSlug(projectName, "project"),
+          status: "DRAFT"
+        });
+        const site = await transaction.site.findFirstOrThrow({
+          where: {
+            projectId: project.id,
+            isDefault: true
           }
         });
 
@@ -550,6 +559,7 @@ export class AuthService {
           data: {
             organizationId: identity.organization.id,
             projectId: project.id,
+            siteId: site.id,
             publicHandle: project.slug
           }
         });

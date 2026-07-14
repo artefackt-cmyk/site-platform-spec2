@@ -4,11 +4,13 @@ import {
   MediaAssetRepository,
   PageDocumentRepository,
   ProjectRepository,
+  SiteRepository,
   SitePageRepository,
   type DatabasePrismaClient,
   type MediaAsset,
   type PageDocumentRecord,
   type Project,
+  type Site,
   type SitePage
 } from "@site-platform/database";
 import type { PageDocumentV2 } from "@site-platform/editor-core";
@@ -24,6 +26,7 @@ export type CreateDraftProjectInput = {
 export type CreateProjectPageInput = {
   readonly tenantContext: TenantContext;
   readonly projectId: string;
+  readonly siteId?: string;
   readonly title: string;
   readonly slug: string;
   readonly isHome: boolean;
@@ -32,10 +35,27 @@ export type CreateProjectPageInput = {
 export type UpdateProjectPageInput = {
   readonly tenantContext: TenantContext;
   readonly projectId: string;
+  readonly siteId?: string;
   readonly pageId: string;
   readonly title: string;
   readonly slug: string;
   readonly isHome: boolean;
+};
+
+export type CreateProjectSiteInput = {
+  readonly tenantContext: TenantContext;
+  readonly projectId: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly isDefault: boolean;
+};
+
+export type UpdateProjectSiteInput = {
+  readonly tenantContext: TenantContext;
+  readonly projectId: string;
+  readonly siteId: string;
+  readonly name?: string;
+  readonly slug?: string;
 };
 
 export type SavePageDocumentInput = {
@@ -67,9 +87,45 @@ export type ProjectStore = {
     tenantContext: TenantContext,
     projectId: string
   ) => Promise<readonly SitePage[]>;
+  readonly listSitesByProject: (
+    tenantContext: TenantContext,
+    projectId: string
+  ) => Promise<readonly Site[]>;
+  readonly findSiteById: (
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string
+  ) => Promise<Site | null>;
+  readonly createSiteWithAudit: (
+    input: CreateProjectSiteInput
+  ) => Promise<Site | null>;
+  readonly updateSiteWithAudit: (
+    input: UpdateProjectSiteInput
+  ) => Promise<Site | null>;
+  readonly archiveSiteWithAudit: (
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string
+  ) => Promise<Site | null>;
+  readonly setDefaultSiteWithAudit: (
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string
+  ) => Promise<Site | null>;
+  readonly listPagesBySite: (
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string
+  ) => Promise<readonly SitePage[]>;
   readonly findPageById: (
     tenantContext: TenantContext,
     projectId: string,
+    pageId: string
+  ) => Promise<SitePage | null>;
+  readonly findPageByIdForSite: (
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string,
     pageId: string
   ) => Promise<SitePage | null>;
   readonly createPageWithAudit: (
@@ -83,6 +139,12 @@ export type ProjectStore = {
     projectId: string,
     pageId: string
   ) => Promise<PageDocumentRecord | null>;
+  readonly getOrCreatePageDocumentForSite: (
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ) => Promise<PageDocumentRecord | null>;
   readonly findMediaAssetById: (
     tenantContext: TenantContext,
     projectId: string,
@@ -90,6 +152,9 @@ export type ProjectStore = {
   ) => Promise<MediaAsset | null>;
   readonly savePageDocumentWithAudit: (
     input: SavePageDocumentInput
+  ) => Promise<PageDocumentRecord | null>;
+  readonly savePageDocumentForSiteWithAudit: (
+    input: SavePageDocumentInput & { readonly siteId: string }
   ) => Promise<PageDocumentRecord | null>;
 };
 
@@ -164,6 +229,155 @@ export class PrismaProjectStore implements ProjectStore {
     );
   }
 
+  async listSitesByProject(
+    tenantContext: TenantContext,
+    projectId: string
+  ): Promise<readonly Site[]> {
+    return new SiteRepository(this.client).listByProject(tenantContext, projectId);
+  }
+
+  async findSiteById(
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string
+  ): Promise<Site | null> {
+    return new SiteRepository(this.client).findById(
+      tenantContext,
+      projectId,
+      siteId
+    );
+  }
+
+  async createSiteWithAudit(input: CreateProjectSiteInput): Promise<Site | null> {
+    return this.client.$transaction(async (transaction) => {
+      const siteRepository = new SiteRepository(transaction);
+      const auditLogRepository = new AuditLogRepository(transaction);
+      const site = await siteRepository.create({
+        tenantContext: input.tenantContext,
+        projectId: input.projectId,
+        name: input.name,
+        slug: input.slug,
+        isDefault: input.isDefault
+      });
+
+      if (site === null) {
+        return null;
+      }
+
+      await auditLogRepository.create({
+        organizationId: input.tenantContext.organizationId,
+        actorUserId: input.tenantContext.userId,
+        action: "site.created",
+        entityType: "Site",
+        entityId: site.id,
+        metadata: {
+          projectId: input.projectId,
+          slug: site.slug,
+          isDefault: site.isDefault
+        }
+      });
+
+      return site;
+    });
+  }
+
+  async updateSiteWithAudit(input: UpdateProjectSiteInput): Promise<Site | null> {
+    return this.client.$transaction(async (transaction) => {
+      const siteRepository = new SiteRepository(transaction);
+      const auditLogRepository = new AuditLogRepository(transaction);
+      const site = await siteRepository.update(input);
+
+      if (site === null) {
+        return null;
+      }
+
+      await auditLogRepository.create({
+        organizationId: input.tenantContext.organizationId,
+        actorUserId: input.tenantContext.userId,
+        action: "site.updated",
+        entityType: "Site",
+        entityId: site.id,
+        metadata: {
+          projectId: input.projectId,
+          name: site.name,
+          slug: site.slug
+        }
+      });
+
+      return site;
+    });
+  }
+
+  async archiveSiteWithAudit(
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string
+  ): Promise<Site | null> {
+    return this.client.$transaction(async (transaction) => {
+      const siteRepository = new SiteRepository(transaction);
+      const auditLogRepository = new AuditLogRepository(transaction);
+      const site = await siteRepository.archive(tenantContext, projectId, siteId);
+
+      if (site === null) {
+        return null;
+      }
+
+      await auditLogRepository.create({
+        organizationId: tenantContext.organizationId,
+        actorUserId: tenantContext.userId,
+        action: "site.archived",
+        entityType: "Site",
+        entityId: site.id,
+        metadata: {
+          projectId
+        }
+      });
+
+      return site;
+    });
+  }
+
+  async setDefaultSiteWithAudit(
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string
+  ): Promise<Site | null> {
+    return this.client.$transaction(async (transaction) => {
+      const siteRepository = new SiteRepository(transaction);
+      const auditLogRepository = new AuditLogRepository(transaction);
+      const site = await siteRepository.setDefault(tenantContext, projectId, siteId);
+
+      if (site === null) {
+        return null;
+      }
+
+      await auditLogRepository.create({
+        organizationId: tenantContext.organizationId,
+        actorUserId: tenantContext.userId,
+        action: "site.default.changed",
+        entityType: "Site",
+        entityId: site.id,
+        metadata: {
+          projectId
+        }
+      });
+
+      return site;
+    });
+  }
+
+  async listPagesBySite(
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string
+  ): Promise<readonly SitePage[]> {
+    return new SitePageRepository(this.client).listBySite(
+      tenantContext,
+      projectId,
+      siteId
+    );
+  }
+
   async findPageById(
     tenantContext: TenantContext,
     projectId: string,
@@ -172,6 +386,20 @@ export class PrismaProjectStore implements ProjectStore {
     return new SitePageRepository(this.client).findById(
       tenantContext,
       projectId,
+      pageId
+    );
+  }
+
+  async findPageByIdForSite(
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ): Promise<SitePage | null> {
+    return new SitePageRepository(this.client).findByIdForSite(
+      tenantContext,
+      projectId,
+      siteId,
       pageId
     );
   }
@@ -192,18 +420,27 @@ export class PrismaProjectStore implements ProjectStore {
         return null;
       }
 
-      const page = await sitePageRepository.create(
-        input.tenantContext,
-        input.projectId,
-        {
-          title: input.title,
-          slug: input.slug,
-          status: "DRAFT",
-          isHome: input.isHome
-        }
-      );
+      const scopedPage =
+        input.siteId === undefined
+          ? await sitePageRepository.create(input.tenantContext, input.projectId, {
+              title: input.title,
+              slug: input.slug,
+              status: "DRAFT",
+              isHome: input.isHome
+            })
+          : await sitePageRepository.createForSite(
+              input.tenantContext,
+              input.projectId,
+              input.siteId,
+              {
+                title: input.title,
+                slug: input.slug,
+                status: "DRAFT",
+                isHome: input.isHome
+              }
+            );
 
-      if (page === null) {
+      if (scopedPage === null) {
         return null;
       }
 
@@ -212,16 +449,17 @@ export class PrismaProjectStore implements ProjectStore {
         actorUserId: input.tenantContext.userId,
         action: "page.created",
         entityType: "SitePage",
-        entityId: page.id,
+        entityId: scopedPage.id,
         metadata: {
           projectId: input.projectId,
-          title: page.title,
-          slug: page.slug,
-          isHome: page.isHome
+          siteId: scopedPage.siteId,
+          title: scopedPage.title,
+          slug: scopedPage.slug,
+          isHome: scopedPage.isHome
         }
       });
 
-      return page;
+      return scopedPage;
     });
   }
 
@@ -231,16 +469,29 @@ export class PrismaProjectStore implements ProjectStore {
     return this.client.$transaction(async (transaction) => {
       const sitePageRepository = new SitePageRepository(transaction);
       const auditLogRepository = new AuditLogRepository(transaction);
-      const page = await sitePageRepository.updateSettings(
-        input.tenantContext,
-        input.projectId,
-        input.pageId,
-        {
-          title: input.title,
-          slug: input.slug,
-          isHome: input.isHome
-        }
-      );
+      const page =
+        input.siteId === undefined
+          ? await sitePageRepository.updateSettings(
+              input.tenantContext,
+              input.projectId,
+              input.pageId,
+              {
+                title: input.title,
+                slug: input.slug,
+                isHome: input.isHome
+              }
+            )
+          : await sitePageRepository.updateSettingsForSite(
+              input.tenantContext,
+              input.projectId,
+              input.siteId,
+              input.pageId,
+              {
+                title: input.title,
+                slug: input.slug,
+                isHome: input.isHome
+              }
+            );
 
       if (page === null) {
         return null;
@@ -254,6 +505,7 @@ export class PrismaProjectStore implements ProjectStore {
         entityId: page.id,
         metadata: {
           projectId: input.projectId,
+          siteId: page.siteId,
           title: page.title,
           slug: page.slug,
           isHome: page.isHome
@@ -283,6 +535,32 @@ export class PrismaProjectStore implements ProjectStore {
     return pageDocumentRepository.createDefault(tenantContext, projectId, pageId);
   }
 
+  async getOrCreatePageDocumentForSite(
+    tenantContext: TenantContext,
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ): Promise<PageDocumentRecord | null> {
+    const pageDocumentRepository = new PageDocumentRepository(this.client);
+    const pageDocument = await pageDocumentRepository.findByPageForSite(
+      tenantContext,
+      projectId,
+      siteId,
+      pageId
+    );
+
+    if (pageDocument !== null) {
+      return pageDocument;
+    }
+
+    return pageDocumentRepository.createDefaultForSite(
+      tenantContext,
+      projectId,
+      siteId,
+      pageId
+    );
+  }
+
   async savePageDocumentWithAudit(
     input: SavePageDocumentInput
   ): Promise<PageDocumentRecord | null> {
@@ -309,6 +587,44 @@ export class PrismaProjectStore implements ProjectStore {
         entityId: pageDocument.id,
         metadata: {
           projectId: input.projectId,
+          pageId: input.pageId,
+          revision: pageDocument.revision,
+          ...(input.auditMetadata ?? {})
+        }
+      });
+
+      return pageDocument;
+    });
+  }
+
+  async savePageDocumentForSiteWithAudit(
+    input: SavePageDocumentInput & { readonly siteId: string }
+  ): Promise<PageDocumentRecord | null> {
+    return this.client.$transaction(async (transaction) => {
+      const pageDocumentRepository = new PageDocumentRepository(transaction);
+      const auditLogRepository = new AuditLogRepository(transaction);
+      const pageDocument = await pageDocumentRepository.saveForSite(
+        input.tenantContext,
+        input.projectId,
+        input.siteId,
+        input.pageId,
+        input.document,
+        input.expectedRevision
+      );
+
+      if (pageDocument === null) {
+        return null;
+      }
+
+      await auditLogRepository.create({
+        organizationId: input.tenantContext.organizationId,
+        actorUserId: input.tenantContext.userId,
+        action: input.auditAction ?? "page.document.updated",
+        entityType: "PageDocument",
+        entityId: pageDocument.id,
+        metadata: {
+          projectId: input.projectId,
+          siteId: input.siteId,
           pageId: input.pageId,
           revision: pageDocument.revision,
           ...(input.auditMetadata ?? {})

@@ -210,6 +210,22 @@ export class PublicationService {
     return toPublicationSettingsResponse(settings.publicHandle, this.config);
   }
 
+  async getSitePublicationSettings(
+    projectId: string,
+    siteId: string
+  ): Promise<PublicationSettingsResponse> {
+    const identity = await this.requireIdentityWithPermission(
+      PERMISSIONS.projectRead
+    );
+    const settings = await this.getOrCreateSettings(
+      identity.tenantContext,
+      projectId,
+      siteId
+    );
+
+    return toPublicationSettingsResponse(settings.publicHandle, this.config);
+  }
+
   async updatePublicationSettings(
     projectId: string,
     body: unknown
@@ -262,6 +278,61 @@ export class PublicationService {
     }
   }
 
+  async updateSitePublicationSettings(
+    projectId: string,
+    siteId: string,
+    body: unknown
+  ): Promise<PublicationSettingsResponse> {
+    const identity = await this.requireIdentityWithPermission(
+      PERMISSIONS.projectUpdate
+    );
+    const publicHandle = parsePublicHandlePayload(body);
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+
+    try {
+      const settings = await this.client.$transaction(async (transaction) => {
+        const repository = new ProjectPublicationSettingsRepository(transaction);
+        const auditLogRepository = new AuditLogRepository(transaction);
+        const updated = await repository.updateHandle({
+          tenantContext: identity.tenantContext,
+          projectId,
+          siteId,
+          publicHandle
+        });
+
+        if (updated === null) {
+          throw projectNotFoundError();
+        }
+
+        await auditLogRepository.create({
+          organizationId: identity.tenantContext.organizationId,
+          actorUserId: identity.user.id,
+          action: "publication.settings.updated",
+          entityType: "ProjectPublicationSettings",
+          entityId: updated.id,
+          metadata: {
+            projectId,
+            siteId,
+            publicHandle
+          }
+        });
+
+        return updated;
+      });
+
+      return toPublicationSettingsResponse(settings.publicHandle, this.config);
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        throw conflict(
+          API_ERROR_CODES.publicHandleConflict,
+          "Public handle is already in use."
+        );
+      }
+
+      throw error;
+    }
+  }
+
   async getPagePublicationStatus(
     projectId: string,
     pageId: string
@@ -283,6 +354,35 @@ export class PublicationService {
       projectId,
       page,
       pageDocument
+    );
+  }
+
+  async getSitePagePublicationStatus(
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ): Promise<PublicationStatusResponse> {
+    const identity = await this.requireIdentityWithPermission(PERMISSIONS.pageRead);
+    const page = await this.getPageForSiteOrThrow(
+      identity.tenantContext,
+      projectId,
+      siteId,
+      pageId
+    );
+    const pageDocument =
+      await new PageDocumentRepository(this.client).findByPageForSite(
+        identity.tenantContext,
+        projectId,
+        siteId,
+        pageId
+      );
+
+    return this.calculatePublicationStatus(
+      identity.tenantContext,
+      projectId,
+      page,
+      pageDocument,
+      siteId
     );
   }
 
@@ -410,6 +510,146 @@ export class PublicationService {
       publicUrl: createPublicPageUrl(this.config, settings.publicHandle, snapshot.pageSlug),
       publishedAt: snapshot.publishedAt.toISOString()
     } satisfies PublishPageResponse;
+  }
+
+  async publishSitePage(
+    projectId: string,
+    siteId: string,
+    pageId: string,
+    body: unknown
+  ): Promise<PublishPageResponse> {
+    const identity = await this.requireIdentityWithPermission(
+      PERMISSIONS.pageUpdate
+    );
+    const payload = parsePublishPayload(body);
+    const page = await this.getPageForSiteOrThrow(
+      identity.tenantContext,
+      projectId,
+      siteId,
+      pageId
+    );
+    const pageDocument =
+      await new PageDocumentRepository(this.client).findByPageForSite(
+        identity.tenantContext,
+        projectId,
+        siteId,
+        pageId
+      );
+
+    if (pageDocument === null) {
+      throw notFound(API_ERROR_CODES.pageDraftNotFound, "Page draft was not found.");
+    }
+
+    if (pageDocument.revision !== payload.expectedRevision) {
+      throw conflict(
+        API_ERROR_CODES.pageDraftRevisionMismatch,
+        "Page draft revision does not match expectedRevision."
+      );
+    }
+
+    await this.validatePublishableDraft(identity.tenantContext, projectId, page, pageDocument);
+    const settings = await this.getOrCreateSettings(
+      identity.tenantContext,
+      projectId,
+      siteId
+    );
+    const siteSettingsSnapshot = await this.getSiteSettingsSnapshot(
+      identity.tenantContext,
+      projectId,
+      siteId
+    );
+    const activeSnapshot = await this.findActiveSnapshot(
+      identity.tenantContext,
+      projectId,
+      pageId,
+      siteId
+    );
+
+    if (
+      activeSnapshot !== null &&
+      activeSnapshot.sourceRevision === pageDocument.revision &&
+      activeSnapshot.pageTitle === page.title &&
+      activeSnapshot.pageSlug === page.slug &&
+      getSnapshotSiteSettingsRevision(activeSnapshot) === siteSettingsSnapshot.revision
+    ) {
+      const status = await this.calculatePublicationStatus(
+        identity.tenantContext,
+        projectId,
+        page,
+        pageDocument,
+        siteId
+      );
+
+      return {
+        snapshotId: activeSnapshot.id,
+        version: activeSnapshot.version,
+        publicationStatus: status,
+        publicUrl: createPublicPageUrl(this.config, settings.publicHandle, page.slug),
+        publishedAt: activeSnapshot.publishedAt.toISOString()
+      };
+    }
+
+    const publishedAt = new Date();
+    const snapshot = await this.client.$transaction(async (transaction) => {
+      const snapshotRepository = new PublishedPageSnapshotRepository(transaction);
+      const stateRepository = new PublishedPageStateRepository(transaction);
+      const auditLogRepository = new AuditLogRepository(transaction);
+      const createdSnapshot = await snapshotRepository.create({
+        tenantContext: identity.tenantContext,
+        projectId,
+        pageId,
+        pageTitle: page.title,
+        pageSlug: page.slug,
+        document: pageDocument.document,
+        siteSettingsSnapshot,
+        sourceRevision: pageDocument.revision,
+        publishedByUserId: identity.user.id,
+        publishedAt
+      });
+
+      if (createdSnapshot === null) {
+        throw pageNotFoundError();
+      }
+
+      await stateRepository.activate({
+        tenantContext: identity.tenantContext,
+        projectId,
+        pageId,
+        snapshotId: createdSnapshot.id,
+        publishedAt
+      });
+      await auditLogRepository.create({
+        organizationId: identity.tenantContext.organizationId,
+        actorUserId: identity.user.id,
+        action: "page.published",
+        entityType: "PublishedPageSnapshot",
+        entityId: createdSnapshot.id,
+        metadata: {
+          projectId,
+          siteId,
+          pageId,
+          version: createdSnapshot.version,
+          pageSlug: createdSnapshot.pageSlug
+        }
+      });
+
+      return createdSnapshot;
+    });
+    const status = await this.calculatePublicationStatus(
+      identity.tenantContext,
+      projectId,
+      page,
+      pageDocument,
+      siteId
+    );
+
+    return {
+      snapshotId: snapshot.id,
+      version: snapshot.version,
+      publicationStatus: status,
+      publicUrl: createPublicPageUrl(this.config, settings.publicHandle, snapshot.pageSlug),
+      publishedAt: snapshot.publishedAt.toISOString()
+    };
   }
 
   async unpublishPage(projectId: string, pageId: string) {
@@ -679,7 +919,8 @@ export class PublicationService {
     context: TenantContext,
     projectId: string,
     page: SitePage,
-    pageDocument: PageDocumentRecord | null
+    pageDocument: PageDocumentRecord | null,
+    siteId?: string
   ): Promise<PublicationStatusResponse> {
     const [state, latestSnapshot, settings] = await Promise.all([
       new PublishedPageStateRepository(this.client).findByPage(
@@ -692,7 +933,7 @@ export class PublicationService {
         projectId,
         page.id
       ),
-      this.getOrCreateSettings(context, projectId)
+      this.getOrCreateSettings(context, projectId, siteId)
     ]);
 
     if (state === null || state.activeSnapshotId === null) {
@@ -705,7 +946,12 @@ export class PublicationService {
       };
     }
 
-    const activeSnapshot = await this.findActiveSnapshot(context, projectId, page.id);
+    const activeSnapshot = await this.findActiveSnapshot(
+      context,
+      projectId,
+      page.id,
+      siteId
+    );
 
     if (activeSnapshot === null) {
       return {
@@ -719,7 +965,8 @@ export class PublicationService {
 
     const siteSettingsSnapshot = await this.getSiteSettingsSnapshot(
       context,
-      projectId
+      projectId,
+      siteId
     );
     const draftChanged =
       pageDocument === null ||
@@ -745,12 +992,14 @@ export class PublicationService {
   private async findActiveSnapshot(
     context: TenantContext,
     projectId: string,
-    pageId: string
+    pageId: string,
+    siteId?: string
   ): Promise<PublishedPageSnapshot | null> {
     const state = await this.client.publishedPageState.findFirst({
       where: {
         organizationId: context.organizationId,
         projectId,
+        ...(siteId === undefined ? {} : { siteId }),
         pageId,
         activeSnapshotId: {
           not: null
@@ -766,11 +1015,15 @@ export class PublicationService {
 
   private async getOrCreateSettings(
     context: TenantContext,
-    projectId: string
+    projectId: string,
+    siteId?: string
   ) {
     const project = await this.getProjectOrThrow(context, projectId);
     const repository = new ProjectPublicationSettingsRepository(this.client);
-    const existing = await repository.findByProject(context, projectId);
+    const existing =
+      siteId === undefined
+        ? await repository.findByProject(context, projectId)
+        : await repository.findBySite(context, projectId, siteId);
 
     if (existing !== null) {
       return existing;
@@ -787,6 +1040,7 @@ export class PublicationService {
       const settings = await transactionRepository.create({
         tenantContext: context,
         projectId,
+        ...(siteId === undefined ? {} : { siteId }),
         publicHandle
       });
 
@@ -800,12 +1054,20 @@ export class PublicationService {
 
   private async getSiteSettingsSnapshot(
     context: TenantContext,
-    projectId: string
+    projectId: string,
+    siteId?: string
   ): Promise<SiteSettingsSnapshotJson> {
     const project = await this.getProjectOrThrow(context, projectId);
-    const settings = await new ProjectSiteSettingsRepository(
-      this.client
-    ).getOrCreateDefault(context, projectId, project.name);
+    const repository = new ProjectSiteSettingsRepository(this.client);
+    const settings =
+      siteId === undefined
+        ? await repository.getOrCreateDefault(context, projectId, project.name)
+        : await repository.getOrCreateDefault(
+            context,
+            projectId,
+            siteId,
+            project.name
+          );
 
     if (settings === null) {
       throw projectNotFoundError();
@@ -838,6 +1100,26 @@ export class PublicationService {
     const page = await new SitePageRepository(this.client).findById(
       context,
       projectId,
+      pageId
+    );
+
+    if (page === null) {
+      throw pageNotFoundError();
+    }
+
+    return page;
+  }
+
+  private async getPageForSiteOrThrow(
+    context: TenantContext,
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ): Promise<SitePage> {
+    const page = await new SitePageRepository(this.client).findByIdForSite(
+      context,
+      projectId,
+      siteId,
       pageId
     );
 
@@ -1028,8 +1310,10 @@ export class PublicSiteService {
           project: {
             deletedAt: null,
             publicationSettings: {
-              publicHandle: {
-                not: ""
+              some: {
+                publicHandle: {
+                  not: ""
+                }
               }
             }
           }
@@ -1054,8 +1338,10 @@ export class PublicSiteService {
         project: {
           deletedAt: null,
           publicationSettings: {
-            publicHandle: {
-              not: ""
+            some: {
+              publicHandle: {
+                not: ""
+              }
             }
           }
         }

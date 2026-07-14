@@ -13,6 +13,7 @@ export type RepositoryPrismaClient = Pick<
   | "projectOrderCounter"
   | "projectPublicationSettings"
   | "projectSiteSettings"
+  | "site"
   | "product"
   | "productMedia"
   | "productVariant"

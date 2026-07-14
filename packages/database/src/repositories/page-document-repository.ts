@@ -50,8 +50,27 @@ export class PageDocumentRepository {
     projectId: string,
     pageId: string
   ): Promise<PageDocumentRecord | null> {
+    const page = await new SitePageRepository(this.client).findById(
+      context,
+      projectId,
+      pageId
+    );
+
+    if (page === null) {
+      return null;
+    }
+
+    return this.findByPageForSite(context, projectId, page.siteId, pageId);
+  }
+
+  async findByPageForSite(
+    context: TenantContext,
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ): Promise<PageDocumentRecord | null> {
     const pageDocument = await this.client.pageDocument.findFirst({
-      where: activePageDocumentScope(context, projectId, pageId)
+      where: activePageDocumentScope(context, projectId, siteId, pageId)
     });
 
     return pageDocument === null ? null : toPageDocumentRecord(pageDocument);
@@ -62,15 +81,40 @@ export class PageDocumentRepository {
     projectId: string,
     pageId: string
   ): Promise<PageDocumentRecord | null> {
-    const existingDocument = await this.findByPage(context, projectId, pageId);
+    const page = await new SitePageRepository(this.client).findById(
+      context,
+      projectId,
+      pageId
+    );
+
+    if (page === null) {
+      return null;
+    }
+
+    return this.createDefaultForSite(context, projectId, page.siteId, pageId);
+  }
+
+  async createDefaultForSite(
+    context: TenantContext,
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ): Promise<PageDocumentRecord | null> {
+    const existingDocument = await this.findByPageForSite(
+      context,
+      projectId,
+      siteId,
+      pageId
+    );
 
     if (existingDocument !== null) {
       return existingDocument;
     }
 
-    const page = await new SitePageRepository(this.client).findById(
+    const page = await new SitePageRepository(this.client).findByIdForSite(
       context,
       projectId,
+      siteId,
       pageId
     );
 
@@ -83,6 +127,7 @@ export class PageDocumentRepository {
       data: {
         organizationId: context.organizationId,
         projectId,
+        siteId,
         pageId,
         schemaVersion: document.schemaVersion,
         document: toPrismaJson(document),
@@ -100,6 +145,34 @@ export class PageDocumentRepository {
     document: unknown,
     expectedRevision: number
   ): Promise<PageDocumentRecord | null> {
+    const page = await new SitePageRepository(this.client).findById(
+      context,
+      projectId,
+      pageId
+    );
+
+    if (page === null) {
+      return null;
+    }
+
+    return this.saveForSite(
+      context,
+      projectId,
+      page.siteId,
+      pageId,
+      document,
+      expectedRevision
+    );
+  }
+
+  async saveForSite(
+    context: TenantContext,
+    projectId: string,
+    siteId: string,
+    pageId: string,
+    document: unknown,
+    expectedRevision: number
+  ): Promise<PageDocumentRecord | null> {
     const validation = validatePageDocument(document);
 
     if (!validation.ok) {
@@ -108,7 +181,7 @@ export class PageDocumentRepository {
 
     const result = await this.client.pageDocument.updateMany({
       where: {
-        ...activePageDocumentScope(context, projectId, pageId),
+        ...activePageDocumentScope(context, projectId, siteId, pageId),
         revision: expectedRevision
       },
       data: {
@@ -121,38 +194,54 @@ export class PageDocumentRepository {
     });
 
     if (result.count === 0) {
-      const existingDocument = await this.findByPage(context, projectId, pageId);
+      const existingDocument = await this.findByPageForSite(
+        context,
+        projectId,
+        siteId,
+        pageId
+      );
 
       if (existingDocument === null) {
-        const page = await new SitePageRepository(this.client).findById(
+        const page = await new SitePageRepository(this.client).findByIdForSite(
           context,
           projectId,
+          siteId,
           pageId
         );
 
-        return page === null ? null : this.createDefault(context, projectId, pageId);
+        return page === null
+          ? null
+          : this.createDefaultForSite(context, projectId, siteId, pageId);
       }
 
       throw new PageDocumentRevisionConflictError();
     }
 
-    return this.findByPage(context, projectId, pageId);
+    return this.findByPageForSite(context, projectId, siteId, pageId);
   }
 }
 
 function activePageDocumentScope(
   context: TenantContext,
   projectId: string,
+  siteId: string,
   pageId: string
 ) {
   return {
     organizationId: context.organizationId,
     projectId,
+    siteId,
     pageId,
     page: {
       organizationId: context.organizationId,
       projectId,
+      siteId,
       deletedAt: null,
+      site: {
+        organizationId: context.organizationId,
+        projectId,
+        status: "ACTIVE" as const
+      },
       project: {
         organizationId: context.organizationId,
         deletedAt: null
