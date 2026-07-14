@@ -1,5 +1,9 @@
 import { validatePageDocument, type PageDocumentV2 } from "@site-platform/editor-core";
 import type { PageDocumentResponse } from "./dashboard-types";
+import {
+  createSitePageEditorRoute,
+  createSitePagePreviewRoute
+} from "./site-routes";
 
 export const PREVIEW_VIEWPORT_MODES = ["desktop", "tablet", "mobile"] as const;
 
@@ -17,14 +21,27 @@ export type PreviewDocumentValidationResult =
 
 export function createPagePreviewRoute(
   projectId: string,
-  pageId: string
+  pageId: string,
+  siteId?: string
 ): string {
+  if (siteId !== undefined) {
+    return createSitePagePreviewRoute(projectId, siteId, pageId);
+  }
+
   return `/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
     pageId
   )}/preview`;
 }
 
-export function createPageEditorRoute(projectId: string, pageId: string): string {
+export function createPageEditorRoute(
+  projectId: string,
+  pageId: string,
+  siteId?: string
+): string {
+  if (siteId !== undefined) {
+    return createSitePageEditorRoute(projectId, siteId, pageId);
+  }
+
   return `/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
     pageId
   )}`;

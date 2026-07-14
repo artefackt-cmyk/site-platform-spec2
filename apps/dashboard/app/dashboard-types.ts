@@ -2,6 +2,7 @@ import type { OrganizationRole } from "@site-platform/domain";
 import type { PageDocumentV2 } from "@site-platform/editor-core";
 
 export type ProjectStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+export type SiteStatus = "ACTIVE" | "ARCHIVED";
 export type SitePageStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type ProductStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 export type OrderStatus =
@@ -44,9 +45,21 @@ export type ProjectSummary = {
   readonly createdAt: string;
 };
 
+export type SiteSummary = {
+  readonly id: string;
+  readonly projectId: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly status: SiteStatus;
+  readonly isDefault: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+};
+
 export type SitePageSummary = {
   readonly id: string;
   readonly projectId: string;
+  readonly siteId: string;
   readonly title: string;
   readonly slug: string;
   readonly status: SitePageStatus;
@@ -67,6 +80,18 @@ export type ProjectPagesListResponse = {
   readonly pages: readonly SitePageSummary[];
 };
 
+export type SitesListResponse = {
+  readonly sites: readonly SiteSummary[];
+};
+
+export type CreateSiteResponse = {
+  readonly site: SiteSummary;
+};
+
+export type UpdateSiteResponse = {
+  readonly site: SiteSummary;
+};
+
 export type CreateProjectPageResponse = {
   readonly page: SitePageSummary;
 };
@@ -84,6 +109,7 @@ export type PageDocumentResponse = {
 
 export type ProjectSiteSettingsResponse = {
   readonly projectId: string;
+  readonly siteId?: string;
   readonly revision: number;
   readonly headerEnabled: boolean;
   readonly footerEnabled: boolean;
@@ -315,6 +341,16 @@ export type SavePageDocumentRequest = {
 };
 
 export type CreateProjectFormValues = {
+  readonly name: string;
+  readonly slug: string;
+};
+
+export type CreateSiteFormValues = {
+  readonly name: string;
+  readonly slug: string;
+};
+
+export type UpdateSiteFormValues = {
   readonly name: string;
   readonly slug: string;
 };

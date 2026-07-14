@@ -91,6 +91,7 @@ function createReadyState(): ProjectWorkspaceLoadState {
       {
         id: "page-1",
         projectId: "project-1",
+        siteId: "site-1",
         title: "Главная",
         slug: "home",
         status: "DRAFT",

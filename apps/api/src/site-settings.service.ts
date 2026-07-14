@@ -3,6 +3,7 @@ import {
   AuditLogRepository,
   ProjectRepository,
   ProjectSiteSettingsRepository,
+  SiteRepository,
   type DatabasePrismaClient,
   type SiteFooterDraftJson,
   type SiteHeaderDraftJson
@@ -80,14 +81,19 @@ export class SiteSettingsService {
       );
     }
 
-    const project = await this.getProjectOrThrow(identity.tenantContext, projectId);
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+    const site = await this.getSiteOrThrow(
+      identity.tenantContext,
+      projectId,
+      siteId
+    );
     const settings = await new ProjectSiteSettingsRepository(
       this.client
     ).getOrCreateDefaultForSite(
       identity.tenantContext,
       projectId,
       siteId,
-      project.name
+      site.name
     );
 
     if (settings === null) {
@@ -187,13 +193,18 @@ export class SiteSettingsService {
       );
     }
 
-    const project = await this.getProjectOrThrow(identity.tenantContext, projectId);
+    await this.getProjectOrThrow(identity.tenantContext, projectId);
+    const site = await this.getSiteOrThrow(
+      identity.tenantContext,
+      projectId,
+      siteId
+    );
     const repository = new ProjectSiteSettingsRepository(this.client);
     const existing = await repository.getOrCreateDefaultForSite(
       identity.tenantContext,
       projectId,
       siteId,
-      project.name
+      site.name
     );
 
     if (existing === null) {
@@ -257,6 +268,24 @@ export class SiteSettingsService {
     }
 
     return project;
+  }
+
+  private async getSiteOrThrow(
+    context: TenantContext,
+    projectId: string,
+    siteId: string
+  ) {
+    const site = await new SiteRepository(this.client).findById(
+      context,
+      projectId,
+      siteId
+    );
+
+    if (site === null) {
+      throw projectNotFoundError();
+    }
+
+    return site;
   }
 }
 

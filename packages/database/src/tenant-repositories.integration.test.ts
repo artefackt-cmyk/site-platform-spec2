@@ -24,10 +24,12 @@ import {
   ProjectOrderCounterRepository,
   ProjectPublicationSettingsRepository,
   ProjectRepository,
+  ProjectSiteSettingsRepository,
   PublishedPageSnapshotRepository,
   PublishedPageStateRepository,
   SiteRepository,
   SitePageRepository,
+  toSiteSettingsSnapshotJson,
   UserRepository,
   type DatabasePrismaClient
 } from "./index";
@@ -315,6 +317,243 @@ describe.skipIf(integrationConfig === undefined)(
           slug: "campaign"
         })
       ).rejects.toThrow();
+    });
+
+    it("keeps generated site settings independent when a site is renamed", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const siteRepository = new SiteRepository(currentClient);
+      const settingsRepository = new ProjectSiteSettingsRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const project = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Test Store",
+        slug: "test-store"
+      });
+      const site = await siteRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        name: "Campaign",
+        slug: "campaign"
+      });
+
+      if (site === null) {
+        throw new Error("Expected site fixture.");
+      }
+
+      const settings = await settingsRepository.getOrCreateDefaultForSite(
+        context,
+        project.id,
+        site.id,
+        site.name
+      );
+
+      expect(settings?.headerDraft).toMatchObject({
+        brandText: "Campaign"
+      });
+      expect(settings?.footerDraft).toMatchObject({
+        brandText: "Campaign"
+      });
+
+      const renamedSite = await siteRepository.update({
+        tenantContext: context,
+        projectId: project.id,
+        siteId: site.id,
+        name: "Campaign Renamed"
+      });
+
+      if (renamedSite === null) {
+        throw new Error("Expected renamed site fixture.");
+      }
+
+      await settingsRepository.syncGeneratedBrandForSiteRename({
+        tenantContext: context,
+        projectId: project.id,
+        siteId: site.id,
+        previousSiteName: site.name,
+        nextSiteName: renamedSite.name,
+        projectName: project.name
+      });
+
+      await expect(
+        settingsRepository.findBySite(context, project.id, site.id)
+      ).resolves.toMatchObject({
+        headerDraft: expect.objectContaining({
+          brandText: "Campaign Renamed"
+        }),
+        footerDraft: expect.objectContaining({
+          brandText: "Campaign Renamed"
+        })
+      });
+    });
+
+    it("self-heals legacy generated site settings before publication snapshots", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const siteRepository = new SiteRepository(currentClient);
+      const sitePageRepository = new SitePageRepository(currentClient);
+      const settingsRepository = new ProjectSiteSettingsRepository(currentClient);
+      const snapshotRepository = new PublishedPageSnapshotRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const project = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Test Store",
+        slug: "test-store"
+      });
+      const site = await siteRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        name: "Test Site Renamed",
+        slug: "test-site-renamed"
+      });
+
+      if (site === null) {
+        throw new Error("Expected site fixture.");
+      }
+
+      const page = await sitePageRepository.createForSite(
+        context,
+        project.id,
+        site.id,
+        {
+          title: "Home",
+          slug: "home",
+          isHome: true
+        }
+      );
+
+      if (page === null) {
+        throw new Error("Expected page fixture.");
+      }
+
+      await currentClient.projectSiteSettings.create({
+        data: {
+          organizationId: context.organizationId,
+          projectId: project.id,
+          siteId: site.id,
+          headerEnabled: true,
+          footerEnabled: true,
+          headerDraft: {
+            brandText: "Test Store",
+            logoUrl: "",
+            navigation: [],
+            cartLinkEnabled: true,
+            ctaLabel: "",
+            ctaUrl: ""
+          },
+          footerDraft: {
+            brandText: "Test Store",
+            description: "",
+            email: "",
+            phone: "",
+            legalText: "",
+            copyrightText: "© 2026 Test Store"
+          },
+          revision: 1
+        }
+      });
+
+      const healed = await settingsRepository.getOrCreateDefaultForSite(
+        context,
+        project.id,
+        site.id,
+        site.name
+      );
+
+      expect(healed).toMatchObject({
+        revision: 2,
+        headerDraft: expect.objectContaining({
+          brandText: "Test Site Renamed"
+        }),
+        footerDraft: expect.objectContaining({
+          brandText: "Test Site Renamed",
+          copyrightText: "© 2026 Test Site Renamed"
+        })
+      });
+
+      const healedAgain = await settingsRepository.getOrCreateDefaultForSite(
+        context,
+        project.id,
+        site.id,
+        site.name
+      );
+
+      expect(healedAgain).toMatchObject({
+        revision: 2,
+        headerDraft: expect.objectContaining({
+          brandText: "Test Site Renamed"
+        })
+      });
+
+      if (healedAgain === null) {
+        throw new Error("Expected healed settings fixture.");
+      }
+
+      const snapshot = await snapshotRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        pageId: page.id,
+        pageTitle: page.title,
+        pageSlug: page.slug,
+        document: createEmptyPageDocument(),
+        siteSettingsSnapshot: toSiteSettingsSnapshotJson(healedAgain),
+        sourceRevision: 1,
+        publishedByUserId: context.userId
+      });
+
+      expect(snapshot?.siteSettingsJson).toMatchObject({
+        header: expect.objectContaining({
+          brandText: "Test Site Renamed"
+        }),
+        footer: expect.objectContaining({
+          brandText: "Test Site Renamed",
+          copyrightText: "© 2026 Test Site Renamed"
+        })
+      });
+
+      await settingsRepository.updateDraft({
+        tenantContext: context,
+        projectId: project.id,
+        siteId: site.id,
+        headerEnabled: true,
+        footerEnabled: true,
+        headerDraft: {
+          brandText: "Custom Brand",
+          logoUrl: "",
+          navigation: [],
+          cartLinkEnabled: true,
+          ctaLabel: "",
+          ctaUrl: ""
+        },
+        footerDraft: {
+          brandText: "Custom Footer",
+          description: "",
+          email: "",
+          phone: "",
+          legalText: "",
+          copyrightText: "© 2026 Test Store"
+        }
+      });
+
+      const customHealed = await settingsRepository.healLegacyGeneratedBrandForSite({
+        tenantContext: context,
+        projectId: project.id,
+        siteId: site.id,
+        siteName: site.name,
+        legacyGeneratedNames: [project.name]
+      });
+
+      expect(customHealed).toMatchObject({
+        headerDraft: expect.objectContaining({
+          brandText: "Custom Brand"
+        }),
+        footerDraft: expect.objectContaining({
+          brandText: "Custom Footer",
+          copyrightText: "© 2026 Test Site Renamed"
+        })
+      });
     });
 
     it("does not let one site read another site's page", async () => {
@@ -1451,6 +1690,296 @@ describe.skipIf(integrationConfig === undefined)(
           page.slug
         )
       ).resolves.toBeNull();
+    });
+
+    it("keeps public site shell snapshots isolated by public handle", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const siteRepository = new SiteRepository(currentClient);
+      const sitePageRepository = new SitePageRepository(currentClient);
+      const siteSettingsRepository = new ProjectSiteSettingsRepository(
+        currentClient
+      );
+      const publicationSettingsRepository =
+        new ProjectPublicationSettingsRepository(currentClient);
+      const snapshotRepository = new PublishedPageSnapshotRepository(currentClient);
+      const stateRepository = new PublishedPageStateRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const project = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Shared Project",
+        slug: "shared-project"
+      });
+      const defaultSite = await siteRepository.findDefault(context, project.id);
+      const secondSite = await siteRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        name: "Second Site",
+        slug: "second-site"
+      });
+
+      if (defaultSite === null || secondSite === null) {
+        throw new Error("Expected site fixtures.");
+      }
+
+      const defaultPage = await sitePageRepository.createForSite(
+        context,
+        project.id,
+        defaultSite.id,
+        {
+        title: "Default Home",
+        slug: "home",
+        isHome: true
+        }
+      );
+      const secondPage = await sitePageRepository.createForSite(
+        context,
+        project.id,
+        secondSite.id,
+        {
+        title: "Second Home",
+        slug: "home",
+        isHome: true
+        }
+      );
+
+      if (defaultPage === null || secondPage === null) {
+        throw new Error("Expected page fixtures.");
+      }
+
+      await publicationSettingsRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        siteId: defaultSite.id,
+        publicHandle: "default-public-site"
+      });
+      await publicationSettingsRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        siteId: secondSite.id,
+        publicHandle: "second-public-site"
+      });
+      await siteSettingsRepository.getOrCreateDefaultForSite(
+        context,
+        project.id,
+        defaultSite.id,
+        defaultSite.name
+      );
+      await siteSettingsRepository.getOrCreateDefaultForSite(
+        context,
+        project.id,
+        secondSite.id,
+        secondSite.name
+      );
+
+      const defaultSettings = await siteSettingsRepository.updateDraft({
+        tenantContext: context,
+        projectId: project.id,
+        siteId: defaultSite.id,
+        headerEnabled: true,
+        footerEnabled: true,
+        headerDraft: {
+          brandText: "Default Site Shell",
+          logoUrl: "",
+          navigation: [
+            {
+              label: "Default Home",
+              type: "page",
+              pageId: defaultPage.id
+            }
+          ],
+          cartLinkEnabled: true,
+          ctaLabel: "",
+          ctaUrl: ""
+        },
+        footerDraft: {
+          brandText: "Default Site Footer",
+          description: "Default description",
+          email: "",
+          phone: "",
+          legalText: "",
+          copyrightText: "Default copyright"
+        }
+      });
+      const secondSettings = await siteSettingsRepository.updateDraft({
+        tenantContext: context,
+        projectId: project.id,
+        siteId: secondSite.id,
+        headerEnabled: true,
+        footerEnabled: true,
+        headerDraft: {
+          brandText: "Second Site Shell",
+          logoUrl: "",
+          navigation: [
+            {
+              label: "Second Home",
+              type: "page",
+              pageId: secondPage.id
+            }
+          ],
+          cartLinkEnabled: false,
+          ctaLabel: "Contact",
+          ctaUrl: "/contact"
+        },
+        footerDraft: {
+          brandText: "Second Site Footer",
+          description: "Second description",
+          email: "",
+          phone: "",
+          legalText: "",
+          copyrightText: "Second copyright"
+        }
+      });
+
+      if (defaultSettings === null || secondSettings === null) {
+        throw new Error("Expected site settings fixtures.");
+      }
+
+      const defaultSnapshot = await snapshotRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        pageId: defaultPage.id,
+        pageTitle: defaultPage.title,
+        pageSlug: defaultPage.slug,
+        document: createEmptyPageDocument(),
+        siteSettingsSnapshot: {
+          headerEnabled: defaultSettings.headerEnabled,
+          footerEnabled: defaultSettings.footerEnabled,
+          header: defaultSettings.headerDraft as never,
+          footer: defaultSettings.footerDraft as never,
+          revision: defaultSettings.revision
+        },
+        sourceRevision: 1,
+        publishedByUserId: context.userId
+      });
+      const secondSnapshot = await snapshotRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        pageId: secondPage.id,
+        pageTitle: secondPage.title,
+        pageSlug: secondPage.slug,
+        document: createEmptyPageDocument(),
+        siteSettingsSnapshot: {
+          headerEnabled: secondSettings.headerEnabled,
+          footerEnabled: secondSettings.footerEnabled,
+          header: secondSettings.headerDraft as never,
+          footer: secondSettings.footerDraft as never,
+          revision: secondSettings.revision
+        },
+        sourceRevision: 1,
+        publishedByUserId: context.userId
+      });
+
+      if (defaultSnapshot === null || secondSnapshot === null) {
+        throw new Error("Expected publication snapshot fixtures.");
+      }
+
+      await stateRepository.activate({
+        tenantContext: context,
+        projectId: project.id,
+        pageId: defaultPage.id,
+        snapshotId: defaultSnapshot.id,
+        publishedAt: defaultSnapshot.publishedAt
+      });
+      await stateRepository.activate({
+        tenantContext: context,
+        projectId: project.id,
+        pageId: secondPage.id,
+        snapshotId: secondSnapshot.id,
+        publishedAt: secondSnapshot.publishedAt
+      });
+
+      await expect(
+        snapshotRepository.findActivePageByHandleAndSlug(
+          "default-public-site",
+          "home"
+        )
+      ).resolves.toMatchObject({
+        snapshot: {
+          id: defaultSnapshot.id,
+          siteSettingsJson: expect.objectContaining({
+            header: expect.objectContaining({
+              brandText: "Default Site Shell"
+            }),
+            footer: expect.objectContaining({
+              brandText: "Default Site Footer"
+            })
+          })
+        }
+      });
+      await expect(
+        snapshotRepository.findActivePageByHandleAndSlug(
+          "second-public-site",
+          "home"
+        )
+      ).resolves.toMatchObject({
+        snapshot: {
+          id: secondSnapshot.id,
+          siteSettingsJson: expect.objectContaining({
+            header: expect.objectContaining({
+              brandText: "Second Site Shell",
+              navigation: [
+                expect.objectContaining({
+                  label: "Second Home",
+                  pageId: secondPage.id
+                })
+              ]
+            }),
+            footer: expect.objectContaining({
+              brandText: "Second Site Footer"
+            })
+          })
+        }
+      });
+
+      const secondNavigation =
+        await snapshotRepository.listActivePagesForNavigation("second-public-site");
+      expect(secondNavigation).toHaveLength(1);
+      expect(secondNavigation[0]?.snapshot.pageId).toBe(secondPage.id);
+
+      await siteSettingsRepository.updateDraft({
+        tenantContext: context,
+        projectId: project.id,
+        siteId: secondSite.id,
+        headerEnabled: true,
+        footerEnabled: true,
+        headerDraft: {
+          brandText: "Second Site Changed",
+          logoUrl: "",
+          navigation: [],
+          cartLinkEnabled: false,
+          ctaLabel: "",
+          ctaUrl: ""
+        },
+        footerDraft: {
+          brandText: "Second Site Changed Footer",
+          description: "",
+          email: "",
+          phone: "",
+          legalText: "",
+          copyrightText: "Second changed copyright"
+        }
+      });
+
+      await expect(
+        snapshotRepository.findActivePageByHandleAndSlug(
+          "default-public-site",
+          "home"
+        )
+      ).resolves.toMatchObject({
+        snapshot: {
+          id: defaultSnapshot.id,
+          siteSettingsJson: expect.objectContaining({
+            header: expect.objectContaining({
+              brandText: "Default Site Shell"
+            }),
+            footer: expect.objectContaining({
+              brandText: "Default Site Footer"
+            })
+          })
+        }
+      });
     });
   }
 );

@@ -45,6 +45,23 @@ export type UpdateProjectSiteSettingsDraftInput = {
   readonly footerDraft: SiteFooterDraftJson;
 };
 
+export type SyncGeneratedSiteBrandInput = {
+  readonly tenantContext: TenantContext;
+  readonly projectId: string;
+  readonly siteId: string;
+  readonly previousSiteName: string;
+  readonly nextSiteName: string;
+  readonly projectName: string;
+};
+
+export type HealLegacyGeneratedSiteBrandInput = {
+  readonly tenantContext: TenantContext;
+  readonly projectId: string;
+  readonly siteId: string;
+  readonly siteName: string;
+  readonly legacyGeneratedNames: readonly string[];
+};
+
 export class ProjectSiteSettingsRepository {
   constructor(private readonly client: RepositoryPrismaClient) {}
 
@@ -84,30 +101,20 @@ export class ProjectSiteSettingsRepository {
             projectId,
             siteIdOrProjectName
           );
-    const projectName =
-      projectNameOrUndefined === undefined
-        ? siteIdOrProjectName
-        : projectNameOrUndefined;
-
     if (site === null || site.status !== "ACTIVE") {
       return null;
     }
 
-    return this.getOrCreateDefaultForSite(context, projectId, site.id, projectName);
+    return this.getOrCreateDefaultForSite(context, projectId, site.id, site.name);
   }
 
   async getOrCreateDefaultForSite(
     context: TenantContext,
     projectId: string,
     siteId: string,
-    projectName: string
+    siteName: string
   ): Promise<ProjectSiteSettings | null> {
     const existing = await this.findBySite(context, projectId, siteId);
-
-    if (existing !== null) {
-      return existing;
-    }
-
     const project = await new ProjectRepository(this.client).findByTenantContextAndId({
       tenantContext: context,
       projectId
@@ -117,16 +124,134 @@ export class ProjectSiteSettingsRepository {
       return null;
     }
 
+    if (existing !== null) {
+      return this.updateGeneratedBrandFields(existing, {
+        nextSiteName: siteName,
+        legacyGeneratedNames: [project.name]
+      });
+    }
+
     return this.client.projectSiteSettings.create({
       data: {
         organizationId: context.organizationId,
         projectId,
         siteId,
-        headerDraft: toJson(createDefaultHeaderDraft(projectName)),
-        footerDraft: toJson(createDefaultFooterDraft(projectName)),
+        headerDraft: toJson(createDefaultHeaderDraft(siteName)),
+        footerDraft: toJson(createDefaultFooterDraft(siteName)),
         headerEnabled: true,
         footerEnabled: true,
         revision: 1
+      }
+    });
+  }
+
+  async healLegacyGeneratedBrandForSite(
+    input: HealLegacyGeneratedSiteBrandInput
+  ): Promise<ProjectSiteSettings | null> {
+    const existing = await this.findBySite(
+      input.tenantContext,
+      input.projectId,
+      input.siteId
+    );
+
+    if (existing === null) {
+      return this.getOrCreateDefaultForSite(
+        input.tenantContext,
+        input.projectId,
+        input.siteId,
+        input.siteName
+      );
+    }
+
+    return this.updateGeneratedBrandFields(existing, {
+      nextSiteName: input.siteName,
+      legacyGeneratedNames: input.legacyGeneratedNames
+    });
+  }
+
+  async syncGeneratedBrandForSiteRename(
+    input: SyncGeneratedSiteBrandInput
+  ): Promise<ProjectSiteSettings | null> {
+    const existing = await this.findBySite(
+      input.tenantContext,
+      input.projectId,
+      input.siteId
+    );
+
+    if (existing === null) {
+      return this.getOrCreateDefaultForSite(
+        input.tenantContext,
+        input.projectId,
+        input.siteId,
+        input.nextSiteName
+      );
+    }
+
+    return this.updateGeneratedBrandFields(existing, {
+      nextSiteName: input.nextSiteName,
+      legacyGeneratedNames: [input.previousSiteName, input.projectName]
+    });
+  }
+
+  private async updateGeneratedBrandFields(
+    existing: ProjectSiteSettings,
+    input: {
+      readonly nextSiteName: string;
+      readonly legacyGeneratedNames: readonly string[];
+    }
+  ): Promise<ProjectSiteSettings> {
+    const currentHeader = existing.headerDraft as unknown as SiteHeaderDraftJson;
+    const currentFooter = existing.footerDraft as unknown as SiteFooterDraftJson;
+    const nextHeaderDefault = createDefaultHeaderDraft(input.nextSiteName);
+    const nextFooterDefault = createDefaultFooterDraft(input.nextSiteName);
+    const legacyGeneratedNames = normalizeGeneratedNames(
+      input.legacyGeneratedNames,
+      input.nextSiteName
+    );
+    const shouldReplaceHeaderBrand = isGeneratedBrandText(
+      currentHeader.brandText,
+      legacyGeneratedNames
+    );
+    const shouldReplaceFooterBrand = isGeneratedBrandText(
+      currentFooter.brandText,
+      legacyGeneratedNames
+    );
+    const shouldReplaceCopyright = isGeneratedCopyrightText(
+      currentFooter.copyrightText,
+      legacyGeneratedNames
+    );
+
+    if (
+      !shouldReplaceHeaderBrand &&
+      !shouldReplaceFooterBrand &&
+      !shouldReplaceCopyright
+    ) {
+      return existing;
+    }
+
+    return this.client.projectSiteSettings.update({
+      where: {
+        id: existing.id
+      },
+      data: {
+        headerDraft: toJson({
+          ...currentHeader,
+          ...(shouldReplaceHeaderBrand
+            ? { brandText: nextHeaderDefault.brandText }
+            : {})
+        }),
+        footerDraft: toJson({
+          ...currentFooter,
+          ...(shouldReplaceFooterBrand
+            ? { brandText: nextFooterDefault.brandText }
+            : {}),
+          ...(shouldReplaceCopyright
+            ? { copyrightText: nextFooterDefault.copyrightText }
+            : {})
+        }),
+        revision: {
+          increment: 1
+        }
       }
     });
   }
@@ -226,4 +351,33 @@ function siteSettingsScope(
 
 function toJson(value: SiteHeaderDraftJson | SiteFooterDraftJson): PrismaJsonInput {
   return value as unknown as PrismaJsonInput;
+}
+
+function isGeneratedBrandText(
+  value: string,
+  legacyGeneratedNames: readonly string[]
+): boolean {
+  return legacyGeneratedNames.includes(value);
+}
+
+function isGeneratedCopyrightText(
+  value: string,
+  legacyGeneratedNames: readonly string[]
+): boolean {
+  return legacyGeneratedNames
+    .map((name) => createDefaultFooterDraft(name).copyrightText)
+    .includes(value);
+}
+
+function normalizeGeneratedNames(
+  names: readonly string[],
+  nextSiteName: string
+): readonly string[] {
+  return [
+    ...new Set(
+      names
+        .map((name) => name.trim())
+        .filter((name) => name !== "" && name !== nextSiteName)
+    )
+  ];
 }

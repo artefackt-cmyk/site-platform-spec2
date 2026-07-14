@@ -1,13 +1,13 @@
 import { loadPublicConfig } from "@site-platform/config";
-import { SiteManagementApp } from "../../site-management-app";
+import { SiteManagementApp } from "../../../site-management-app";
 
-type ProjectPageProps = {
+type ProjectSitesPageProps = {
   readonly params: Promise<{
     readonly projectId: string;
   }>;
 };
 
-export default async function Page({ params }: ProjectPageProps) {
+export default async function Page({ params }: ProjectSitesPageProps) {
   const config = loadPublicConfig();
   const { projectId } = await params;
 
@@ -19,3 +19,4 @@ export default async function Page({ params }: ProjectPageProps) {
     />
   );
 }
+

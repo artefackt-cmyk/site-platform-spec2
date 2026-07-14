@@ -5,6 +5,8 @@ import type {
   CreateProjectPageResponse,
   CreateProjectFormValues,
   CreateProjectResponse,
+  CreateSiteFormValues,
+  CreateSiteResponse,
   CurrentUserResponse,
   DeleteMediaAssetResponse,
   MediaAssetsListResponse,
@@ -25,7 +27,11 @@ import type {
   PublishPageResponse,
   SavePageDocumentRequest,
   SitePageSummary,
+  SiteSummary,
+  SitesListResponse,
   ProjectsListResponse,
+  UpdateSiteFormValues,
+  UpdateSiteResponse,
   UpdatePageSettingsFormValues,
   UpdateMediaAssetResponse,
   UpdateProjectPageResponse,
@@ -88,15 +94,51 @@ export type DashboardApiClient = {
     input: CreateProjectFormValues
   ) => Promise<CreateProjectResponse>;
   readonly getProject: (projectId: string) => Promise<ProjectSummary>;
+  readonly listProjectSites: (projectId: string) => Promise<SitesListResponse>;
+  readonly createProjectSite: (
+    projectId: string,
+    input: CreateSiteFormValues
+  ) => Promise<CreateSiteResponse>;
+  readonly getProjectSite: (
+    projectId: string,
+    siteId: string
+  ) => Promise<SiteSummary>;
+  readonly updateProjectSite: (
+    projectId: string,
+    siteId: string,
+    input: UpdateSiteFormValues
+  ) => Promise<UpdateSiteResponse>;
+  readonly archiveProjectSite: (
+    projectId: string,
+    siteId: string
+  ) => Promise<UpdateSiteResponse>;
+  readonly setDefaultProjectSite: (
+    projectId: string,
+    siteId: string
+  ) => Promise<UpdateSiteResponse>;
   readonly listProjectPages: (
     projectId: string
+  ) => Promise<ProjectPagesListResponse>;
+  readonly listSitePages: (
+    projectId: string,
+    siteId: string
   ) => Promise<ProjectPagesListResponse>;
   readonly createProjectPage: (
     projectId: string,
     input: CreatePageFormValues
   ) => Promise<CreateProjectPageResponse>;
+  readonly createSitePage: (
+    projectId: string,
+    siteId: string,
+    input: CreatePageFormValues
+  ) => Promise<CreateProjectPageResponse>;
   readonly getProjectPage: (
     projectId: string,
+    pageId: string
+  ) => Promise<SitePageSummary>;
+  readonly getSitePage: (
+    projectId: string,
+    siteId: string,
     pageId: string
   ) => Promise<SitePageSummary>;
   readonly updateProjectPage: (
@@ -104,8 +146,19 @@ export type DashboardApiClient = {
     pageId: string,
     input: UpdatePageSettingsFormValues
   ) => Promise<UpdateProjectPageResponse>;
+  readonly updateSitePage: (
+    projectId: string,
+    siteId: string,
+    pageId: string,
+    input: UpdatePageSettingsFormValues
+  ) => Promise<UpdateProjectPageResponse>;
   readonly getProjectPageDocument: (
     projectId: string,
+    pageId: string
+  ) => Promise<PageDocumentResponse>;
+  readonly getSitePageDocument: (
+    projectId: string,
+    siteId: string,
     pageId: string
   ) => Promise<PageDocumentResponse>;
   readonly saveProjectPageDocument: (
@@ -113,11 +166,26 @@ export type DashboardApiClient = {
     pageId: string,
     input: SavePageDocumentRequest
   ) => Promise<PageDocumentResponse>;
+  readonly saveSitePageDocument: (
+    projectId: string,
+    siteId: string,
+    pageId: string,
+    input: SavePageDocumentRequest
+  ) => Promise<PageDocumentResponse>;
   readonly getProjectSiteSettings: (
     projectId: string
   ) => Promise<ProjectSiteSettingsResponse>;
+  readonly getSiteSettings: (
+    projectId: string,
+    siteId: string
+  ) => Promise<ProjectSiteSettingsResponse>;
   readonly updateProjectSiteSettings: (
     projectId: string,
+    input: ProjectSiteSettingsResponse
+  ) => Promise<ProjectSiteSettingsResponse>;
+  readonly updateSiteSettings: (
+    projectId: string,
+    siteId: string,
     input: ProjectSiteSettingsResponse
   ) => Promise<ProjectSiteSettingsResponse>;
   readonly listProjectMedia: (projectId: string) => Promise<MediaAssetsListResponse>;
@@ -271,8 +339,19 @@ export type DashboardApiClient = {
   readonly getPublicationSettings: (
     projectId: string
   ) => Promise<PublicationSettingsResponse>;
+  readonly getSitePublicationSettings: (
+    projectId: string,
+    siteId: string
+  ) => Promise<PublicationSettingsResponse>;
   readonly updatePublicationSettings: (
     projectId: string,
+    input: {
+      readonly publicHandle: string;
+    }
+  ) => Promise<PublicationSettingsResponse>;
+  readonly updateSitePublicationSettings: (
+    projectId: string,
+    siteId: string,
     input: {
       readonly publicHandle: string;
     }
@@ -281,8 +360,21 @@ export type DashboardApiClient = {
     projectId: string,
     pageId: string
   ) => Promise<PublicationStatusResponse>;
+  readonly getSitePagePublicationStatus: (
+    projectId: string,
+    siteId: string,
+    pageId: string
+  ) => Promise<PublicationStatusResponse>;
   readonly publishPage: (
     projectId: string,
+    pageId: string,
+    input: {
+      readonly expectedRevision: number;
+    }
+  ) => Promise<PublishPageResponse>;
+  readonly publishSitePage: (
+    projectId: string,
+    siteId: string,
     pageId: string,
     input: {
       readonly expectedRevision: number;
@@ -383,15 +475,94 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
         normalizedApiUrl,
         `/api/projects/${encodeURIComponent(projectId)}`
       ),
+    listProjectSites: (projectId) =>
+      request<SitesListResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites`
+      ),
+    createProjectSite: (projectId, input) =>
+      request<CreateSiteResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    getProjectSite: (projectId, siteId) =>
+      request<SiteSummary>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}`
+      ),
+    updateProjectSite: (projectId, siteId, input) =>
+      request<UpdateSiteResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    archiveProjectSite: (projectId, siteId) =>
+      request<UpdateSiteResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}`,
+        {
+          method: "DELETE"
+        }
+      ),
+    setDefaultProjectSite: (projectId, siteId) =>
+      request<UpdateSiteResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/set-default`,
+        {
+          method: "POST"
+        }
+      ),
     listProjectPages: (projectId) =>
       request<ProjectPagesListResponse>(
         normalizedApiUrl,
         `/api/projects/${encodeURIComponent(projectId)}/pages`
       ),
+    listSitePages: (projectId, siteId) =>
+      request<ProjectPagesListResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/pages`
+      ),
     createProjectPage: (projectId, input) =>
       request<CreateProjectPageResponse>(
         normalizedApiUrl,
         `/api/projects/${encodeURIComponent(projectId)}/pages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    createSitePage: (projectId, siteId, input) =>
+      request<CreateProjectPageResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/pages`,
         {
           method: "POST",
           headers: {
@@ -407,12 +578,33 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
           pageId
         )}`
       ),
+    getSitePage: (projectId, siteId, pageId) =>
+      request<SitePageSummary>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/pages/${encodeURIComponent(pageId)}`
+      ),
     updateProjectPage: (projectId, pageId, input) =>
       request<UpdateProjectPageResponse>(
         normalizedApiUrl,
         `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
           pageId
         )}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    updateSitePage: (projectId, siteId, pageId, input) =>
+      request<UpdateProjectPageResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/pages/${encodeURIComponent(pageId)}`,
         {
           method: "PATCH",
           headers: {
@@ -428,6 +620,13 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
           pageId
         )}/document`
       ),
+    getSitePageDocument: (projectId, siteId, pageId) =>
+      request<PageDocumentResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/pages/${encodeURIComponent(pageId)}/document`
+      ),
     saveProjectPageDocument: (projectId, pageId, input) =>
       request<PageDocumentResponse>(
         normalizedApiUrl,
@@ -442,15 +641,50 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
           body: JSON.stringify(input)
         }
       ),
+    saveSitePageDocument: (projectId, siteId, pageId, input) =>
+      request<PageDocumentResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/pages/${encodeURIComponent(pageId)}/document`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
     getProjectSiteSettings: (projectId) =>
       request<ProjectSiteSettingsResponse>(
         normalizedApiUrl,
         `/api/projects/${encodeURIComponent(projectId)}/site-settings`
       ),
+    getSiteSettings: (projectId, siteId) =>
+      request<ProjectSiteSettingsResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/site-settings`
+      ),
     updateProjectSiteSettings: (projectId, input) =>
       request<ProjectSiteSettingsResponse>(
         normalizedApiUrl,
         `/api/projects/${encodeURIComponent(projectId)}/site-settings`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    updateSiteSettings: (projectId, siteId, input) =>
+      request<ProjectSiteSettingsResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/site-settings`,
         {
           method: "PATCH",
           headers: {
@@ -734,10 +968,31 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
         normalizedApiUrl,
         `/api/projects/${encodeURIComponent(projectId)}/publication-settings`
       ),
+    getSitePublicationSettings: (projectId, siteId) =>
+      request<PublicationSettingsResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/publication-settings`
+      ),
     updatePublicationSettings: (projectId, input) =>
       request<PublicationSettingsResponse>(
         normalizedApiUrl,
         `/api/projects/${encodeURIComponent(projectId)}/publication-settings`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    updateSitePublicationSettings: (projectId, siteId, input) =>
+      request<PublicationSettingsResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/publication-settings`,
         {
           method: "PATCH",
           headers: {
@@ -753,12 +1008,33 @@ export function createDashboardApiClient(apiUrl: string): DashboardApiClient {
           pageId
         )}/publication-status`
       ),
+    getSitePagePublicationStatus: (projectId, siteId, pageId) =>
+      request<PublicationStatusResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/pages/${encodeURIComponent(pageId)}/publication-status`
+      ),
     publishPage: (projectId, pageId, input) =>
       request<PublishPageResponse>(
         normalizedApiUrl,
         `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(
           pageId
         )}/publish`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(input)
+        }
+      ),
+    publishSitePage: (projectId, siteId, pageId, input) =>
+      request<PublishPageResponse>(
+        normalizedApiUrl,
+        `/api/projects/${encodeURIComponent(projectId)}/sites/${encodeURIComponent(
+          siteId
+        )}/pages/${encodeURIComponent(pageId)}/publish`,
         {
           method: "POST",
           headers: {

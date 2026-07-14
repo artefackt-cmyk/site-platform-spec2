@@ -21,26 +21,22 @@ Last audited: 2026-07-14
 
 ### MERCURIO-003 Site Management Dashboard
 
-Goal: expose the implemented Site Domain Kernel in dashboard workflows:
+Status: implemented in branch `codex/mercurio-003-site-management-dashboard`.
 
-`Organization -> Project -> Site -> SitePage -> PageDocument.sections JSON`
+Follow-up hardening:
 
-Small, verifiable steps:
-
-1. Load `/api/projects/:projectId/sites` in the project workspace.
-2. Add a Site selector with default/archived states.
-3. Create/update/archive Site from dashboard UI.
-4. Add set-default action with confirmation.
-5. Route pages list/editor/site-settings/publication settings through explicit `siteId`.
-6. Preserve old default-site project routes only as compatibility.
-7. Show public handle per Site.
-8. Add dashboard tests for selecting a second Site and keeping its pages/settings isolated.
+1. Add browser-level smoke coverage once local PostgreSQL is available.
+2. Replace the remaining editor unpublish/history/rollback compatibility calls with explicit
+   site-scoped publish command routes.
+3. Decide whether archived Sites should remain directly openable in a read-only view or always
+   redirect to the default active Site.
 
 ### MERCURIO-004 Template selection foundation
 
 - Add template metadata model or static registry.
 - Allow project/site creation from a selected template.
 - Instantiate initial pages/sections from template data.
+- Surface template origin in Site Overview so users understand what starter structure was used.
 
 ### MERCURIO-005 Site-aware publish commands
 

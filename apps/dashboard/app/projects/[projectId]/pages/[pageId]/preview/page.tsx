@@ -1,5 +1,5 @@
 import { loadPublicConfig } from "@site-platform/config";
-import { PagePreviewApp } from "../../../../../page-preview-app";
+import { LegacySiteRedirectApp } from "../../../../../legacy-site-redirect-app";
 
 type PagePreviewRouteProps = {
   readonly params: Promise<{
@@ -13,10 +13,13 @@ export default async function Page({ params }: PagePreviewRouteProps) {
   const { projectId, pageId } = await params;
 
   return (
-    <PagePreviewApp
+    <LegacySiteRedirectApp
       apiUrl={config.apiUrl}
       projectId={projectId}
-      pageId={pageId}
+      target={{
+        type: "page-preview",
+        pageId
+      }}
     />
   );
 }

@@ -87,9 +87,10 @@ function createReadyState(document: PageDocumentV2): PagePreviewLoadState {
       createdAt: "2026-01-01T00:00:00.000Z"
     },
     page: {
-      id: "page-1",
-      projectId: "project-1",
-      title: "Главная",
+    id: "page-1",
+    projectId: "project-1",
+    siteId: "site-1",
+    title: "Главная",
       slug: "home",
       status: "DRAFT",
       isHome: true,

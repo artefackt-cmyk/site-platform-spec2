@@ -4,7 +4,7 @@ Last audited: 2026-07-14
 
 ## Repository baseline
 
-- Branch for this audit: `codex/mercurio-resume-audit`.
+- Branch for this audit/update: `codex/mercurio-003-site-management-dashboard`.
 - Package manager: `pnpm` (`packageManager: pnpm@11.7.0`, lockfile: `pnpm-lock.yaml`).
 - Monorepo tool: Turborepo (`turbo run ...`, local CLI reported `2.10.4`).
 - Node used during audit: `v24.18.0`.
@@ -17,8 +17,9 @@ Last audited: 2026-07-14
 - Monorepo packages: `config`, `database`, `domain`, `editor-core`, `block-library`,
   `renderer`, `ui`, `media-storage`, `integrations`, `testing`.
 - Docker Compose defines a PostgreSQL 16 service and init scripts create dev/test databases.
-- Prisma schema and migrations exist for tenancy, auth, projects, site pages, page documents,
-  media, publication snapshots, product catalog, cart/checkout/orders, and project site settings.
+- Prisma schema and migrations exist for tenancy, auth, projects, first-class sites, site pages,
+  page documents, media, publication snapshots, product catalog, cart/checkout/orders, and
+  site-owned settings/publication settings.
 - Auth foundation exists: registration, login, logout, session, password reset, onboarding.
 - Tenant identity is resolved from the session cookie, with optional development identity when enabled.
 - RBAC exists in `packages/domain` and is used by project/page/content paths.
@@ -27,12 +28,13 @@ Last audited: 2026-07-14
   - `/api/auth/*`;
   - `/api/me`;
   - `/api/projects`;
-  - project pages and page document mutations;
+  - first-class project sites and site-scoped pages/page document mutations;
+  - compatibility project page routes that resolve through the active default Site;
   - page sections stored inside the page document JSON;
   - site settings, media, publication, products, orders;
   - public site/product/order endpoints.
-- Dashboard has routes for auth, projects, project workspace, page editor/preview, media,
-  products, orders, and design system.
+- Dashboard has routes for auth, projects, site management, site-scoped pages/settings/publication,
+  page editor/preview, media, products, orders, and design system.
 - Storefront has the public landing page and dynamic public site/product/checkout/order routes.
 - Worker currently has a minimal dev entrypoint.
 - `packages/ui` contains Design System Foundation v1 and dashboard consumes it in the
@@ -69,21 +71,20 @@ Last audited: 2026-07-14
 
 ## Stubs and placeholders
 
-- There is no first-class `Site` Prisma model yet; `SitePage`, `ProjectPublicationSettings`,
-  and `ProjectSiteSettings` currently represent site-facing behavior at project level.
 - Page sections are not first-class database rows; they live inside `PageDocument.document` JSON.
 - Template Center is not implemented as a domain model or UI workflow.
-- Several project workspace tabs are placeholders (`overview`, `design`, `settings`, `domain`).
+- Products, media, orders, and catalog workflows remain project-level shared resources.
 - Worker has no real background job pipeline yet.
 - Storefront public pages depend on API data; full end-to-end publish flow requires PostgreSQL.
 
 ## Known issues
 
 - Local baseline depends on Docker Desktop/daemon being started before DB commands.
-- The product decision says one Project can have multiple Sites, but the current schema has no
-  `Site` entity; this must be resolved before the next domain expansion.
-- `SitePage` is scoped directly to Project; future migration to `Site -> Page` needs a careful
-  compatibility plan.
+- Site-aware dashboard routes are implemented, while old project-level page URLs remain
+  compatibility redirects through the active default Site.
+- Site-scoped publish/status/settings flows exist in the dashboard, but unpublish/history/rollback
+  editor actions still use the project-level compatibility API until explicit site-scoped publish
+  command routes are added.
 - `Organization` has `deletedAt`, but most child models use restrictive foreign keys and mixed
   archive/delete semantics.
 - Next build warns that the Next.js ESLint plugin is not detected in the flat ESLint config.

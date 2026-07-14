@@ -13,13 +13,15 @@ export function shouldWarnBeforePreview(saveStatus: SaveStatus): boolean {
 export function openSavedPreview(
   projectId: string,
   pageId: string,
-  navigate: NavigateToPreview
+  navigate: NavigateToPreview,
+  siteId?: string
 ): void {
-  navigate(createPagePreviewRoute(projectId, pageId));
+  navigate(createPagePreviewRoute(projectId, pageId, siteId));
 }
 
 export async function saveAndOpenPreview(input: {
   readonly projectId: string;
+  readonly siteId?: string | undefined;
   readonly pageId: string;
   readonly save: SaveBeforePreview;
   readonly navigate: NavigateToPreview;
@@ -30,7 +32,7 @@ export async function saveAndOpenPreview(input: {
     return false;
   }
 
-  openSavedPreview(input.projectId, input.pageId, input.navigate);
+  openSavedPreview(input.projectId, input.pageId, input.navigate, input.siteId);
 
   return true;
 }

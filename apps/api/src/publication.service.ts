@@ -13,6 +13,7 @@ import {
   PublishedPageSnapshotRepository,
   PublishedPageStateRepository,
   SitePageRepository,
+  SiteRepository,
   createDefaultFooterDraft,
   createDefaultHeaderDraft,
   toSiteSettingsSnapshotJson,
@@ -23,6 +24,7 @@ import {
   type ProductWithPrimaryMedia,
   type PublishedPageSnapshot,
   type RepositoryPrismaClient,
+  type Site,
   type SiteSettingsSnapshotJson,
   type SitePage
 } from "@site-platform/database";
@@ -1062,11 +1064,10 @@ export class PublicationService {
     const settings =
       siteId === undefined
         ? await repository.getOrCreateDefault(context, projectId, project.name)
-        : await repository.getOrCreateDefault(
+        : await this.getOrCreateSiteSettingsSnapshotSource(
             context,
             projectId,
-            siteId,
-            project.name
+            siteId
           );
 
     if (settings === null) {
@@ -1074,6 +1075,29 @@ export class PublicationService {
     }
 
     return toSiteSettingsSnapshotJson(settings);
+  }
+
+  private async getOrCreateSiteSettingsSnapshotSource(
+    context: TenantContext,
+    projectId: string,
+    siteId: string
+  ) {
+    const site = await new SiteRepository(this.client).findById(
+      context,
+      projectId,
+      siteId
+    );
+
+    if (site === null) {
+      return null;
+    }
+
+    return new ProjectSiteSettingsRepository(this.client).getOrCreateDefaultForSite(
+      context,
+      projectId,
+      siteId,
+      site.name
+    );
   }
 
   private async getProjectOrThrow(
@@ -1218,6 +1242,7 @@ export class PublicSiteService {
       readonly project: {
         readonly name: string;
       };
+      readonly site: Site;
       readonly snapshot: PublishedPageSnapshot;
     }
   ): Promise<PublicSitePageResponse> {
@@ -1234,6 +1259,8 @@ export class PublicSiteService {
     const products = Object.fromEntries(
       productList.map((product) => [product.id, product])
     );
+
+    const siteSettings = await this.resolvePublicSiteSettings(activePage);
 
     return {
       projectName: activePage.project.name,
@@ -1255,11 +1282,52 @@ export class PublicSiteService {
       })),
       products,
       productList,
-      siteSettings: getSnapshotSiteSettings(
-        activePage.snapshot,
-        activePage.project.name
-      )
+      siteSettings
     };
+  }
+
+  private async resolvePublicSiteSettings(activePage: {
+    readonly project: {
+      readonly name: string;
+    };
+    readonly site: Site;
+    readonly snapshot: PublishedPageSnapshot;
+  }): Promise<SiteSettingsSnapshotJson> {
+    if (isSiteSettingsSnapshotJson(activePage.snapshot.siteSettingsJson)) {
+      return activePage.snapshot.siteSettingsJson;
+    }
+
+    const siteSettings = await this.client.projectSiteSettings.findFirst({
+      where: {
+        organizationId: activePage.snapshot.organizationId,
+        projectId: activePage.snapshot.projectId,
+        siteId: activePage.snapshot.siteId,
+        site: {
+          status: "ACTIVE"
+        }
+      }
+    });
+
+    if (siteSettings !== null) {
+      return toSiteSettingsSnapshotJson(siteSettings);
+    }
+
+    const legacyDefaultSettings = await this.client.projectSiteSettings.findFirst({
+      where: {
+        organizationId: activePage.snapshot.organizationId,
+        projectId: activePage.snapshot.projectId,
+        site: {
+          isDefault: true,
+          status: "ACTIVE"
+        }
+      }
+    });
+
+    if (legacyDefaultSettings !== null) {
+      return toSiteSettingsSnapshotJson(legacyDefaultSettings);
+    }
+
+    return createFallbackSiteSettingsSnapshot(activePage.site.name);
   }
 
   private async isAssetUsedByActiveSnapshot(asset: MediaAsset): Promise<boolean> {
@@ -1522,19 +1590,12 @@ function materializeBlock(block: BlockNode, config: AppConfig): BlockNode {
     : block;
 }
 
-function getSnapshotSiteSettings(
-  snapshot: PublishedPageSnapshot,
-  projectName: string
-): SiteSettingsSnapshotJson {
-  if (isSiteSettingsSnapshotJson(snapshot.siteSettingsJson)) {
-    return snapshot.siteSettingsJson;
-  }
-
+function createFallbackSiteSettingsSnapshot(siteName: string): SiteSettingsSnapshotJson {
   return {
     headerEnabled: true,
     footerEnabled: true,
-    header: createDefaultHeaderDraft(projectName),
-    footer: createDefaultFooterDraft(projectName),
+    header: createDefaultHeaderDraft(siteName),
+    footer: createDefaultFooterDraft(siteName),
     revision: 0
   };
 }
