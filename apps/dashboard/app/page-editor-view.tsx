@@ -29,6 +29,7 @@ import type {
   UpdatePageSettingsFormValues
 } from "./dashboard-types";
 import type { EditorState } from "./page-editor-state";
+import { createSiteRoute } from "./site-routes";
 
 export type PageEditorLoadState =
   | {
@@ -49,6 +50,7 @@ export type PageEditorLoadState =
 
 export type PageEditorViewProps = {
   readonly state: PageEditorLoadState;
+  readonly siteId?: string | undefined;
   readonly onAddSection: () => void;
   readonly onAddHeroSection: () => void;
   readonly onAddTextSection: () => void;
@@ -112,6 +114,7 @@ export type ImageAssetPickerState = {
 
 export function PageEditorView({
   state,
+  siteId,
   onAddSection,
   onAddHeroSection,
   onAddTextSection,
@@ -202,6 +205,7 @@ export function PageEditorView({
     <main className="editor-shell">
       <EditorTopbar
         project={state.project}
+        siteId={siteId}
         page={state.page}
         saveStatus={state.editor.saveStatus}
         publicationStatus={state.publicationStatus}
@@ -316,6 +320,7 @@ function EditorShell({ children }: { readonly children: React.ReactNode }) {
 
 function EditorTopbar({
   project,
+  siteId,
   page,
   saveStatus,
   publicationStatus,
@@ -327,6 +332,7 @@ function EditorTopbar({
   onUnpublish
 }: {
   readonly project: ProjectSummary;
+  readonly siteId?: string | undefined;
   readonly page: SitePageSummary;
   readonly saveStatus: EditorState["saveStatus"];
   readonly publicationStatus: PublicationStatusResponse;
@@ -342,7 +348,15 @@ function EditorTopbar({
       <div className="editor-title-block">
         <MercurioLogo variant="compact" />
         <nav className="breadcrumb" aria-label="Навигация">
-          <a href={`/projects/${project.id}`}>Страницы</a>
+          <a
+            href={
+              siteId === undefined
+                ? `/projects/${project.id}`
+                : createSiteRoute(project.id, siteId, "pages")
+            }
+          >
+            Страницы
+          </a>
           <span>/</span>
           <span>{page.title}</span>
         </nav>

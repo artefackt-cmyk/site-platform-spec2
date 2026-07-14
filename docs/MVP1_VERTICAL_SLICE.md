@@ -61,11 +61,16 @@ Existing:
 - API exposes Site CRUD under `/api/projects/:projectId/sites`.
 - API exposes site-scoped pages under `/api/projects/:projectId/sites/:siteId/pages`.
 - Site settings and publication settings have site-scoped routes.
+- Dashboard exposes a Site Management Dashboard for listing, selecting, creating, renaming,
+  slug-editing, setting default, and archiving Sites.
+- Dashboard routes overview/pages/settings/publication/editor/preview through explicit `siteId`.
+- Legacy project-level page/settings/publication routes redirect to the active default Site.
+- Site management UI reflects RBAC: viewers see read-only surfaces, editors can work with pages,
+  owners/admins can manage Sites.
 - Storefront public page lookup resolves through Site-owned publication settings.
 
 Missing or incomplete:
 
-- No dashboard UI for selecting/managing Sites yet.
 - Historical Prisma model/table names `ProjectPublicationSettings` and `ProjectSiteSettings`
   remain for compatibility, despite site-level ownership.
 - Products/media/orders are still project-level shared resources.
@@ -93,14 +98,14 @@ Existing:
 - API supports page list/create/get/update.
 - API supports page document get/save.
 - API supports section add/reorder/duplicate/update/delete through document JSON operations.
-- Dashboard project workspace can list/create pages.
+- Dashboard Site pages screen can list/create pages for the selected Site.
 - Page editor route and tests exist.
 
 Missing or incomplete:
 
 - There is no relational `Section` model.
 - Sections have no independent ownership, timestamps, or indexes outside document JSON.
-- Project-level page routes are compatibility routes that resolve through the default Site.
+- Project-level page routes are compatibility redirects that resolve through the default Site.
 
 ## 7. Editor
 
@@ -127,7 +132,7 @@ Existing:
 
 Missing or incomplete:
 
-- No dashboard site selector/preview switcher for multiple Sites per project.
+- Preview is page-level; there is no full site deployment preview entity yet.
 
 ## 9. Publish
 
@@ -141,15 +146,16 @@ Existing:
 
 Missing or incomplete:
 
-- Publish commands are still primarily exposed through compatibility project-level page routes.
+- Editor unpublish/history/rollback actions are still exposed through compatibility project-level
+  page routes.
 - No first-class site deployment entity.
 - Domain management UI is placeholder-level.
 
 ## Recommended next vertical step
 
-Next, expose the new Site kernel in dashboard workflows:
+Next, add template selection and starter Site/Page instantiation:
 
-`MERCURIO-003 Site Management Dashboard`
+`MERCURIO-004 Template selection foundation`
 
-Focus: list/select Sites in the project workspace, create/update/archive Sites, switch default
-Site, and route page/settings/publication screens through explicit `siteId`.
+Focus: introduce template metadata or a static registry, let project/site creation choose a
+template, and instantiate initial pages/sections from template data.

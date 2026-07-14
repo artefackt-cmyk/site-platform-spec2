@@ -135,8 +135,14 @@ Delete/archive strategy:
 - `dashboard-api-client.ts` is the central fetch client and maps API errors into
   `DashboardApiError`.
 - Main dashboard loads session and projects from the real API.
-- Project workspace loads project, pages, and site settings from the real API.
-- Several UI states are implemented: loading, error, empty projects/pages, submitting forms.
+- The project workspace opens the Site Management Dashboard and loads project, sites, current Site,
+  site pages, site settings, and publication settings from the real API.
+- Site-aware dashboard routes use `/projects/:projectId/sites/:siteId/...` for overview, pages,
+  settings, publication, editor, and preview.
+- Legacy dashboard routes under `/projects/:projectId/pages...`, `/settings`, and `/publication`
+  redirect to the active default Site.
+- Several UI states are implemented: loading, error, empty projects/sites/pages, submitting forms,
+  archived/default/read-only site states, confirmation dialogs, and success/error messages.
 - `packages/ui` is consumed by the design-system route and editor primitives; older dashboard
   surfaces still use app-local CSS classes.
 

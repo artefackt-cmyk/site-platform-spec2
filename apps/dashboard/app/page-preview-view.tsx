@@ -22,6 +22,7 @@ export type PagePreviewLoadState =
   | {
       readonly status: "ready";
       readonly project: ProjectSummary;
+      readonly siteId?: string | undefined;
       readonly page: SitePageSummary;
       readonly document: PageDocumentV2;
     };
@@ -89,7 +90,7 @@ export function PagePreviewView({
           </div>
           <a
             className="preview-back-button"
-            href={createPageEditorRoute(state.project.id, state.page.id)}
+            href={createPageEditorRoute(state.project.id, state.page.id, state.siteId)}
           >
             Вернуться в редактор
           </a>

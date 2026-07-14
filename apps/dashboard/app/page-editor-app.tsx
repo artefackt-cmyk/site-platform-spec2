@@ -45,10 +45,12 @@ import {
 export function PageEditorApp({
   apiUrl,
   projectId,
+  siteId,
   pageId
 }: {
   readonly apiUrl: string;
   readonly projectId: string;
+  readonly siteId?: string;
   readonly pageId: string;
 }) {
   const apiClient = useMemo(() => createDashboardApiClient(apiUrl), [apiUrl]);
@@ -77,9 +79,15 @@ export function PageEditorApp({
     try {
       const [project, page, pageDocument, publicationStatus] = await Promise.all([
         apiClient.getProject(projectId),
-        apiClient.getProjectPage(projectId, pageId),
-        apiClient.getProjectPageDocument(projectId, pageId),
-        apiClient.getPagePublicationStatus(projectId, pageId)
+        siteId === undefined
+          ? apiClient.getProjectPage(projectId, pageId)
+          : apiClient.getSitePage(projectId, siteId, pageId),
+        siteId === undefined
+          ? apiClient.getProjectPageDocument(projectId, pageId)
+          : apiClient.getSitePageDocument(projectId, siteId, pageId),
+        siteId === undefined
+          ? apiClient.getPagePublicationStatus(projectId, pageId)
+          : apiClient.getSitePagePublicationStatus(projectId, siteId, pageId)
       ]);
       const products = await apiClient.listProducts(projectId);
 
@@ -97,7 +105,7 @@ export function PageEditorApp({
         message: toUserFacingError(error)
       });
     }
-  }, [apiClient, pageId, projectId]);
+  }, [apiClient, pageId, projectId, siteId]);
 
   useEffect(() => {
     void loadPage();
@@ -141,11 +149,18 @@ export function PageEditorApp({
     });
 
     try {
-      const response = await apiClient.saveProjectPageDocument(projectId, pageId, {
-        schemaVersion: 2,
-        revision: snapshot.revision,
-        document: snapshot.document
-      });
+      const response =
+        siteId === undefined
+          ? await apiClient.saveProjectPageDocument(projectId, pageId, {
+              schemaVersion: 2,
+              revision: snapshot.revision,
+              document: snapshot.document
+            })
+          : await apiClient.saveSitePageDocument(projectId, siteId, pageId, {
+              schemaVersion: 2,
+              revision: snapshot.revision,
+              document: snapshot.document
+            });
 
       updateEditor((editor) => markSaved(editor, response));
       return true;
@@ -155,7 +170,7 @@ export function PageEditorApp({
       );
       return false;
     }
-  }, [apiClient, pageId, projectId, state, updateEditor]);
+  }, [apiClient, pageId, projectId, siteId, state, updateEditor]);
 
   const navigateToPreview = useCallback(
     (path: string) => {
@@ -174,8 +189,8 @@ export function PageEditorApp({
       return;
     }
 
-    openSavedPreview(projectId, pageId, navigateToPreview);
-  }, [navigateToPreview, pageId, projectId, state]);
+    openSavedPreview(projectId, pageId, navigateToPreview, siteId);
+  }, [navigateToPreview, pageId, projectId, siteId, state]);
 
   const loadMediaAssets = useCallback(async () => {
     setMediaPicker((current) => ({
@@ -258,6 +273,7 @@ export function PageEditorApp({
   const saveBeforePreview = useCallback(async () => {
     const opened = await saveAndOpenPreview({
       projectId,
+      siteId,
       pageId,
       save,
       navigate: navigateToPreview
@@ -266,18 +282,18 @@ export function PageEditorApp({
     if (opened) {
       setPreviewWarningOpen(false);
     }
-  }, [navigateToPreview, pageId, projectId, save]);
+  }, [navigateToPreview, pageId, projectId, save, siteId]);
 
   const openSavedVersion = useCallback(() => {
     setPreviewWarningOpen(false);
-    openSavedPreview(projectId, pageId, navigateToPreview);
-  }, [navigateToPreview, pageId, projectId]);
+    openSavedPreview(projectId, pageId, navigateToPreview, siteId);
+  }, [navigateToPreview, pageId, projectId, siteId]);
 
   const refreshPublicationStatus = useCallback(async () => {
-    const publicationStatus = await apiClient.getPagePublicationStatus(
-      projectId,
-      pageId
-    );
+    const publicationStatus =
+      siteId === undefined
+        ? await apiClient.getPagePublicationStatus(projectId, pageId)
+        : await apiClient.getSitePagePublicationStatus(projectId, siteId, pageId);
 
     setState((current) =>
       current.status !== "ready"
@@ -289,13 +305,18 @@ export function PageEditorApp({
     );
 
     return publicationStatus;
-  }, [apiClient, pageId, projectId]);
+  }, [apiClient, pageId, projectId, siteId]);
 
   const publishSavedRevision = useCallback(
     async (revision: number) => {
-      const response = await apiClient.publishPage(projectId, pageId, {
-        expectedRevision: revision
-      });
+      const response =
+        siteId === undefined
+          ? await apiClient.publishPage(projectId, pageId, {
+              expectedRevision: revision
+            })
+          : await apiClient.publishSitePage(projectId, siteId, pageId, {
+              expectedRevision: revision
+            });
 
       setState((current) =>
         current.status !== "ready"
@@ -308,7 +329,7 @@ export function PageEditorApp({
 
       window.alert(`Страница опубликована: ${response.publicUrl}`);
     },
-    [apiClient, pageId, projectId]
+    [apiClient, pageId, projectId, siteId]
   );
 
   const updatePageSettings = useCallback(
@@ -318,15 +339,14 @@ export function PageEditorApp({
       readonly isHome: boolean;
     }): Promise<boolean> => {
       try {
-        const response = await apiClient.updateProjectPage(
-          projectId,
-          pageId,
-          input
-        );
-        const publicationStatus = await apiClient.getPagePublicationStatus(
-          projectId,
-          pageId
-        );
+        const response =
+          siteId === undefined
+            ? await apiClient.updateProjectPage(projectId, pageId, input)
+            : await apiClient.updateSitePage(projectId, siteId, pageId, input);
+        const publicationStatus =
+          siteId === undefined
+            ? await apiClient.getPagePublicationStatus(projectId, pageId)
+            : await apiClient.getSitePagePublicationStatus(projectId, siteId, pageId);
 
         setState((current) =>
           current.status !== "ready"
@@ -359,7 +379,7 @@ export function PageEditorApp({
         return false;
       }
     },
-    [apiClient, pageId, projectId]
+    [apiClient, pageId, projectId, siteId]
   );
 
   const publish = useCallback(async () => {
@@ -380,7 +400,10 @@ export function PageEditorApp({
         }
 
         const refreshedStatus = await refreshPublicationStatus();
-        const refreshedState = await apiClient.getProjectPageDocument(projectId, pageId);
+        const refreshedState =
+          siteId === undefined
+            ? await apiClient.getProjectPageDocument(projectId, pageId)
+            : await apiClient.getSitePageDocument(projectId, siteId, pageId);
 
         await publishSavedRevision(refreshedState.revision);
         if (refreshedStatus.status === "published-with-changes") {
@@ -398,6 +421,7 @@ export function PageEditorApp({
     publishSavedRevision,
     refreshPublicationStatus,
     save,
+    siteId,
     state
   ]);
 
@@ -464,6 +488,7 @@ export function PageEditorApp({
   return (
     <PageEditorView
       state={state}
+      siteId={siteId}
       onAddSection={() => updateEditor((editor) => addSection(editor))}
       onAddHeroSection={() => updateEditor((editor) => addHeroSection(editor))}
       onAddTextSection={() => updateEditor((editor) => addTextSection(editor))}

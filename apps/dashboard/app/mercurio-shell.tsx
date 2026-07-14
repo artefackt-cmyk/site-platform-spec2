@@ -71,13 +71,13 @@ function MercurioSidebar({
           {
             id: "project",
             label: "Обзор",
-            href: `/projects/${projectId}`,
+            href: `/projects/${projectId}/sites`,
             icon: "grid"
           },
           {
             id: "pages",
             label: "Страницы",
-            href: `/projects/${projectId}`,
+            href: `/projects/${projectId}/pages`,
             icon: "page"
           },
           {

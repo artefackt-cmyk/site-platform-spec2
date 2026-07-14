@@ -14,10 +14,12 @@ import { PagePreviewView, type PagePreviewLoadState } from "./page-preview-view"
 export function PagePreviewApp({
   apiUrl,
   projectId,
+  siteId,
   pageId
 }: {
   readonly apiUrl: string;
   readonly projectId: string;
+  readonly siteId?: string;
   readonly pageId: string;
 }) {
   const apiClient = useMemo(() => createDashboardApiClient(apiUrl), [apiUrl]);
@@ -35,8 +37,12 @@ export function PagePreviewApp({
     try {
       const [project, page, pageDocument] = await Promise.all([
         apiClient.getProject(projectId),
-        apiClient.getProjectPage(projectId, pageId),
-        apiClient.getProjectPageDocument(projectId, pageId)
+        siteId === undefined
+          ? apiClient.getProjectPage(projectId, pageId)
+          : apiClient.getSitePage(projectId, siteId, pageId),
+        siteId === undefined
+          ? apiClient.getProjectPageDocument(projectId, pageId)
+          : apiClient.getSitePageDocument(projectId, siteId, pageId)
       ]);
       const documentValidation = validatePreviewDocument(pageDocument);
 
@@ -52,13 +58,14 @@ export function PagePreviewApp({
       setState({
         status: "ready",
         project,
+        siteId,
         page,
         document: documentValidation.document
       });
     } catch (error) {
       setState(toPreviewErrorState(error));
     }
-  }, [apiClient, pageId, projectId]);
+  }, [apiClient, pageId, projectId, siteId]);
 
   useEffect(() => {
     void loadPreview();
