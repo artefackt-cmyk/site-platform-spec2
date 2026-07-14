@@ -29,6 +29,7 @@ import {
   PublishedPageStateRepository,
   SiteRepository,
   SitePageRepository,
+  toSiteSettingsSnapshotJson,
   UserRepository,
   type DatabasePrismaClient
 } from "./index";
@@ -383,6 +384,174 @@ describe.skipIf(integrationConfig === undefined)(
         }),
         footerDraft: expect.objectContaining({
           brandText: "Campaign Renamed"
+        })
+      });
+    });
+
+    it("self-heals legacy generated site settings before publication snapshots", async () => {
+      const currentClient = getClient(client);
+      const projectRepository = new ProjectRepository(currentClient);
+      const siteRepository = new SiteRepository(currentClient);
+      const sitePageRepository = new SitePageRepository(currentClient);
+      const settingsRepository = new ProjectSiteSettingsRepository(currentClient);
+      const snapshotRepository = new PublishedPageSnapshotRepository(currentClient);
+      const tenantA = await createOrganizationFixture(currentClient, "tenant-a");
+      const context = createTenantContext(tenantA);
+      const project = await projectRepository.create({
+        organizationId: tenantA.organization.id,
+        name: "Test Store",
+        slug: "test-store"
+      });
+      const site = await siteRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        name: "Test Site Renamed",
+        slug: "test-site-renamed"
+      });
+
+      if (site === null) {
+        throw new Error("Expected site fixture.");
+      }
+
+      const page = await sitePageRepository.createForSite(
+        context,
+        project.id,
+        site.id,
+        {
+          title: "Home",
+          slug: "home",
+          isHome: true
+        }
+      );
+
+      if (page === null) {
+        throw new Error("Expected page fixture.");
+      }
+
+      await currentClient.projectSiteSettings.create({
+        data: {
+          organizationId: context.organizationId,
+          projectId: project.id,
+          siteId: site.id,
+          headerEnabled: true,
+          footerEnabled: true,
+          headerDraft: {
+            brandText: "Test Store",
+            logoUrl: "",
+            navigation: [],
+            cartLinkEnabled: true,
+            ctaLabel: "",
+            ctaUrl: ""
+          },
+          footerDraft: {
+            brandText: "Test Store",
+            description: "",
+            email: "",
+            phone: "",
+            legalText: "",
+            copyrightText: "© 2026 Test Store"
+          },
+          revision: 1
+        }
+      });
+
+      const healed = await settingsRepository.getOrCreateDefaultForSite(
+        context,
+        project.id,
+        site.id,
+        site.name
+      );
+
+      expect(healed).toMatchObject({
+        revision: 2,
+        headerDraft: expect.objectContaining({
+          brandText: "Test Site Renamed"
+        }),
+        footerDraft: expect.objectContaining({
+          brandText: "Test Site Renamed",
+          copyrightText: "© 2026 Test Site Renamed"
+        })
+      });
+
+      const healedAgain = await settingsRepository.getOrCreateDefaultForSite(
+        context,
+        project.id,
+        site.id,
+        site.name
+      );
+
+      expect(healedAgain).toMatchObject({
+        revision: 2,
+        headerDraft: expect.objectContaining({
+          brandText: "Test Site Renamed"
+        })
+      });
+
+      if (healedAgain === null) {
+        throw new Error("Expected healed settings fixture.");
+      }
+
+      const snapshot = await snapshotRepository.create({
+        tenantContext: context,
+        projectId: project.id,
+        pageId: page.id,
+        pageTitle: page.title,
+        pageSlug: page.slug,
+        document: createEmptyPageDocument(),
+        siteSettingsSnapshot: toSiteSettingsSnapshotJson(healedAgain),
+        sourceRevision: 1,
+        publishedByUserId: context.userId
+      });
+
+      expect(snapshot?.siteSettingsJson).toMatchObject({
+        header: expect.objectContaining({
+          brandText: "Test Site Renamed"
+        }),
+        footer: expect.objectContaining({
+          brandText: "Test Site Renamed",
+          copyrightText: "© 2026 Test Site Renamed"
+        })
+      });
+
+      await settingsRepository.updateDraft({
+        tenantContext: context,
+        projectId: project.id,
+        siteId: site.id,
+        headerEnabled: true,
+        footerEnabled: true,
+        headerDraft: {
+          brandText: "Custom Brand",
+          logoUrl: "",
+          navigation: [],
+          cartLinkEnabled: true,
+          ctaLabel: "",
+          ctaUrl: ""
+        },
+        footerDraft: {
+          brandText: "Custom Footer",
+          description: "",
+          email: "",
+          phone: "",
+          legalText: "",
+          copyrightText: "© 2026 Test Store"
+        }
+      });
+
+      const customHealed = await settingsRepository.healLegacyGeneratedBrandForSite({
+        tenantContext: context,
+        projectId: project.id,
+        siteId: site.id,
+        siteName: site.name,
+        legacyGeneratedNames: [project.name]
+      });
+
+      expect(customHealed).toMatchObject({
+        headerDraft: expect.objectContaining({
+          brandText: "Custom Brand"
+        }),
+        footerDraft: expect.objectContaining({
+          brandText: "Custom Footer",
+          copyrightText: "© 2026 Test Site Renamed"
         })
       });
     });

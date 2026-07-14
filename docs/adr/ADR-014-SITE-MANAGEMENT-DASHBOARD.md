@@ -82,6 +82,15 @@ on Site rename only while the stored header/footer brand values still match gene
 from the previous Site name or legacy Project name. Manually customized settings remain
 independent and are not overwritten by Site rename or default-Site changes.
 
+Legacy data can contain site-owned settings that were generated from `Project.name` before
+site-scoped initialization was corrected. Loading or publishing Site settings now performs an
+idempotent self-heal: header/footer generated brand text and generated copyright are rewritten to
+the current `Site.name` only when they exactly match a known generated legacy value such as
+`Project.name` or the standard generated copyright string for that name. Custom brand text,
+custom footer text, custom navigation, CTA, logo, contacts, and descriptive fields are preserved.
+This keeps stable `publicHandle` values while ensuring new publication snapshots use the current
+Site shell.
+
 ## Follow-Up
 
 MERCURIO-004 should add template selection and starter Site/Page instantiation.
