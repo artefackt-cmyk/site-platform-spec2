@@ -264,8 +264,8 @@ export function Header({ dashboardUrl }: { readonly dashboardUrl: string }) {
 
       <div className="mobile-menu" id={mobileId} hidden={!mobileOpen} ref={mobileMenuRef}>
         <nav aria-label="Мобильная навигация">
-          <Link href="/products/website-builder" data-mobile-first onClick={() => setMobileOpen(false)}>
-            Конструктор сайтов
+          <Link href="/products" data-mobile-first onClick={() => setMobileOpen(false)}>
+            Все продукты
           </Link>
           <button
             type="button"
@@ -312,12 +312,8 @@ function toFirstStageHref(
   href: string,
   urls: { readonly registerUrl: string }
 ): string {
-  if (href === "/" || href === "/products/website-builder") {
+  if (href === "/" || href === "/products" || href.startsWith("/products/")) {
     return href;
-  }
-
-  if (href.startsWith("/products")) {
-    return "/products/website-builder";
   }
 
   return urls.registerUrl;

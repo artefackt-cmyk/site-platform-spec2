@@ -3,6 +3,15 @@ import { existsSync, readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import HomePage, { generateMetadata as generateHomeMetadata } from "./(marketing)/page";
+import ProductsPage, {
+  generateMetadata as generateProductsMetadata
+} from "./(marketing)/products/page";
+import ProductAnnouncementPage, {
+  generateMetadata as generateAnnouncementMetadata
+} from "./(marketing)/products/[slug]/page";
+import OnlineStorePage, {
+  generateMetadata as generateOnlineStoreMetadata
+} from "./(marketing)/products/online-store/page";
 import WebsiteBuilderPage, {
   generateMetadata as generateWebsiteBuilderMetadata
 } from "./(marketing)/products/website-builder/page";
@@ -11,6 +20,8 @@ import {
   parsePublicThemeMode,
   resolvePublicTheme
 } from "../components/public/public-theme";
+import { Footer } from "../components/public/footer";
+import { products } from "../content/public/products";
 
 const dashboardUrl = "http://localhost:3000";
 
@@ -36,6 +47,69 @@ describe("isolated Mercurio marketing public site", () => {
     expect(html).toContain("Mobile");
   });
 
+  it("renders the product catalog page through SSR", () => {
+    const html = renderToStaticMarkup(React.createElement(ProductsPage));
+    const metadata = generateProductsMetadata();
+
+    expect(html).toContain("Все продукты Mercurio");
+    expect(html).toContain("Выберите продукт под текущий этап роста");
+    expect(html).toContain("product-card-v2");
+    expect(html).toContain("href=\"/products/online-store\"");
+    expect(html).toContain("href=\"/products/orders-payments\"");
+    expect(html).toContain("Посмотреть тарифы");
+    expect(metadata.alternates?.canonical).toBe("/products");
+  });
+
+  it("renders the online-store page with approved store content", () => {
+    const html = renderToStaticMarkup(React.createElement(OnlineStorePage));
+    const metadata = generateOnlineStoreMetadata();
+
+    expect(html).toContain("Интернет-магазин");
+    expect(html).toContain("Посмотреть возможности");
+    expect(html).toContain("Управление витриной");
+    expect(html).toContain("Каталог и остатки");
+    expect(html).toContain("Заказы и оплаты");
+    expect(html).toContain("Командная работа");
+    expect(html).toContain("Связи продуктов");
+    expect(html).toContain("Запустите продажи");
+    expect(html).toContain("Рассчитать стоимость");
+    expect(html).not.toContain("Начните с конструктора");
+    expect(html).not.toContain("Посмотреть шаблоны");
+    expect(html).not.toContain("Не просто страницы");
+    expect(metadata.alternates?.canonical).toBe("/products/online-store");
+  });
+
+  it("renders an announcement product page from shared product content", async () => {
+    const element = await ProductAnnouncementPage({
+      params: Promise.resolve({ slug: "orders-payments" })
+    });
+    const html = renderToStaticMarkup(element);
+    const metadata = await generateAnnouncementMetadata({
+      params: Promise.resolve({ slug: "orders-payments" })
+    });
+
+    expect(html).toContain("Заказы и оплаты");
+    expect(html).toContain("В разработке");
+    expect(html).toContain("Будущий модуль закроет путь заказа");
+    expect(html).toContain("Вернуться в каталог");
+    expect(html).toContain("href=\"/products\"");
+    expect(html).toContain("href=\"http://localhost:3000/register\"");
+    expect(metadata.alternates?.canonical).toBe("/products/orders-payments");
+  });
+
+  it("handles an unknown announcement product slug with not-found metadata and route", async () => {
+    const metadata = await generateAnnouncementMetadata({
+      params: Promise.resolve({ slug: "unknown-product" })
+    });
+
+    expect(metadata).toEqual({});
+    await expect(
+      ProductAnnouncementPage({
+        params: Promise.resolve({ slug: "unknown-product" })
+      })
+    ).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+  });
+
   it("renders expected header and mega menu content", () => {
     const html = renderToStaticMarkup(
       React.createElement(Header, { dashboardUrl })
@@ -51,8 +125,34 @@ describe("isolated Mercurio marketing public site", () => {
     expect(html).toContain("Управление");
     expect(html).toContain("Конструктор сайтов");
     expect(html).toContain("href=\"/products/website-builder\"");
+    expect(html).toContain("href=\"/products/online-store\"");
+    expect(html).toContain("href=\"/products/orders-payments\"");
+    expect(html).toContain("href=\"/products/marketing\"");
     expect(html).toContain("href=\"http://localhost:3000/login\"");
     expect(html).toContain("href=\"http://localhost:3000/register\"");
+    expect(html).not.toContain("href=\"/products/website-builder\" href=\"/products/online-store\"");
+  });
+
+  it("keeps footer product links on real product routes", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(Footer, { dashboardUrl })
+    );
+
+    expect(html).toContain("href=\"/products\"");
+    expect(html).toContain("href=\"/products/website-builder\"");
+    expect(html).toContain("href=\"/products/online-store\"");
+    expect(html).toContain("href=\"/products/integrations\"");
+    expect(html).toContain("href=\"http://localhost:3000/login\"");
+  });
+
+  it("keeps product content slugs unique", () => {
+    const slugs = products.map((product) => product.slug);
+    const uniqueSlugs = new Set(slugs);
+
+    expect(uniqueSlugs.size).toBe(slugs.length);
+    expect(slugs).toContain("website-builder");
+    expect(slugs).toContain("online-store");
+    expect(slugs).toContain("orders-payments");
   });
 
   it("keeps public theme parsing isolated from tenant data-theme", () => {
@@ -105,6 +205,9 @@ describe("isolated Mercurio marketing public site", () => {
     expect(tenantPageSource).not.toContain("public-theme");
     expect(tenantClientSource).toContain("/api/public/sites/");
     expect(tenantClientSource).toContain("/orders");
+    expect(tenantClientSource).toContain("fetchPublicSitePage");
+    expect(tenantClientSource).toContain("fetchPublicCatalog");
+    expect(tenantClientSource).toContain("createPublicOrder");
   });
 
   it("ships first-stage assets and env-aware metadata", () => {

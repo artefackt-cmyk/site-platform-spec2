@@ -48,12 +48,8 @@ function toFirstStageHref(
     return urls.registerUrl;
   }
 
-  if (href === "/" || href === "/products/website-builder") {
+  if (href === "/" || href === "/products" || href.startsWith("/products/")) {
     return href;
-  }
-
-  if (href.startsWith("/products")) {
-    return "/products/website-builder";
   }
 
   return urls.registerUrl;
