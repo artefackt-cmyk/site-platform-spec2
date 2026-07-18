@@ -27,6 +27,21 @@ export class SiteRepository {
     context: TenantContext,
     projectId: string
   ): Promise<readonly Site[]> {
+    return this.listByProjectWithScope(context, projectId, activeSiteScope(context, projectId));
+  }
+
+  async listAllByProject(
+    context: TenantContext,
+    projectId: string
+  ): Promise<readonly Site[]> {
+    return this.listByProjectWithScope(context, projectId, siteScope(context, projectId));
+  }
+
+  private async listByProjectWithScope(
+    context: TenantContext,
+    projectId: string,
+    scope: ReturnType<typeof siteScope>
+  ): Promise<readonly Site[]> {
     const project = await new ProjectRepository(
       this.client
     ).findByTenantContextAndId({
@@ -39,10 +54,13 @@ export class SiteRepository {
     }
 
     return this.client.site.findMany({
-      where: activeSiteScope(context, projectId),
+      where: scope,
       orderBy: [
         {
           isDefault: "desc"
+        },
+        {
+          status: "asc"
         },
         {
           createdAt: "asc"

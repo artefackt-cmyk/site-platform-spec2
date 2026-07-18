@@ -124,12 +124,18 @@ export function MerkurioThemeSwitcher({
 }: {
   readonly className?: string;
 }): React.ReactElement {
-  const { mode, setMode } = useMerkurioTheme();
+  const contextValue = React.useContext(MerkurioThemeContext);
   const options: readonly { readonly value: MerkurioThemeMode; readonly label: string }[] = [
     { value: "light", label: "Light" },
     { value: "dark", label: "Dark" },
     { value: "system", label: "System" }
   ];
+
+  if (contextValue === undefined) {
+    return React.createElement(React.Fragment);
+  }
+
+  const { mode, setMode } = contextValue;
 
   return React.createElement(
     "div",

@@ -234,7 +234,10 @@ export class PrismaProjectStore implements ProjectStore {
     tenantContext: TenantContext,
     projectId: string
   ): Promise<readonly Site[]> {
-    return new SiteRepository(this.client).listByProject(tenantContext, projectId);
+    return new SiteRepository(this.client).listAllByProject(
+      tenantContext,
+      projectId
+    );
   }
 
   async findSiteById(

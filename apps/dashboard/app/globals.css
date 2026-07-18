@@ -35,6 +35,30 @@
   font-family: var(--mc-font-ui);
 }
 
+[data-merkurio-theme="dark"] {
+  --mc-graphite: var(--m-ui-color-bg-canvas);
+  --mc-steel-blue: var(--m-ui-color-text-secondary);
+  --mc-mist-gray: var(--m-ui-color-text-muted);
+  --mc-chrome-silver: var(--m-ui-color-border-default);
+  --mc-white: var(--m-ui-color-text-primary);
+  --mc-soft-background: var(--m-ui-color-bg-canvas);
+  --mc-text-primary: var(--m-ui-color-text-primary);
+  --mc-text-secondary: var(--m-ui-color-text-secondary);
+  --mc-text-muted: var(--m-ui-color-text-muted);
+  --mc-border-subtle: var(--m-ui-color-border-default);
+  --mc-surface-primary: var(--m-ui-color-bg-surface);
+  --mc-surface-secondary: var(--m-ui-color-bg-elevated);
+  --mc-surface-hover: var(--m-ui-color-bg-hover);
+  --mc-accent-primary: var(--m-ui-color-accent-primary);
+  --mc-accent-soft: var(--m-ui-color-accent-soft);
+  --mc-success: var(--m-ui-color-success);
+  --mc-warning: var(--m-ui-color-warning);
+  --mc-danger: var(--m-ui-color-error);
+  --mc-focus-ring: var(--m-ui-color-border-focus);
+  --mc-gradient-mercury: linear-gradient(135deg, #071019 0%, #122231 52%, #87a9c9 100%);
+  --mc-gradient-silver: linear-gradient(135deg, var(--m-ui-color-bg-elevated), var(--m-ui-color-bg-selected));
+}
+
 :root {
   --m-ui-color-bg-canvas: #f6f8fa;
   --m-ui-color-bg-surface: #ffffff;
@@ -145,7 +169,7 @@ body {
   min-height: 100vh;
   background:
     radial-gradient(circle at 74% 12%, rgba(201, 206, 212, 0.22), transparent 32%),
-    var(--mc-soft-background);
+    var(--m-ui-color-bg-canvas);
 }
 
 button,
@@ -1614,10 +1638,15 @@ button:disabled {
 .account-page-header {
   display: grid;
   gap: 6px;
+  min-width: 0;
   margin-bottom: 14px;
 }
 
 .account-page-header h1 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
   margin: 0;
   color: var(--m-ui-color-text-primary);
   font-family: var(--m-ui-font-brand);
@@ -1629,6 +1658,7 @@ button:disabled {
 .account-page-header p {
   margin: 0;
   color: var(--m-ui-color-text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .account-eyebrow {
@@ -1651,11 +1681,17 @@ button:disabled {
 
 .site-context-bar {
   display: flex;
-  min-height: 132px;
+  min-height: 96px;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 16px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.site-context-bar > div,
+.site-list-toolbar > div {
+  min-width: 0;
 }
 
 .site-context-bar h2,
@@ -1665,6 +1701,10 @@ button:disabled {
 }
 
 .site-context-bar h2 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   font-size: 22px;
 }
 
@@ -1673,6 +1713,7 @@ button:disabled {
 .site-muted {
   margin: 0;
   color: var(--m-ui-color-text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .account-breadcrumbs {
@@ -1682,6 +1723,19 @@ button:disabled {
   margin-bottom: 10px;
   color: var(--m-ui-color-text-muted);
   font-size: 11px;
+  min-width: 0;
+}
+
+.account-breadcrumbs a,
+.account-breadcrumbs strong {
+  overflow: hidden;
+  max-width: 24ch;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-breadcrumbs a:first-child {
+  flex: 0 0 auto;
 }
 
 .account-breadcrumbs strong {
@@ -1700,9 +1754,10 @@ button:disabled {
   position: relative;
 }
 
-.site-switcher summary {
+.site-switcher-trigger {
   display: flex;
-  min-width: 230px;
+  width: min(360px, 100%);
+  min-width: 260px;
   min-height: 40px;
   align-items: center;
   justify-content: space-between;
@@ -1712,22 +1767,20 @@ button:disabled {
   background: var(--m-ui-color-bg-elevated);
   padding: 6px 10px;
   color: var(--m-ui-color-text-primary);
-  list-style: none;
-}
-
-.site-switcher summary::-webkit-details-marker {
-  display: none;
+  font: inherit;
+  text-align: left;
 }
 
 .site-switcher small,
 .site-switcher-item small,
+.site-switcher-hint,
 .site-row-name span,
 .site-page-row small,
 .site-metric span {
   color: var(--m-ui-color-text-muted);
 }
 
-.site-switcher summary span,
+.site-switcher-trigger > span:first-child,
 .site-switcher-item span,
 .site-page-row span,
 .site-row-name {
@@ -1736,19 +1789,53 @@ button:disabled {
   min-width: 0;
 }
 
+.site-switcher strong,
+.site-switcher-item strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.site-switcher small,
+.site-switcher-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-switcher-badges {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .site-switcher-panel {
   position: absolute;
   right: 0;
   z-index: 20;
   display: grid;
-  width: 320px;
-  gap: 4px;
+  width: min(360px, calc(100vw - 48px));
+  max-height: min(520px, calc(100vh - 160px));
+  gap: 6px;
   margin-top: 6px;
+  overflow: auto;
   border: 1px solid var(--m-ui-color-border-default);
   border-radius: var(--m-ui-radius-md);
   background: var(--m-ui-color-bg-elevated);
   padding: 6px;
   box-shadow: var(--m-ui-shadow-panel);
+}
+
+.site-switcher-panel[hidden] {
+  display: none;
+}
+
+.site-switcher-list {
+  display: grid;
+  gap: 4px;
 }
 
 .site-switcher-item,
@@ -1766,13 +1853,27 @@ button:disabled {
 
 .site-switcher-item.active,
 .site-switcher-item:hover,
+.site-switcher-item:focus-visible,
 .site-switcher-manage:hover {
   background: var(--m-ui-color-bg-hover);
+  outline: none;
 }
 
 .site-switcher-manage {
   color: var(--m-ui-color-text-accent);
   font-weight: 700;
+}
+
+.site-switcher-hint,
+.site-switcher-empty {
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.site-shell {
+  display: grid;
+  gap: 12px;
 }
 
 .site-local-tabs {
@@ -1797,6 +1898,11 @@ button:disabled {
   color: var(--m-ui-color-text-primary);
 }
 
+.site-local-tab.disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
 .site-section-stack {
   display: grid;
   gap: 12px;
@@ -1816,17 +1922,47 @@ button:disabled {
   gap: 8px;
 }
 
-.account-site-row {
+.site-row-group {
   display: grid;
-  grid-template-columns: 70px minmax(180px, 1fr) minmax(190px, auto) 76px 150px auto;
-  min-height: 76px;
+  gap: 8px;
+}
+
+.site-row-group-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 2px;
+}
+
+.site-row-group-heading h3,
+.site-row-group-heading p {
+  margin: 0;
+}
+
+.site-row-group-heading h3 {
+  color: var(--m-ui-color-text-primary);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.site-row-group-heading p {
+  color: var(--m-ui-color-text-muted);
+  font-size: 12px;
+}
+
+.account-site-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 70px minmax(170px, 1fr) minmax(156px, auto) minmax(58px, auto) minmax(126px, auto) 42px;
+  height: 76px;
   align-items: center;
-  gap: 20px;
+  gap: 18px;
   padding: 11px 13px;
 }
 
 .account-site-row.archived {
-  opacity: 0.68;
+  background: color-mix(in srgb, var(--m-ui-color-bg-surface) 86%, var(--m-ui-color-bg-canvas));
 }
 
 .site-preview-tile {
@@ -1846,9 +1982,23 @@ button:disabled {
   white-space: nowrap;
 }
 
+.site-row-name span {
+  overflow: hidden;
+  max-width: 100%;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-site-row > span {
+  color: var(--m-ui-color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .site-row-badges,
 .site-overview-badges,
-.site-row-actions,
 .account-modal-actions,
 .site-action-stack {
   display: flex;
@@ -1857,8 +2007,82 @@ button:disabled {
   gap: 8px;
 }
 
-.site-row-actions {
-  justify-content: flex-end;
+.site-row-menu {
+  position: relative;
+  justify-self: end;
+}
+
+.site-row-menu summary {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--m-ui-radius-sm);
+  color: var(--m-ui-color-text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  list-style: none;
+}
+
+.site-row-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.site-row-menu summary:hover,
+.site-row-menu[open] summary {
+  border-color: var(--m-ui-color-border-default);
+  background: var(--m-ui-color-bg-elevated);
+  color: var(--m-ui-color-text-primary);
+}
+
+.site-row-menu-panel {
+  position: absolute;
+  right: 0;
+  z-index: 30;
+  display: grid;
+  width: 208px;
+  gap: 2px;
+  margin-top: 6px;
+  border: 1px solid var(--m-ui-color-border-default);
+  border-radius: var(--m-ui-radius-sm);
+  background: var(--m-ui-color-bg-elevated);
+  padding: 6px;
+  box-shadow: var(--m-ui-shadow-panel);
+}
+
+.site-row-menu-item,
+.site-row-menu-note {
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--m-ui-radius-sm);
+  background: transparent;
+  padding: 8px 10px;
+  color: var(--m-ui-color-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+.site-row-menu-item {
+  cursor: pointer;
+}
+
+.site-row-menu-item:hover:not(:disabled) {
+  background: var(--m-ui-color-bg-hover);
+  color: var(--m-ui-color-text-primary);
+}
+
+.site-row-menu-item:disabled,
+.site-row-menu-note {
+  color: var(--m-ui-color-text-muted);
+  cursor: not-allowed;
+}
+
+.site-row-menu-item-danger {
+  color: var(--m-ui-color-text-danger);
 }
 
 .site-overview-grid,
@@ -1922,6 +2146,12 @@ button:disabled {
   font-weight: 700;
 }
 
+.site-error-message {
+  margin: 0;
+  color: var(--m-ui-color-text-danger);
+  font-weight: 700;
+}
+
 .account-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1935,7 +2165,9 @@ button:disabled {
 .account-confirm-modal {
   display: grid;
   width: min(520px, 100%);
-  gap: 16px;
+  min-height: 330px;
+  align-content: start;
+  gap: 14px;
   padding: 22px;
   box-shadow: var(--m-ui-shadow-panel);
 }
@@ -1955,12 +2187,14 @@ button:disabled {
   border: 1px solid var(--m-ui-color-border-default);
   border-radius: var(--m-ui-radius-sm);
   background: var(--m-ui-color-bg-canvas);
+  min-height: 74px;
   padding: 14px;
   color: var(--m-ui-color-text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .account-modal-actions {
+  margin-top: auto;
   justify-content: flex-end;
 }
 
@@ -2615,6 +2849,10 @@ button:disabled {
   pointer-events: none;
 }
 
+[data-merkurio-theme="dark"] .mercurio-logo-asset {
+  filter: brightness(0) invert(1) contrast(1.04);
+}
+
 .mercurio-logo-fallback {
   color: var(--mc-text-primary);
   font-family: var(--mc-font-brand);
@@ -2634,12 +2872,12 @@ button:disabled {
 
 .mercurio-app-shell.dashboard-shell {
   display: grid;
+  --mc-sidebar-width: 240px;
+  --mc-topbar-height: 72px;
   grid-template-columns: var(--mc-sidebar-width) minmax(0, 1fr);
   gap: 0;
   padding: 0;
-  background:
-    radial-gradient(circle at 88% 6%, rgba(201, 206, 212, 0.28), transparent 30%),
-    linear-gradient(180deg, #fbfcfd 0%, var(--mc-soft-background) 100%);
+  background: var(--m-ui-color-bg-canvas);
 }
 
 .mercurio-sidebar {
@@ -2648,10 +2886,9 @@ button:disabled {
   display: grid;
   height: 100vh;
   grid-template-rows: auto 1fr auto;
-  border-right: 1px solid var(--mc-border-subtle);
-  background: rgba(255, 255, 255, 0.78);
-  padding: 34px 24px 24px;
-  backdrop-filter: blur(18px);
+  border-right: 1px solid var(--m-ui-color-border-default);
+  background: var(--m-ui-color-bg-surface);
+  padding: 20px 12px;
 }
 
 .mercurio-sidebar-logo {
@@ -2674,57 +2911,53 @@ button:disabled {
 .mercurio-sidebar-nav {
   display: grid;
   align-content: start;
-  gap: 8px;
-  margin-top: 68px;
+  gap: 4px;
+  margin-top: 52px;
 }
 
 .mercurio-nav-item {
   display: flex;
-  min-height: 50px;
+  min-height: 44px;
   align-items: center;
-  gap: 14px;
-  border-radius: var(--mc-radius-md);
-  padding: 0 14px;
-  color: var(--mc-text-secondary);
-  font-size: 15px;
+  gap: 12px;
+  border-radius: var(--m-ui-radius-sm);
+  padding: 0 12px;
+  color: var(--m-ui-color-text-secondary);
+  font-size: 13px;
   font-weight: 600;
 }
 
 .mercurio-nav-item:hover,
 .mercurio-nav-item:focus-visible {
-  background: var(--mc-surface-hover);
+  background: var(--m-ui-color-bg-hover);
   outline: none;
 }
 
 .mercurio-nav-item-active {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(232, 238, 247, 0.92));
-  box-shadow: inset 0 0 0 1px rgba(221, 227, 234, 0.7);
-  color: var(--mc-steel-blue);
+  background: var(--m-ui-color-bg-selected);
+  color: var(--m-ui-color-text-primary);
 }
 
 .mercurio-nav-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   flex: 0 0 auto;
 }
 
 .mercurio-brand-panel {
-  min-height: 250px;
+  min-height: 180px;
   overflow: hidden;
-  border: 1px solid var(--mc-border-subtle);
-  border-radius: var(--mc-radius-lg);
-  background:
-    radial-gradient(circle at 18% 88%, rgba(108, 143, 214, 0.28), transparent 14%),
-    var(--mc-gradient-silver);
-  padding: 24px;
-  color: var(--mc-steel-blue);
+  border: 1px solid var(--m-ui-color-border-default);
+  border-radius: var(--m-ui-radius-md);
+  background: var(--m-ui-color-bg-elevated);
+  padding: 18px;
+  color: var(--m-ui-color-text-secondary);
 }
 
 .mercurio-brand-panel strong {
   display: block;
-  margin-bottom: 28px;
-  font-size: 18px;
+  margin-bottom: 24px;
+  font-size: 16px;
   line-height: 1.35;
 }
 
@@ -2742,21 +2975,27 @@ button:disabled {
   display: flex;
   min-height: var(--mc-topbar-height);
   align-items: center;
-  gap: 32px;
-  border-bottom: 1px solid var(--mc-border-subtle);
-  background: rgba(255, 255, 255, 0.68);
-  padding: 0 42px;
-  backdrop-filter: blur(18px);
+  gap: 24px;
+  border-bottom: 1px solid var(--m-ui-color-border-default);
+  background: var(--m-ui-color-bg-surface);
+  padding: 0 24px;
 }
 
 .mercurio-context-chip {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  border-left: 1px solid var(--mc-border-subtle);
-  padding-left: 28px;
-  color: var(--mc-text-primary);
+  gap: 8px;
+  border-left: 1px solid var(--m-ui-color-border-default);
+  min-width: 0;
+  padding-left: 24px;
+  color: var(--m-ui-color-text-primary);
   font-weight: 600;
+}
+
+.mercurio-context-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mercurio-topbar-spacer {
@@ -2766,15 +3005,15 @@ button:disabled {
 .mercurio-user {
   display: flex;
   align-items: center;
-  gap: 14px;
-  border-left: 1px solid var(--mc-border-subtle);
-  padding-left: 28px;
+  gap: 12px;
+  border-left: 1px solid var(--m-ui-color-border-default);
+  padding-left: 24px;
 }
 
 .mercurio-avatar {
   display: grid;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   border-radius: 999px;
   background: var(--mc-gradient-mercury);
@@ -2788,21 +3027,36 @@ button:disabled {
 }
 
 .mercurio-user strong {
-  color: var(--mc-text-primary);
-  font-size: 14px;
+  color: var(--m-ui-color-text-primary);
+  font-size: 13px;
 }
 
 .mercurio-user div span {
   margin-top: 4px;
-  color: var(--mc-text-muted);
-  font-size: 12px;
+  color: var(--m-ui-color-text-muted);
+  font-size: 11px;
 }
 
 .mercurio-app-shell .dashboard-panel {
-  width: min(1210px, calc(100% - 72px));
+  width: min(1080px, calc(100% - 96px));
   max-width: none;
   margin: 0 auto;
-  padding: 52px 0 64px;
+  padding: 40px 0 64px;
+}
+
+.mercurio-theme-switcher {
+  flex: 0 0 auto;
+}
+
+.mercurio-theme-switcher.ui-segmented {
+  border-radius: var(--m-ui-radius-sm);
+  background: var(--m-ui-color-bg-elevated);
+}
+
+.mercurio-theme-switcher .ui-segment {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 11px;
 }
 
 .topbar {
@@ -2849,10 +3103,11 @@ button:disabled {
 .secondary-button,
 .ghost-button,
 .ui-button {
-  min-height: 46px;
-  border-radius: var(--mc-radius-sm);
-  padding: 0 18px;
-  box-shadow: var(--mc-shadow-control);
+  min-width: 96px;
+  min-height: var(--m-ui-size-control-md);
+  border-radius: var(--m-ui-radius-sm);
+  padding: 0 16px;
+  box-shadow: none;
   font-weight: 700;
   transition:
     border-color 160ms ease,
@@ -2863,26 +3118,25 @@ button:disabled {
 
 .primary-button,
 .ui-button-primary {
-  border-color: rgba(11, 15, 19, 0.9);
-  background: var(--mc-gradient-mercury);
-  color: var(--mc-white);
+  border-color: var(--m-ui-color-accent-primary);
+  background: var(--m-ui-color-accent-primary);
+  color: var(--m-ui-color-text-inverted);
 }
 
 .secondary-button,
 .ui-button-secondary,
 .ghost-button,
 .ui-button-ghost {
-  border-color: var(--mc-border-subtle);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 249, 251, 0.92));
-  color: var(--mc-text-primary);
+  border-color: var(--m-ui-color-border-default);
+  background: var(--m-ui-color-bg-surface);
+  color: var(--m-ui-color-text-primary);
 }
 
 .primary-button:hover,
 .secondary-button:hover,
 .ghost-button:hover,
 .ui-button:hover {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .primary-button:focus-visible,
@@ -2982,19 +3236,26 @@ textarea:focus {
 .home-badge,
 .ui-badge {
   width: max-content;
-  border: 1px solid var(--mc-border-subtle);
+  border: 1px solid var(--m-ui-color-border-default);
   border-radius: 999px;
-  background: rgba(247, 249, 251, 0.9);
-  color: var(--mc-steel-blue);
+  background: var(--m-ui-color-bg-hover);
+  color: var(--m-ui-color-text-secondary);
   font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .home-badge,
 .ui-badge-success {
-  background: #edf8f2;
-  color: #2b7a57;
+  background: color-mix(in srgb, var(--m-ui-color-success) 14%, transparent);
+  color: var(--m-ui-color-success);
+}
+
+.ui-badge-accent,
+.ui-badge-info {
+  border-color: color-mix(in srgb, var(--m-ui-color-accent-primary) 32%, var(--m-ui-color-border-default));
+  background: var(--m-ui-color-accent-soft);
+  color: var(--m-ui-color-text-accent);
 }
 
 .project-slug,
@@ -3764,6 +4025,40 @@ textarea:focus {
   .mercurio-topbar {
     padding: 0 24px;
   }
+
+  .mercurio-app-shell .dashboard-panel {
+    width: min(1080px, calc(100% - 48px));
+  }
+
+  .site-context-bar,
+  .site-list-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .site-context-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .site-switcher,
+  .site-switcher-trigger {
+    width: 100%;
+  }
+
+  .site-switcher-panel {
+    right: auto;
+    left: 0;
+  }
+
+  .account-site-row {
+    grid-template-columns: 70px minmax(150px, 1fr) minmax(144px, auto) minmax(56px, auto) minmax(108px, auto) 42px;
+    gap: 12px;
+  }
+
+  .site-row-badges {
+    gap: 6px;
+  }
 }
 
 @media (max-width: 860px) {
@@ -3835,6 +4130,104 @@ textarea:focus {
   .mercurio-app-shell .dashboard-panel {
     width: calc(100% - 36px);
     padding: 32px 0 48px;
+  }
+
+  .mercurio-theme-switcher {
+    order: 4;
+    width: min(236px, 100%);
+  }
+
+  .mercurio-theme-switcher.ui-segmented {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mercurio-theme-switcher .ui-segment:nth-child(3) {
+    display: none;
+  }
+
+  .mercurio-theme-switcher .ui-segment {
+    min-width: 0;
+  }
+
+  .account-page-header h1 {
+    font-size: 30px;
+  }
+
+  .site-local-tabs {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .site-local-tab {
+    min-width: 132px;
+  }
+
+  .site-overview-grid,
+  .site-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .site-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .site-list-toolbar {
+    padding: 14px;
+  }
+
+  .site-row-group-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .account-site-row {
+    grid-template-columns: 70px minmax(0, 1fr) 42px;
+    grid-template-areas:
+      "preview name menu"
+      "badges badges badges"
+      "count updated updated";
+    height: auto;
+    min-height: 132px;
+    align-items: start;
+    gap: 8px 12px;
+    padding: 12px;
+  }
+
+  .site-preview-tile {
+    grid-area: preview;
+  }
+
+  .site-row-name {
+    grid-area: name;
+  }
+
+  .site-row-badges {
+    grid-area: badges;
+  }
+
+  .account-site-row > span {
+    white-space: normal;
+  }
+
+  .account-site-row > span:nth-of-type(1) {
+    grid-area: count;
+  }
+
+  .account-site-row > span:nth-of-type(2) {
+    grid-area: updated;
+  }
+
+  .site-row-menu {
+    grid-area: menu;
+    align-self: start;
+  }
+
+  .site-row-menu-panel {
+    right: 0;
+    width: min(220px, calc(100vw - 56px));
   }
 
   .topbar h1 {

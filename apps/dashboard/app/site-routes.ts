@@ -2,21 +2,6 @@ export const SITE_SECTIONS = ["overview", "pages", "settings", "publication"] as
 
 export type SiteSection = (typeof SITE_SECTIONS)[number];
 
-export const SITE_QUERY_KEYS = {
-  project: (projectId: string) => ["project", projectId] as const,
-  projectSites: (projectId: string) => ["project", projectId, "sites"] as const,
-  site: (projectId: string, siteId: string) =>
-    ["project", projectId, "site", siteId] as const,
-  sitePages: (projectId: string, siteId: string) =>
-    ["project", projectId, "site", siteId, "pages"] as const,
-  siteSettings: (projectId: string, siteId: string) =>
-    ["project", projectId, "site", siteId, "settings"] as const,
-  publicationSettings: (projectId: string, siteId: string) =>
-    ["project", projectId, "site", siteId, "publication-settings"] as const,
-  publicationStatus: (projectId: string, siteId: string, pageId: string) =>
-    ["project", projectId, "site", siteId, "page", pageId, "publication-status"] as const
-};
-
 export function createProjectSitesRoute(projectId: string): string {
   return `/projects/${encodeURIComponent(projectId)}/sites`;
 }
@@ -59,4 +44,3 @@ export function createSitePagePreviewRoute(
 ): string {
   return `${createSitePageEditorRoute(projectId, siteId, pageId)}/preview`;
 }
-

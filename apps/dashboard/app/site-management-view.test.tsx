@@ -1,6 +1,7 @@
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { MerkurioThemeProvider } from "@site-platform/ui";
 import type {
   CurrentUserResponse,
   ProjectSummary,
@@ -27,8 +28,42 @@ describe("SiteManagementView", () => {
       sites: [...sites, archivedSite]
     });
 
+    expect(html).toContain("Активные сайты");
+    expect(html).toContain("Архив");
     expect(html).toContain("Архивный сайт");
     expect(html).toContain("Архив");
+  });
+
+  it("renders 20+ sites without dropping rows", () => {
+    const manySites = Array.from({ length: 22 }, (_, index) => ({
+      ...secondSite,
+      id: `site-${index + 1}`,
+      name: `Site ${index + 1}`,
+      slug: `site-${index + 1}`,
+      isDefault: index === 0
+    }));
+    const html = renderSiteManagement("project-sites", {
+      sites: manySites
+    });
+
+    expect(html).toContain("22 активных");
+    expect(html).toContain("Site 22");
+  });
+
+  it("keeps long site name and slug inside the row", () => {
+    const html = renderSiteManagement("project-sites", {
+      sites: [
+        {
+          ...mainSite,
+          name: "Очень длинное название сайта для проверки переполнения строки",
+          slug: "very-long-site-slug-for-checking-row-overflow-and-actions-menu"
+        }
+      ]
+    });
+
+    expect(html).toContain("Очень длинное название сайта");
+    expect(html).toContain("very-long-site-slug-for-checking-row-overflow");
+    expect(html).toContain("Действия сайта");
   });
 
   it("renders create site dialog and duplicate slug error", () => {
@@ -53,6 +88,21 @@ describe("SiteManagementView", () => {
     const html = renderSiteManagement("settings");
 
     expect(html).toContain(createSiteRoute(project.id, secondSite.id, "settings"));
+  });
+
+  it("preserves overview, pages, settings and publication sections in switcher links", () => {
+    expect(renderSiteManagement("overview")).toContain(
+      createSiteRoute(project.id, secondSite.id, "overview")
+    );
+    expect(renderSiteManagement("pages")).toContain(
+      createSiteRoute(project.id, secondSite.id, "pages")
+    );
+    expect(renderSiteManagement("settings")).toContain(
+      createSiteRoute(project.id, secondSite.id, "settings")
+    );
+    expect(renderSiteManagement("publication")).toContain(
+      createSiteRoute(project.id, secondSite.id, "publication")
+    );
   });
 
   it("does not transfer pageId when switching sites", () => {
@@ -91,6 +141,60 @@ describe("SiteManagementView", () => {
     expect(html).toContain("demo-main");
   });
 
+  it("renders site overview with required facts and quick links", () => {
+    const html = renderSiteManagement("overview");
+
+    expect(html).toContain("Сводка сайта");
+    expect(html).toContain("Создан");
+    expect(html).toContain(createSiteRoute(project.id, mainSite.id, "pages"));
+    expect(html).toContain(createSiteRoute(project.id, mainSite.id, "publication"));
+    expect(html).toContain(createSiteRoute(project.id, mainSite.id, "settings"));
+  });
+
+  it("shows search affordance for 20+ active sites in the switcher", () => {
+    const manySites = Array.from({ length: 22 }, (_, index) => ({
+      ...secondSite,
+      id: `site-${index + 1}`,
+      name: `Site ${index + 1}`,
+      slug: `site-${index + 1}`,
+      isDefault: index === 0
+    }));
+    const html = renderSiteManagement("overview", {
+      sites: manySites,
+      currentSite: manySites[0] ?? null
+    });
+
+    expect(html).toContain("Поиск сайта");
+    expect(html).toContain("Site 22");
+  });
+
+  it("excludes archived sites from normal switcher options", () => {
+    const html = renderSiteManagement("overview", {
+      sites: [...sites, archivedSite]
+    });
+
+    expect(html).not.toContain(createSiteRoute(project.id, archivedSite.id, "overview"));
+  });
+
+  it("renders archived current site state without normal site content", () => {
+    const html = renderSiteManagement("settings", {
+      sites: [...sites, archivedSite],
+      currentSite: archivedSite
+    });
+
+    expect(html).toContain("Сайт в архиве");
+    expect(html).toContain("Вернуться к списку сайтов");
+    expect(html).not.toContain("Основная информация");
+  });
+
+  it("renders not-found state when route siteId is outside the resolved project sites", () => {
+    const html = renderSiteManagement("overview", {
+      currentSite: null
+    });
+
+    expect(html).toContain("Сайт не найден");
+  });
+
   it("hides manage actions for viewer", () => {
     const html = renderSiteManagement("project-sites", {
       user: {
@@ -119,6 +223,36 @@ describe("SiteManagementView", () => {
     expect(html).not.toContain("Сделать основным");
     expect(html).not.toContain("Архивировать сайт");
   });
+
+  it("does not enable default-site archive or repeated set-default", () => {
+    const html = renderSiteManagement("project-sites", {
+      sites: [mainSite, secondSite]
+    });
+
+    expect(html).toContain("Уже основной");
+    expect(html).toContain("Нельзя архивировать основной");
+  });
+
+  it("does not enable archive for the only active site", () => {
+    const html = renderSiteManagement("project-sites", {
+      sites: [{ ...secondSite, isDefault: false }]
+    });
+
+    expect(html).toContain("Единственный активный");
+  });
+
+  it("renders confirm action backend errors", () => {
+    const html = renderSiteManagement("project-sites", {
+      confirmAction: {
+        type: "archive",
+        site: secondSite
+      },
+      confirmActionError: "У пользователя нет прав на это действие."
+    });
+
+    expect(html).toContain("Архивировать сайт?");
+    expect(html).toContain("У пользователя нет прав на это действие.");
+  });
 });
 
 function renderSiteManagement(
@@ -127,7 +261,10 @@ function renderSiteManagement(
     readonly user?: CurrentUserResponse;
     readonly sites?: readonly SiteSummary[];
     readonly pages?: readonly SitePageSummary[];
+    readonly currentSite?: SiteSummary | null;
     readonly createSiteForm?: Parameters<typeof SiteManagementView>[0]["createSiteForm"];
+    readonly confirmAction?: Parameters<typeof SiteManagementView>[0]["confirmAction"];
+    readonly confirmActionError?: string;
     readonly canManageSites?: boolean;
     readonly canEditPages?: boolean;
   } = {}
@@ -137,7 +274,12 @@ function renderSiteManagement(
     project,
     user: input.user ?? user,
     sites: input.sites ?? sites,
-    currentSite: section === "project-sites" ? null : mainSite,
+    currentSite:
+      input.currentSite !== undefined
+        ? input.currentSite
+        : section === "project-sites"
+          ? null
+          : mainSite,
     pages: input.pages ?? (section === "project-sites" ? [mainPage, secondPage] : [mainPage]),
     siteSettings: {
       projectId: project.id,
@@ -183,7 +325,8 @@ function renderSiteManagement(
   };
 
   return renderToStaticMarkup(
-    <SiteManagementView
+    <MerkurioThemeProvider>
+      <SiteManagementView
       state={state}
       section={section}
       createSiteForm={
@@ -223,7 +366,9 @@ function renderSiteManagement(
         errorMessage: undefined,
         successMessage: undefined
       }}
-      confirmAction={null}
+      confirmAction={input.confirmAction ?? null}
+      confirmActionSubmitting={false}
+      confirmActionError={input.confirmActionError}
       canManageSites={input.canManageSites ?? true}
       canEditPages={input.canEditPages ?? true}
       onOpenCreateSite={() => undefined}
@@ -242,7 +387,8 @@ function renderSiteManagement(
       onRequestSetDefaultSite={() => undefined}
       onCancelConfirmAction={() => undefined}
       onConfirmSiteAction={() => undefined}
-    />
+      />
+    </MerkurioThemeProvider>
   );
 }
 
@@ -330,4 +476,3 @@ const secondPage: SitePageSummary = {
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z"
 };
-

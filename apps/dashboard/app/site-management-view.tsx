@@ -1,5 +1,6 @@
 import * as React from "react";
 import type { FormEvent } from "react";
+import Link from "next/link";
 import {
   Badge,
   Button,
@@ -94,6 +95,8 @@ export type SiteManagementViewProps = {
   readonly pageForm: PageFormState;
   readonly publicationForm: PublicationFormState;
   readonly confirmAction: ConfirmSiteAction;
+  readonly confirmActionSubmitting: boolean;
+  readonly confirmActionError: string | undefined;
   readonly canManageSites: boolean;
   readonly canEditPages: boolean;
   readonly onOpenCreateSite: () => void;
@@ -129,6 +132,8 @@ export function SiteManagementView({
   pageForm,
   publicationForm,
   confirmAction,
+  confirmActionSubmitting,
+  confirmActionError,
   canManageSites,
   canEditPages,
   onOpenCreateSite,
@@ -177,8 +182,6 @@ export function SiteManagementView({
             sites={state.sites}
             currentSite={state.currentSite}
             section={section === "project-sites" ? "overview" : section}
-            canManageSites={canManageSites}
-            onOpenCreateSite={onOpenCreateSite}
           />
 
           {section === "project-sites" ? (
@@ -191,20 +194,16 @@ export function SiteManagementView({
               onRequestArchiveSite={onRequestArchiveSite}
               onRequestSetDefaultSite={onRequestSetDefaultSite}
             />
-          ) : state.currentSite === null ? (
-            <ErrorState
-              title="Сайт не найден"
-              description="Сайт не найден в текущем проекте или недоступен."
-            />
           ) : (
-            <>
-              <SiteTabs
-                projectId={state.project.id}
-                siteId={state.currentSite.id}
-                activeSection={section}
-              />
-              {section === "overview" ? (
+            <SiteScopedShell
+              project={state.project}
+              currentSite={state.currentSite}
+              section={section}
+              canManageSites={canManageSites}
+            >
+              {state.currentSite === null ? null : section === "overview" ? (
                 <SiteOverview
+                  project={state.project}
                   site={state.currentSite}
                   pages={state.pages}
                   publicationStatus={state.publicationStatus}
@@ -245,7 +244,7 @@ export function SiteManagementView({
                   onSubmit={onSubmitPublicationSettings}
                 />
               )}
-            </>
+            </SiteScopedShell>
           )}
           {createSiteForm.open ? (
             <CreateSiteDialog
@@ -258,6 +257,8 @@ export function SiteManagementView({
           {confirmAction === null ? null : (
             <ArchiveSiteDialog
               action={confirmAction}
+              submitting={confirmActionSubmitting}
+              errorMessage={confirmActionError}
               onCancel={onCancelConfirmAction}
               onConfirm={onConfirmSiteAction}
             />
@@ -284,20 +285,60 @@ function AccountPageHeader({
   );
 }
 
+function SiteScopedShell({
+  project,
+  currentSite,
+  section,
+  canManageSites,
+  children
+}: {
+  readonly project: ProjectSummary;
+  readonly currentSite: SiteSummary | null;
+  readonly section: SiteSection;
+  readonly canManageSites: boolean;
+  readonly children: React.ReactNode;
+}) {
+  if (currentSite === null) {
+    return (
+      <ErrorState
+        title="Сайт не найден"
+        description="Сайт не найден в текущем проекте или недоступен."
+      />
+    );
+  }
+
+  const isArchived = currentSite.status === "ARCHIVED";
+
+  return (
+    <section className="site-shell" aria-label="Site dashboard shell">
+      <SiteTabs
+        projectId={project.id}
+        siteId={currentSite.id}
+        activeSection={section}
+        disabled={isArchived}
+      />
+      {isArchived ? (
+        <ArchivedSiteState project={project} site={currentSite} />
+      ) : (
+        <>
+          {canManageSites ? null : <Badge tone="neutral">Режим только чтение</Badge>}
+          {children}
+        </>
+      )}
+    </section>
+  );
+}
+
 function ProjectContextBar({
   project,
   sites,
   currentSite,
-  section,
-  canManageSites,
-  onOpenCreateSite
+  section
 }: {
   readonly project: ProjectSummary;
   readonly sites: readonly SiteSummary[];
   readonly currentSite: SiteSummary | null;
   readonly section: SiteSection;
-  readonly canManageSites: boolean;
-  readonly onOpenCreateSite: () => void;
 }) {
   const activeSites = sites.filter((site) => site.status === "ACTIVE");
   const defaultSite = sites.find((site) => site.isDefault);
@@ -306,9 +347,9 @@ function ProjectContextBar({
     <section className="site-context-bar">
       <div>
         <nav className="account-breadcrumbs" aria-label="Хлебные крошки">
-          <a href="/">Проекты</a>
+          <Link href="/">Проекты</Link>
           <span>/</span>
-          <a href={createProjectSitesRoute(project.id)}>{project.name}</a>
+          <Link href={createProjectSitesRoute(project.id)}>{project.name}</Link>
           {currentSite === null ? null : (
             <>
               <span>/</span>
@@ -316,7 +357,7 @@ function ProjectContextBar({
             </>
           )}
         </nav>
-        <h2>{currentSite?.name ?? project.name}</h2>
+        <h2 title={currentSite?.name ?? project.name}>{currentSite?.name ?? project.name}</h2>
         <p>
           {project.slug} · {sites.length} {pluralizeSites(sites.length)}
           {defaultSite === undefined ? "" : ` · основной: ${defaultSite.name}`}
@@ -331,11 +372,6 @@ function ProjectContextBar({
             section={section}
           />
         )}
-        {canManageSites ? (
-          <Button type="button" variant="primary" onClick={onOpenCreateSite}>
-            Создать сайт
-          </Button>
-        ) : null}
       </div>
     </section>
   );
@@ -352,34 +388,193 @@ function SiteSwitcher({
   readonly currentSite: SiteSummary;
   readonly section: SiteSection;
 }) {
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const listboxId = React.useId();
+  const searchId = React.useId();
+  const filteredSites = React.useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return normalizedQuery.length === 0
+      ? sites
+      : sites.filter((site) =>
+          `${site.name} ${site.slug}`.toLowerCase().includes(normalizedQuery)
+        );
+  }, [query, sites]);
+  const showSearch = sites.length >= 8;
+
+  React.useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        rootRef.current !== null &&
+        event.target instanceof Node &&
+        !rootRef.current.contains(event.target)
+      ) {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [open]);
+
+  React.useEffect(() => {
+    if (open) {
+      setQuery("");
+    }
+  }, [open]);
+
+  const focusOption = React.useCallback((direction: 1 | -1) => {
+    const options = Array.from(
+      rootRef.current?.querySelectorAll<HTMLAnchorElement>("[data-site-switch-option]") ?? []
+    );
+    const currentIndex = options.findIndex((option) => option === document.activeElement);
+    const nextIndex =
+      currentIndex === -1
+        ? direction === 1
+          ? 0
+          : options.length - 1
+        : (currentIndex + direction + options.length) % options.length;
+
+    options[nextIndex]?.focus();
+  }, []);
+
+  const onRootKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+      return;
+    }
+
+    if (!open && (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      setOpen(true);
+      window.setTimeout(() => focusOption(1), 0);
+      return;
+    }
+
+    if (open && event.key === "ArrowDown") {
+      event.preventDefault();
+      focusOption(1);
+      return;
+    }
+
+    if (open && event.key === "ArrowUp") {
+      event.preventDefault();
+      focusOption(-1);
+    }
+  };
+
   return (
-    <details className="site-switcher">
-      <summary>
+    <div className="site-switcher" ref={rootRef} onKeyDown={onRootKeyDown}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="site-switcher-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        onClick={() => setOpen((current) => !current)}
+      >
         <span>
           <small>Текущий сайт</small>
-          <strong>{currentSite.name}</strong>
+          <strong title={currentSite.name}>{currentSite.name}</strong>
+          <small title={`/${currentSite.slug}`}>/{currentSite.slug}</small>
         </span>
-        {currentSite.isDefault ? <DefaultSiteBadge /> : null}
-      </summary>
-      <div className="site-switcher-panel">
-        {sites.map((site) => (
-          <a
-            key={site.id}
-            className={site.id === currentSite.id ? "site-switcher-item active" : "site-switcher-item"}
-            href={createSiteRoute(project.id, site.id, section)}
-          >
-            <span>
-              <strong>{site.name}</strong>
-              <small>/{site.slug}</small>
-            </span>
-            {site.isDefault ? <DefaultSiteBadge /> : null}
-          </a>
-        ))}
-        <a className="site-switcher-manage" href={createProjectSitesRoute(project.id)}>
+        <span className="site-switcher-badges">
+          {currentSite.isDefault ? <DefaultSiteBadge /> : null}
+          <SiteStatusBadge site={currentSite} />
+        </span>
+      </button>
+      <div className="site-switcher-panel" hidden={!open}>
+        {showSearch ? (
+          <Input
+            label="Поиск сайта"
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+          />
+        ) : null}
+        <div
+          id={listboxId}
+          className="site-switcher-list"
+          role="listbox"
+          aria-label="Выбор сайта"
+          aria-describedby={showSearch ? searchId : undefined}
+        >
+          {showSearch ? (
+            <p id={searchId} className="site-switcher-hint">
+              Архивные сайты скрыты из списка переключения.
+            </p>
+          ) : null}
+          {filteredSites.length === 0 ? (
+            <p className="site-switcher-empty">Активные сайты не найдены.</p>
+          ) : (
+            filteredSites.map((site) => (
+              <Link
+                key={site.id}
+                className={
+                  site.id === currentSite.id
+                    ? "site-switcher-item active"
+                    : "site-switcher-item"
+                }
+                href={createSiteRoute(project.id, site.id, section)}
+                title={site.name}
+                role="option"
+                aria-selected={site.id === currentSite.id}
+                data-site-switch-option=""
+                onClick={() => setOpen(false)}
+              >
+                <span>
+                  <strong>{site.name}</strong>
+                  <small>/{site.slug}</small>
+                </span>
+                <span className="site-switcher-badges">
+                  {site.isDefault ? <DefaultSiteBadge /> : null}
+                </span>
+              </Link>
+            ))
+          )}
+        </div>
+        <Link className="site-switcher-manage" href={createProjectSitesRoute(project.id)}>
           Управление сайтами
-        </a>
+        </Link>
       </div>
-    </details>
+    </div>
+  );
+}
+
+function ArchivedSiteState({
+  project,
+  site
+}: {
+  readonly project: ProjectSummary;
+  readonly site: SiteSummary;
+}) {
+  return (
+    <Panel title="Сайт в архиве" className="site-archived-state">
+      <div className="site-overview-badges">
+        <SiteStatusBadge site={site} />
+        {site.isDefault ? <DefaultSiteBadge /> : null}
+      </div>
+      <p className="site-muted">
+        Этот сайт перемещён в архив. Его страницы и настройки сохранены, но он не
+        используется как активный Site context.
+      </p>
+      <Link className="ui-button ui-button-secondary ui-button-md" href={createProjectSitesRoute(project.id)}>
+        Вернуться к списку сайтов
+      </Link>
+    </Panel>
   );
 }
 
@@ -400,12 +595,19 @@ function ProjectSitesSection({
   readonly onRequestArchiveSite: (site: SiteSummary) => void;
   readonly onRequestSetDefaultSite: (site: SiteSummary) => void;
 }) {
+  const activeSites = sites.filter((site) => site.status === "ACTIVE");
+  const archivedSites = sites.filter((site) => site.status === "ARCHIVED");
+  const defaultSite = activeSites.find((site) => site.isDefault);
+
   return (
     <section className="site-section-stack">
       <div className="site-list-toolbar">
         <div>
           <h2>Сайты</h2>
-          <p>Активные и архивные сайты внутри проекта.</p>
+          <p>
+            {activeSites.length} активных · {archivedSites.length} архивных
+            {defaultSite === undefined ? "" : ` · основной: ${defaultSite.name}`}
+          </p>
         </div>
         {canManageSites ? (
           <Button type="button" variant="primary" onClick={onOpenCreateSite}>
@@ -428,20 +630,93 @@ function ProjectSitesSection({
           }
         />
       ) : (
-        <div className="site-row-list">
-          {sites.map((site) => (
-            <SiteRow
-              key={site.id}
+        <>
+          <SiteRowsGroup
+            title="Активные сайты"
+            description="Сайты, доступные для открытия, настройки и публикации."
+            emptyTitle="Активных сайтов нет"
+            projectId={project.id}
+            sites={activeSites}
+            pages={pages}
+            activeSitesCount={activeSites.length}
+            canManageSites={canManageSites}
+            onRequestArchiveSite={onRequestArchiveSite}
+            onRequestSetDefaultSite={onRequestSetDefaultSite}
+          />
+          {archivedSites.length === 0 ? null : (
+            <SiteRowsGroup
+              title="Архив"
+              description="Архивированные сайты отделены от активного списка."
               projectId={project.id}
-              site={site}
-              pagesCount={pages.filter((page) => page.siteId === site.id).length}
+              sites={archivedSites}
+              pages={pages}
+              activeSitesCount={activeSites.length}
               canManageSites={canManageSites}
               onRequestArchiveSite={onRequestArchiveSite}
               onRequestSetDefaultSite={onRequestSetDefaultSite}
             />
-          ))}
-        </div>
+          )}
+        </>
       )}
+    </section>
+  );
+}
+
+function SiteRowsGroup({
+  title,
+  description,
+  emptyTitle,
+  projectId,
+  sites,
+  pages,
+  activeSitesCount,
+  canManageSites,
+  onRequestArchiveSite,
+  onRequestSetDefaultSite
+}: {
+  readonly title: string;
+  readonly description: string;
+  readonly emptyTitle?: string;
+  readonly projectId: string;
+  readonly sites: readonly SiteSummary[];
+  readonly pages: readonly SitePageSummary[];
+  readonly activeSitesCount: number;
+  readonly canManageSites: boolean;
+  readonly onRequestArchiveSite: (site: SiteSummary) => void;
+  readonly onRequestSetDefaultSite: (site: SiteSummary) => void;
+}) {
+  if (sites.length === 0) {
+    return emptyTitle === undefined ? null : (
+      <section className="site-row-group">
+        <div className="site-row-group-heading">
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+        <EmptyState title={emptyTitle} description="Проверьте фильтры или доступы." />
+      </section>
+    );
+  }
+
+  return (
+    <section className="site-row-group">
+      <div className="site-row-group-heading">
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </div>
+      <div className="site-row-list">
+        {sites.map((site) => (
+          <SiteRow
+            key={site.id}
+            projectId={projectId}
+            site={site}
+            pagesCount={pages.filter((page) => page.siteId === site.id).length}
+            activeSitesCount={activeSitesCount}
+            canManageSites={canManageSites}
+            onRequestArchiveSite={onRequestArchiveSite}
+            onRequestSetDefaultSite={onRequestSetDefaultSite}
+          />
+        ))}
+      </div>
     </section>
   );
 }
@@ -450,6 +725,7 @@ function SiteRow({
   projectId,
   site,
   pagesCount,
+  activeSitesCount,
   canManageSites,
   onRequestArchiveSite,
   onRequestSetDefaultSite
@@ -457,16 +733,35 @@ function SiteRow({
   readonly projectId: string;
   readonly site: SiteSummary;
   readonly pagesCount: number;
+  readonly activeSitesCount: number;
   readonly canManageSites: boolean;
   readonly onRequestArchiveSite: (site: SiteSummary) => void;
   readonly onRequestSetDefaultSite: (site: SiteSummary) => void;
 }) {
+  const isActive = site.status === "ACTIVE";
+  const archiveDisabledReason = !isActive
+    ? "Сайт уже в архиве"
+    : site.isDefault
+      ? "Нельзя архивировать основной"
+      : activeSitesCount <= 1
+        ? "Единственный активный"
+        : null;
+  const setDefaultDisabledReason = !isActive
+    ? "Архивный сайт"
+    : site.isDefault
+      ? "Уже основной"
+      : null;
+
   return (
     <article className={site.status === "ARCHIVED" ? "account-site-row archived" : "account-site-row"}>
       <div className="site-preview-tile" aria-hidden="true" />
       <div className="site-row-name">
-        <a href={createSiteRoute(projectId, site.id)}>{site.name}</a>
-        <span>/{site.slug}</span>
+        <a href={createSiteRoute(projectId, site.id)} title={site.name}>
+          {site.name}
+        </a>
+        <span title={`/${site.slug}`} aria-label={`Slug: /${site.slug}`}>
+          /{site.slug}
+        </span>
       </div>
       <div className="site-row-badges">
         <SiteStatusBadge site={site} />
@@ -474,34 +769,44 @@ function SiteRow({
       </div>
       <span>{pagesCount} стр.</span>
       <span>{formatDateTime(site.updatedAt)}</span>
-      <div className="site-row-actions">
-        <a className="ui-button ui-button-secondary ui-button-sm" href={createSiteRoute(projectId, site.id)}>
-          Открыть
-        </a>
-        <a className="ui-button ui-button-secondary ui-button-sm" href={createSiteRoute(projectId, site.id, "settings")}>
-          Настроить
-        </a>
-        {canManageSites && !site.isDefault && site.status === "ACTIVE" ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onRequestSetDefaultSite(site)}
+      <details className="site-row-menu">
+        <summary aria-label={`Действия сайта ${site.name}`}>•••</summary>
+        <div className="site-row-menu-panel">
+          <a className="site-row-menu-item" href={createSiteRoute(projectId, site.id)}>
+            Открыть
+          </a>
+          <a
+            className="site-row-menu-item"
+            href={createSiteRoute(projectId, site.id, "settings")}
           >
-            Сделать основным
-          </Button>
-        ) : null}
-        {canManageSites && !site.isDefault && site.status === "ACTIVE" ? (
-          <Button
-            type="button"
-            variant="danger"
-            size="sm"
-            onClick={() => onRequestArchiveSite(site)}
-          >
-            Архивировать
-          </Button>
-        ) : null}
-      </div>
+            Настроить
+          </a>
+          {canManageSites ? (
+            <>
+              <button
+                className="site-row-menu-item"
+                type="button"
+                disabled={setDefaultDisabledReason !== null}
+                title={setDefaultDisabledReason ?? undefined}
+                onClick={() => onRequestSetDefaultSite(site)}
+              >
+                {setDefaultDisabledReason ?? "Сделать основным"}
+              </button>
+              <button
+                className="site-row-menu-item site-row-menu-item-danger"
+                type="button"
+                disabled={archiveDisabledReason !== null}
+                title={archiveDisabledReason ?? undefined}
+                onClick={() => onRequestArchiveSite(site)}
+              >
+                {archiveDisabledReason ?? "Архивировать"}
+              </button>
+            </>
+          ) : (
+            <span className="site-row-menu-note">Управление недоступно</span>
+          )}
+        </div>
+      </details>
     </article>
   );
 }
@@ -509,29 +814,43 @@ function SiteRow({
 function SiteTabs({
   projectId,
   siteId,
-  activeSection
+  activeSection,
+  disabled = false
 }: {
   readonly projectId: string;
   readonly siteId: string;
   readonly activeSection: SiteSection;
+  readonly disabled?: boolean;
 }) {
   return (
     <nav className="site-local-tabs" aria-label="Разделы сайта">
-      {siteTabs.map((tab) => (
-        <a
-          key={tab.id}
-          className={activeSection === tab.id ? "site-local-tab active" : "site-local-tab"}
-          href={createSiteRoute(projectId, siteId, tab.id)}
-          aria-current={activeSection === tab.id ? "page" : undefined}
-        >
-          {tab.label}
-        </a>
-      ))}
+      {siteTabs.map((tab) =>
+        disabled ? (
+          <span
+            key={tab.id}
+            className={activeSection === tab.id ? "site-local-tab active disabled" : "site-local-tab disabled"}
+            aria-current={activeSection === tab.id ? "page" : undefined}
+            aria-disabled="true"
+          >
+            {tab.label}
+          </span>
+        ) : (
+          <Link
+            key={tab.id}
+            className={activeSection === tab.id ? "site-local-tab active" : "site-local-tab"}
+            href={createSiteRoute(projectId, siteId, tab.id)}
+            aria-current={activeSection === tab.id ? "page" : undefined}
+          >
+            {tab.label}
+          </Link>
+        )
+      )}
     </nav>
   );
 }
 
 function SiteOverview({
+  project,
   site,
   pages,
   publicationStatus,
@@ -540,6 +859,7 @@ function SiteOverview({
   onRequestArchiveSite,
   onRequestSetDefaultSite
 }: {
+  readonly project: ProjectSummary;
   readonly site: SiteSummary;
   readonly pages: readonly SitePageSummary[];
   readonly publicationStatus: PublicationStatusResponse | null;
@@ -555,6 +875,7 @@ function SiteOverview({
           <Metric label="Статус" value={site.status === "ACTIVE" ? "Активен" : "Архив"} />
           <Metric label="Страницы" value={String(pages.length)} />
           <Metric label="Slug" value={`/${site.slug}`} />
+          <Metric label="Создан" value={formatDateTime(site.createdAt)} />
           <Metric label="Обновлён" value={formatDateTime(site.updatedAt)} />
         </div>
         <div className="site-overview-badges">
@@ -568,6 +889,15 @@ function SiteOverview({
           Public handle: {publicationSettings?.publicHandle ?? "не настроен"}
         </p>
         <div className="site-action-stack">
+          <Link className="ui-button ui-button-secondary ui-button-md" href={createSiteRoute(project.id, site.id, "pages")}>
+            Страницы
+          </Link>
+          <Link className="ui-button ui-button-secondary ui-button-md" href={createSiteRoute(project.id, site.id, "publication")}>
+            Публикация
+          </Link>
+          <Link className="ui-button ui-button-secondary ui-button-md" href={createSiteRoute(project.id, site.id, "settings")}>
+            Настройки
+          </Link>
           {canManageSites && !site.isDefault ? (
             <Button type="button" variant="secondary" onClick={() => onRequestSetDefaultSite(site)}>
               Сделать основным
@@ -808,7 +1138,7 @@ function CreateSiteDialog({
     <div className="account-modal-backdrop">
       <form className="account-confirm-modal" onSubmit={onSubmit}>
         <h2>Создать сайт</h2>
-        <p>Пока без выбора шаблона. Template Center появится в следующем milestone.</p>
+        <p>Создайте пустой сайт. Шаблон можно будет выбрать позже.</p>
         <Input
           label="Название сайта"
           value={form.values.name}
@@ -918,10 +1248,14 @@ function CreatePageInlineForm({
 
 function ArchiveSiteDialog({
   action,
+  submitting,
+  errorMessage,
   onCancel,
   onConfirm
 }: {
   readonly action: Exclude<ConfirmSiteAction, null>;
+  readonly submitting: boolean;
+  readonly errorMessage: string | undefined;
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
 }) {
@@ -933,19 +1267,34 @@ function ArchiveSiteDialog({
         <h2>{isArchive ? "Архивировать сайт?" : "Сделать сайт основным?"}</h2>
         <p>
           {isArchive
-            ? `Сайт «${action.site.name}» исчезнет из активного списка. Permanent delete сейчас не выполняется.`
-            : `Сайт «${action.site.name}» станет default Site для проекта.`}
+            ? `Сайт «${action.site.name}» будет перемещён в архив.`
+            : `Сайт «${action.site.name}» будет открываться по умолчанию для проекта.`}
         </p>
         <div className="account-confirm-warning">
           {isArchive
-            ? "Публикация и страницы останутся в базе, но сайт будет считаться архивным."
-            : "Badges обновятся без перезагрузки после успешного ответа backend."}
+            ? "Его страницы и настройки сохранятся."
+            : "Этот сайт будет открываться по умолчанию для проекта."}
         </div>
+        {errorMessage === undefined ? null : (
+          <p className="site-error-message" role="alert">
+            {errorMessage}
+          </p>
+        )}
         <div className="account-modal-actions">
-          <Button type="button" variant="secondary" onClick={onCancel}>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={submitting}
+            onClick={onCancel}
+          >
             Отмена
           </Button>
-          <Button type="button" variant={isArchive ? "danger" : "primary"} onClick={onConfirm}>
+          <Button
+            type="button"
+            variant={isArchive ? "danger" : "primary"}
+            loading={submitting}
+            onClick={onConfirm}
+          >
             {isArchive ? "Архивировать" : "Сделать основным"}
           </Button>
         </div>

@@ -67,22 +67,19 @@ describe("MercurioAppShell", () => {
   });
 
   it("ships approved Mercurio assets in the dashboard public directory", () => {
-    expect(
-      existsSync(
-        new URL(
-          "../public/assets/mercurio/mercurio-monogram.png",
-          import.meta.url
-        )
-      )
-    ).toBe(true);
-    expect(
-      existsSync(
-        new URL(
-          "../public/assets/mercurio/mercurio-logo-horizontal.png",
-          import.meta.url
-        )
-      )
-    ).toBe(true);
+    const monogramPath = new URL(
+      "../public/assets/mercurio/mercurio-monogram.png",
+      import.meta.url
+    );
+    const horizontalPath = new URL(
+      "../public/assets/mercurio/mercurio-logo-horizontal.png",
+      import.meta.url
+    );
+
+    expect(existsSync(monogramPath)).toBe(true);
+    expect(existsSync(horizontalPath)).toBe(true);
+    expect(readFileSync(monogramPath)[25]).toBe(6);
+    expect(readFileSync(horizontalPath)[25]).toBe(6);
   });
 
   it("does not render fake commerce navigation links", () => {

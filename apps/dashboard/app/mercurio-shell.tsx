@@ -1,5 +1,5 @@
 import * as React from "react";
-import { MercurioLogo } from "@site-platform/ui";
+import { MercurioLogo, MerkurioThemeSwitcher } from "@site-platform/ui";
 import type { CurrentUserResponse, ProjectSummary } from "./dashboard-types";
 
 export type MercurioShellArea =
@@ -171,6 +171,7 @@ function MercurioTopbar({
         </div>
       )}
       <div className="mercurio-topbar-spacer" />
+      <MerkurioThemeSwitcher className="mercurio-theme-switcher" />
       {user === undefined ? null : (
         <div className="mercurio-user">
           <span className="mercurio-avatar" aria-hidden="true">

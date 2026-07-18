@@ -7,6 +7,7 @@ import {
   useState,
   type FormEvent
 } from "react";
+import { useRouter } from "next/navigation";
 import type { OrganizationRole } from "@site-platform/domain";
 import {
   DashboardApiError,
@@ -19,6 +20,7 @@ import type {
 } from "./dashboard-types";
 import { validateCreatePageForm } from "./page-form-model";
 import { createSlugFromName, validateSiteForm } from "./site-form-model";
+import { SiteRouteContextProvider } from "./site-context";
 import {
   createSiteRoute,
   type SiteSection
@@ -55,6 +57,7 @@ export function SiteManagementApp({
   readonly siteId?: string;
   readonly section: SiteSection | "project-sites";
 }) {
+  const router = useRouter();
   const apiClient = useMemo(() => createDashboardApiClient(apiUrl), [apiUrl]);
   const [state, setState] = useState<SiteManagementLoadState>({
     status: "loading"
@@ -85,6 +88,10 @@ export function SiteManagementApp({
     successMessage: undefined
   });
   const [confirmAction, setConfirmAction] = useState<ConfirmSiteAction>(null);
+  const [confirmActionState, setConfirmActionState] = useState({
+    submitting: false,
+    errorMessage: undefined as string | undefined
+  });
 
   const loadSiteContext = useCallback(async () => {
     setState({
@@ -102,7 +109,8 @@ export function SiteManagementApp({
         siteId === undefined
           ? null
           : sites.find((site) => site.id === siteId) ?? null;
-      const shouldLoadSite = selectedSite !== null;
+      const shouldLoadSite =
+        selectedSite !== null && selectedSite.status !== "ARCHIVED";
       const [pagesResponse, siteSettings, publicationSettings] = shouldLoadSite
         ? await Promise.all([
             apiClient.listSitePages(projectId, selectedSite.id),
@@ -206,6 +214,11 @@ export function SiteManagementApp({
   const submitCreateSite = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+
+      if (createSiteForm.submitting) {
+        return;
+      }
+
       const validation = validateSiteForm(createSiteForm.values);
 
       if (!validation.ok) {
@@ -225,7 +238,18 @@ export function SiteManagementApp({
       try {
         const response = await apiClient.createProjectSite(projectId, validation.values);
 
-        window.location.assign(createSiteRoute(projectId, response.site.id));
+        setState((current) =>
+          current.status !== "ready"
+            ? current
+            : {
+                ...current,
+                currentSite: response.site,
+                sites: upsertSite(current.sites, response.site),
+                pages: siteId === undefined ? current.pages : []
+              }
+        );
+        closeCreateSite();
+        router.push(createSiteRoute(projectId, response.site.id));
       } catch (error) {
         setCreateSiteForm((current) => ({
           ...current,
@@ -234,7 +258,15 @@ export function SiteManagementApp({
         }));
       }
     },
-    [apiClient, createSiteForm.values, projectId]
+    [
+      apiClient,
+      closeCreateSite,
+      createSiteForm.submitting,
+      createSiteForm.values,
+      projectId,
+      router,
+      siteId
+    ]
   );
 
   const submitSiteDetails = useCallback(
@@ -242,6 +274,10 @@ export function SiteManagementApp({
       event.preventDefault();
 
       if (state.status !== "ready" || state.currentSite === null) {
+        return;
+      }
+
+      if (siteDetailsForm.submitting) {
         return;
       }
 
@@ -327,6 +363,10 @@ export function SiteManagementApp({
         return;
       }
 
+      if (pageForm.submitting) {
+        return;
+      }
+
       const validation = validateCreatePageForm(pageForm.values);
 
       if (!validation.ok) {
@@ -382,6 +422,10 @@ export function SiteManagementApp({
         return;
       }
 
+      if (publicationForm.submitting) {
+        return;
+      }
+
       setPublicationForm((current) => ({
         ...current,
         submitting: true,
@@ -429,6 +473,15 @@ export function SiteManagementApp({
       return;
     }
 
+    if (confirmActionState.submitting) {
+      return;
+    }
+
+    setConfirmActionState({
+      submitting: true,
+      errorMessage: undefined
+    });
+
     try {
       if (confirmAction.type === "set-default") {
         const response = await apiClient.setDefaultProjectSite(
@@ -452,13 +505,17 @@ export function SiteManagementApp({
               }
         );
       } else {
-        await apiClient.archiveProjectSite(projectId, confirmAction.site.id);
-        const sitesResponse = await apiClient.listProjectSites(projectId);
-        const defaultSite = sitesResponse.sites.find((site) => site.isDefault);
+        const response = await apiClient.archiveProjectSite(
+          projectId,
+          confirmAction.site.id
+        );
+        const nextSites = upsertSite(state.sites, response.site);
+        const defaultSite = nextSites.find(
+          (site) => site.isDefault && site.status === "ACTIVE"
+        );
 
         if (siteId === confirmAction.site.id && defaultSite !== undefined) {
-          window.location.assign(createSiteRoute(projectId, defaultSite.id));
-          return;
+          router.replace(createSiteRoute(projectId, defaultSite.id));
         }
 
         setState((current) =>
@@ -466,19 +523,37 @@ export function SiteManagementApp({
             ? current
             : {
                 ...current,
-                sites: sitesResponse.sites
+                currentSite:
+                  current.currentSite?.id === response.site.id
+                    ? response.site
+                    : current.currentSite,
+                sites: upsertSite(current.sites, response.site)
               }
         );
       }
 
       setConfirmAction(null);
+      setConfirmActionState({
+        submitting: false,
+        errorMessage: undefined
+      });
     } catch (error) {
-      window.alert(toUserFacingError(error));
-      setConfirmAction(null);
+      setConfirmActionState({
+        submitting: false,
+        errorMessage: toUserFacingError(error)
+      });
     }
-  }, [apiClient, confirmAction, projectId, siteId, state]);
+  }, [
+    apiClient,
+    confirmAction,
+    confirmActionState.submitting,
+    projectId,
+    router,
+    siteId,
+    state
+  ]);
 
-  return (
+  const content = (
     <SiteManagementView
       state={state}
       section={section}
@@ -487,6 +562,8 @@ export function SiteManagementApp({
       pageForm={pageForm}
       publicationForm={publicationForm}
       confirmAction={confirmAction}
+      confirmActionSubmitting={confirmActionState.submitting}
+      confirmActionError={confirmActionState.errorMessage}
       canManageSites={canManageSites}
       canEditPages={canEditPages}
       onOpenCreateSite={() =>
@@ -529,14 +606,62 @@ export function SiteManagementApp({
         }))
       }
       onSubmitPublicationSettings={submitPublicationSettings}
-      onRequestArchiveSite={(site) => setConfirmAction({ type: "archive", site })}
-      onRequestSetDefaultSite={(site) =>
-        setConfirmAction({ type: "set-default", site })
-      }
-      onCancelConfirmAction={() => setConfirmAction(null)}
+      onRequestArchiveSite={(site) => {
+        setConfirmAction({ type: "archive", site });
+        setConfirmActionState({
+          submitting: false,
+          errorMessage: undefined
+        });
+      }}
+      onRequestSetDefaultSite={(site) => {
+        setConfirmAction({ type: "set-default", site });
+        setConfirmActionState({
+          submitting: false,
+          errorMessage: undefined
+        });
+      }}
+      onCancelConfirmAction={() => {
+        if (!confirmActionState.submitting) {
+          setConfirmAction(null);
+          setConfirmActionState({
+            submitting: false,
+            errorMessage: undefined
+          });
+        }
+      }}
       onConfirmSiteAction={confirmSiteAction}
     />
   );
+
+  if (state.status !== "ready") {
+    return content;
+  }
+
+  return (
+    <SiteRouteContextProvider
+      value={{
+        project: state.project,
+        user: state.user,
+        sites: state.sites,
+        currentSite: state.currentSite,
+        permissions: {
+          canManageSites,
+          canEditPages
+        }
+      }}
+    >
+      {content}
+    </SiteRouteContextProvider>
+  );
+}
+
+function upsertSite(
+  sites: readonly SiteSummary[],
+  nextSite: SiteSummary
+): readonly SiteSummary[] {
+  return sites.some((site) => site.id === nextSite.id)
+    ? sites.map((site) => (site.id === nextSite.id ? nextSite : site))
+    : [...sites, nextSite];
 }
 
 async function loadAllSitePages(
@@ -578,6 +703,10 @@ function toUserFacingError(error: unknown): string {
 
     if (error.code === "SITE_CANNOT_ARCHIVE_DEFAULT") {
       return "Сначала сделайте основным другой сайт, затем архивируйте этот.";
+    }
+
+    if (error.code === "PERMISSION_DENIED") {
+      return "У пользователя нет прав на это действие. Backend оставил операцию без изменений.";
     }
 
     return error.message;
