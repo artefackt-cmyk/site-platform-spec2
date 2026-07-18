@@ -9,12 +9,29 @@ import ProductsPage, {
 import ProductAnnouncementPage, {
   generateMetadata as generateAnnouncementMetadata
 } from "./(marketing)/products/[slug]/page";
+import MarketingNotFound from "./(marketing)/not-found";
+import MarketingCatchAllPage from "./(marketing)/[...notFound]/page";
 import OnlineStorePage, {
   generateMetadata as generateOnlineStoreMetadata
 } from "./(marketing)/products/online-store/page";
 import WebsiteBuilderPage, {
   generateMetadata as generateWebsiteBuilderMetadata
 } from "./(marketing)/products/website-builder/page";
+import MigrationPage, {
+  generateMetadata as generateMigrationMetadata
+} from "./(marketing)/migration/page";
+import PricingPage, {
+  generateMetadata as generatePricingMetadata
+} from "./(marketing)/pricing/page";
+import PrivacyPage, {
+  generateMetadata as generatePrivacyMetadata
+} from "./(marketing)/privacy/page";
+import TermsPage, {
+  generateMetadata as generateTermsMetadata
+} from "./(marketing)/terms/page";
+import robots from "./robots";
+import sitemap from "./sitemap";
+import { buildAuthRedirectUrl } from "../components/public/auth-redirect";
 import { Header } from "../components/public/header";
 import {
   parsePublicThemeMode,
@@ -79,6 +96,72 @@ describe("isolated Mercurio marketing public site", () => {
     expect(metadata.alternates?.canonical).toBe("/products/online-store");
   });
 
+  it("renders pricing, migration, legal and marketing not-found pages through SSR", () => {
+    const pricingHtml = renderToStaticMarkup(React.createElement(PricingPage));
+    const migrationHtml = renderToStaticMarkup(React.createElement(MigrationPage));
+    const privacyHtml = renderToStaticMarkup(React.createElement(PrivacyPage));
+    const termsHtml = renderToStaticMarkup(React.createElement(TermsPage));
+    const notFoundHtml = renderToStaticMarkup(React.createElement(MarketingNotFound));
+
+    expect(pricingHtml).toContain("Тарифы Mercurio");
+    expect(pricingHtml).toContain("Стартовые сценарии без публичной цены");
+    expect(pricingHtml).toContain("href=\"/migration\"");
+    expect(migrationHtml).toContain("Переход на Mercurio");
+    expect(migrationHtml).toContain("Аудит исходной системы");
+    expect(migrationHtml).toContain("href=\"/pricing\"");
+    expect(privacyHtml).toContain("Политика конфиденциальности");
+    expect(privacyHtml).toContain("Требует юридической проверки");
+    expect(termsHtml).toContain("Условия использования");
+    expect(termsHtml).toContain("Требует юридической проверки");
+    expect(notFoundHtml).toContain("Страница Mercurio не найдена");
+    expect(notFoundHtml).toContain("href=\"/products\"");
+  });
+
+  it("ships metadata for new marketing system pages", () => {
+    expect(generatePricingMetadata().alternates?.canonical).toBe("/pricing");
+    expect(generateMigrationMetadata().alternates?.canonical).toBe("/migration");
+    expect(generatePrivacyMetadata().alternates?.canonical).toBe("/privacy");
+    expect(generateTermsMetadata().alternates?.canonical).toBe("/terms");
+    expect(generatePrivacyMetadata().robots).toMatchObject({ index: false, follow: true });
+    expect(generateTermsMetadata().robots).toMatchObject({ index: false, follow: true });
+  });
+
+  it("builds dashboard auth redirect URLs without exposing arbitrary query params", () => {
+    expect(buildAuthRedirectUrl("login", { returnTo: "/products", token: "secret" })).toBe(
+      "http://localhost:3000/login?returnTo=%2Fproducts"
+    );
+    expect(buildAuthRedirectUrl("register", { source: ["public", "ignored"] })).toBe(
+      "http://localhost:3000/register?source=public"
+    );
+  });
+
+  it("publishes sitemap and robots only for the public marketing surface", () => {
+    const sitemapUrls = sitemap().map((entry) => entry.url);
+    const sitemapPaths = sitemapUrls.map((url) => new URL(url).pathname);
+    const robotsConfig = robots();
+
+    expect(sitemapUrls).toContain("http://localhost:3001/");
+    expect(sitemapUrls).toContain("http://localhost:3001/products");
+    expect(sitemapUrls).toContain("http://localhost:3001/products/website-builder");
+    expect(sitemapUrls).toContain("http://localhost:3001/products/online-store");
+    expect(sitemapUrls).toContain("http://localhost:3001/pricing");
+    expect(sitemapUrls).toContain("http://localhost:3001/migration");
+    expect(sitemapUrls).toContain("http://localhost:3001/privacy");
+    expect(sitemapUrls).toContain("http://localhost:3001/terms");
+    expect(sitemapPaths.some((path) => path === "/s" || path.startsWith("/s/"))).toBe(false);
+    expect(sitemapPaths.some((path) => path === "/checkout" || path.startsWith("/checkout/"))).toBe(false);
+    expect(sitemapPaths.some((path) => path === "/order" || path.startsWith("/order/"))).toBe(false);
+    expect(sitemapPaths).not.toContain("/login");
+    expect(sitemapPaths).not.toContain("/register");
+    expect(new Set(sitemapUrls).size).toBe(sitemapUrls.length);
+    expect(robotsConfig.rules).toMatchObject({
+      userAgent: "*",
+      allow: "/",
+      disallow: ["/s/", "/checkout", "/order", "/login", "/register", "/api/"]
+    });
+    expect(robotsConfig.sitemap).toBe("http://localhost:3001/sitemap.xml");
+  });
+
   it("renders an announcement product page from shared product content", async () => {
     const element = await ProductAnnouncementPage({
       params: Promise.resolve({ slug: "orders-payments" })
@@ -110,6 +193,10 @@ describe("isolated Mercurio marketing public site", () => {
     ).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
   });
 
+  it("routes unknown marketing URLs into the public not-found boundary", () => {
+    expect(() => MarketingCatchAllPage()).toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+  });
+
   it("renders expected header and mega menu content", () => {
     const html = renderToStaticMarkup(
       React.createElement(Header, { dashboardUrl })
@@ -128,8 +215,14 @@ describe("isolated Mercurio marketing public site", () => {
     expect(html).toContain("href=\"/products/online-store\"");
     expect(html).toContain("href=\"/products/orders-payments\"");
     expect(html).toContain("href=\"/products/marketing\"");
+    expect(html).toContain("href=\"/pricing\"");
+    expect(html).toContain("href=\"/migration\"");
+    expect(html).toContain("href=\"/migration\"");
     expect(html).toContain("href=\"http://localhost:3000/login\"");
     expect(html).toContain("href=\"http://localhost:3000/register\"");
+    expect(html).not.toContain("href=\"/solutions\"");
+    expect(html).not.toContain("href=\"/resources\"");
+    expect(html).not.toContain("href=\"/templates\"");
     expect(html).not.toContain("href=\"/products/website-builder\" href=\"/products/online-store\"");
   });
 
@@ -142,7 +235,13 @@ describe("isolated Mercurio marketing public site", () => {
     expect(html).toContain("href=\"/products/website-builder\"");
     expect(html).toContain("href=\"/products/online-store\"");
     expect(html).toContain("href=\"/products/integrations\"");
+    expect(html).toContain("href=\"/pricing\"");
+    expect(html).toContain("href=\"/migration\"");
+    expect(html).toContain("href=\"/privacy\"");
+    expect(html).toContain("href=\"/terms\"");
     expect(html).toContain("href=\"http://localhost:3000/login\"");
+    expect(html).toContain("href=\"http://localhost:3000/register\"");
+    expect(html).not.toContain("href=\"/resources\"");
   });
 
   it("keeps product content slugs unique", () => {
@@ -168,18 +267,24 @@ describe("isolated Mercurio marketing public site", () => {
       new URL("../components/public/theme-switcher.tsx", import.meta.url),
       "utf8"
     );
+    const themeBootSource = readFileSync(
+      new URL("../components/public/theme-boot.tsx", import.meta.url),
+      "utf8"
+    );
     const layoutSource = readFileSync(
       new URL("./(marketing)/layout.tsx", import.meta.url),
       "utf8"
     );
 
     expect(switcherSource).toContain("dataset.publicTheme");
-    expect(layoutSource).toContain("dataset.publicTheme");
+    expect(themeBootSource).toContain("dataset.publicTheme");
+    expect(layoutSource).toContain("PublicThemeBoot");
     expect(switcherSource).not.toContain("dataset.theme");
-    expect(layoutSource).not.toContain("dataset.theme");
+    expect(themeBootSource).not.toContain("dataset.theme");
     expect(switcherSource).not.toContain("colorScheme");
-    expect(layoutSource).not.toContain("colorScheme");
+    expect(themeBootSource).not.toContain("colorScheme");
     expect(switcherSource).not.toContain("mercurio-theme");
+    expect(themeBootSource).not.toContain("mercurio-theme");
   });
 
   it("keeps marketing CSS scoped away from tenant storefront routes", () => {

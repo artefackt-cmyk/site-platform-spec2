@@ -44,11 +44,13 @@ function toFirstStageHref(
     return urls.loginUrl;
   }
 
-  if (href === "/start") {
+  if (href === "/start" || href === "/register") {
     return urls.registerUrl;
   }
 
-  if (href === "/" || href === "/products" || href.startsWith("/products/")) {
+  const publicRoutes = new Set(["/", "/products", "/pricing", "/migration", "/privacy", "/terms"]);
+
+  if (publicRoutes.has(href) || href.startsWith("/products/")) {
     return href;
   }
 

@@ -51,10 +51,17 @@ export const footerGroups = [
     ]
   },
   {
+    title: "Документы",
+    links: [
+      { label: "Политика конфиденциальности", href: "/privacy" },
+      { label: "Условия использования", href: "/terms" }
+    ]
+  },
+  {
     title: "Действия",
     links: [
       { label: "Login", href: "/login" },
-      { label: "Start work", href: "/start" }
+      { label: "Start work", href: "/register" }
     ]
   }
 ];

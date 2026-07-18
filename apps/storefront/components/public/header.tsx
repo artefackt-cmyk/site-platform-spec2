@@ -247,7 +247,7 @@ export function Header({ dashboardUrl }: { readonly dashboardUrl: string }) {
             <strong>Конструктор сайтов Mercurio →</strong>
             <span>Контрольная страница первого этапа интеграции.</span>
           </Link>
-          <Link className="mega-footer-card mega-migration" href={registerUrl} onClick={() => setMegaOpen(false)}>
+          <Link className="mega-footer-card mega-migration" href="/migration" onClick={() => setMegaOpen(false)}>
             <strong>Уже используете другую систему?</strong>
             <span>Перенесём сайт, товары, клиентов и заказы без остановки бизнеса. Как проходит переход →</span>
           </Link>
@@ -312,7 +312,9 @@ function toFirstStageHref(
   href: string,
   urls: { readonly registerUrl: string }
 ): string {
-  if (href === "/" || href === "/products" || href.startsWith("/products/")) {
+  const publicRoutes = new Set(["/", "/products", "/pricing", "/migration", "/privacy", "/terms"]);
+
+  if (publicRoutes.has(href) || href.startsWith("/products/")) {
     return href;
   }
 
