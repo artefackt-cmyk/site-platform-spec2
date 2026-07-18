@@ -60,11 +60,13 @@ const desktopNavigation = [
 export function Header({ dashboardUrl }: { readonly dashboardUrl: string }) {
   const [megaOpen, setMegaOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [mobileProductsOpen, setMobileProductsOpen] = useState(true);
+  const [mobileProductsOpen, setMobileProductsOpen] = useState(false);
   const megaId = useId();
   const mobileId = useId();
   const headerRef = useRef<HTMLElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const mobileButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileWasOpenRef = useRef(false);
   const loginUrl = buildDashboardUrl(dashboardUrl, "/login");
   const registerUrl = buildDashboardUrl(dashboardUrl, "/register");
 
@@ -96,6 +98,42 @@ export function Header({ dashboardUrl }: { readonly dashboardUrl: string }) {
           mobileButtonRef.current?.focus();
         }
       }
+
+      if (event.key === "Tab" && mobileOpen) {
+        const focusableElements = mobileMenuRef.current?.querySelectorAll<HTMLElement>(
+          "a[href], button:not([disabled])"
+        );
+        const focusable = Array.from(focusableElements ?? []).filter((element) => {
+          const rect = element.getBoundingClientRect();
+          const styles = window.getComputedStyle(element);
+          return !element.hidden && rect.width > 0 && rect.height > 0 && styles.display !== "none";
+        });
+
+        if (focusable.length === 0) {
+          event.preventDefault();
+          mobileButtonRef.current?.focus();
+          return;
+        }
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (first === undefined || last === undefined) {
+          event.preventDefault();
+          mobileButtonRef.current?.focus();
+          return;
+        }
+
+        const activeElement = document.activeElement;
+
+        if (event.shiftKey && activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -104,18 +142,28 @@ export function Header({ dashboardUrl }: { readonly dashboardUrl: string }) {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [mobileOpen]);
 
   useEffect(() => {
     const root = headerRef.current?.closest(".public-site");
+    const previousBodyOverflow = document.body.style.overflow;
 
     root?.classList.toggle("public-menu-open", mobileOpen);
     if (mobileOpen) {
       const firstLink = document.querySelector<HTMLAnchorElement>("[data-mobile-first]");
+      document.body.style.overflow = "hidden";
       window.requestAnimationFrame(() => firstLink?.focus());
+    } else if (mobileWasOpenRef.current) {
+      document.body.style.overflow = previousBodyOverflow;
+      window.requestAnimationFrame(() => mobileButtonRef.current?.focus());
     }
 
-    return () => root?.classList.remove("public-menu-open");
+    mobileWasOpenRef.current = mobileOpen;
+
+    return () => {
+      root?.classList.remove("public-menu-open");
+      document.body.style.overflow = previousBodyOverflow;
+    };
   }, [mobileOpen]);
 
   return (
@@ -206,7 +254,15 @@ export function Header({ dashboardUrl }: { readonly dashboardUrl: string }) {
         </div>
       </div>
 
-      <div className="mobile-menu" id={mobileId} hidden={!mobileOpen}>
+      <button
+        className="mobile-backdrop"
+        type="button"
+        aria-label="Закрыть меню"
+        hidden={!mobileOpen}
+        onClick={() => setMobileOpen(false)}
+      />
+
+      <div className="mobile-menu" id={mobileId} hidden={!mobileOpen} ref={mobileMenuRef}>
         <nav aria-label="Мобильная навигация">
           <Link href="/products/website-builder" data-mobile-first onClick={() => setMobileOpen(false)}>
             Конструктор сайтов
