@@ -1,95 +1,64 @@
 import * as React from "react";
+import { getImageProps } from "next/image";
 
 export function ProductMockup({ variant }: { variant: "dashboard" | "builder" | "store" }) {
-  const isStore = variant === "store";
   const isBuilder = variant === "builder";
-
-  if (isBuilder) {
-    return (
-      <div className="builder-hero-mockup" aria-label="Редактор сайта Mercurio">
-        <div className="mockup-dots" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-        <div className="builder-mockup-body">
-          <nav className="builder-mockup-nav" aria-label="Разделы редактора">
-            <span className="active">Страницы</span>
-            <span>Блоки</span>
-            <span>Дизайн</span>
-            <span>Публикация</span>
-          </nav>
-          <div className="builder-mockup-content">
-            <div className="builder-metrics">
-              <article>
-                <span>Страницы</span>
-                <strong>12</strong>
-              </article>
-              <article>
-                <span>Блоки</span>
-                <strong>48</strong>
-              </article>
-              <article>
-                <span>Версии</span>
-                <strong>7</strong>
-              </article>
-            </div>
-            <div className="builder-graph" aria-label="График роста">
-              <span className="g1" />
-              <span className="g2" />
-              <span className="g3" />
-              <span className="g4" />
-              <span className="g5" />
-              <span className="g6" />
-              <span className="g7" />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const image = heroImages[variant];
+  const className = isBuilder ? "builder-hero-mockup hero-photo-frame" : "mockup-frame hero-photo-frame";
+  const {
+    props: { srcSet: desktopSrcSet, ...desktopProps }
+  } = getImageProps({
+    src: image.desktopSrc,
+    alt: image.alt,
+    width: 660,
+    height: 440,
+    sizes: image.sizes,
+    loading: "eager",
+    fetchPriority: "high"
+  });
+  const {
+    props: { srcSet: mobileSrcSet }
+  } = getImageProps({
+    src: image.mobileSrc,
+    alt: image.alt,
+    width: 342,
+    height: 300,
+    sizes: "(max-width: 767px) calc(100vw - 32px), 342px",
+    loading: "eager",
+    fetchPriority: "high"
+  });
 
   return (
-    <div className="mockup-frame" aria-label="Интерфейс Mercurio">
-      <div className="mockup-topbar">
-        <span />
-        <span />
-        <span />
-        <strong>{isStore ? "Store" : isBuilder ? "Builder" : "Dashboard"}</strong>
-      </div>
-      <div className="mockup-body">
-        <aside className="mockup-sidebar">
-          <span className="active" />
-          <span />
-          <span />
-          <span />
-        </aside>
-        <div className="mockup-main">
-          <div className="mockup-panel large">
-            <div className="mockup-line wide" />
-            <div className="mockup-line" />
-            <div className="mockup-actions">
-              <span />
-              <span />
-            </div>
-          </div>
-          <div className="mockup-grid">
-            <div className="mockup-panel">
-              <strong>{isStore ? "128" : "12"}</strong>
-              <span>{isStore ? "orders" : "pages"}</span>
-            </div>
-            <div className="mockup-panel">
-              <strong>{isStore ? "4.8" : "31%"}</strong>
-              <span>{isStore ? "rating" : "conversion"}</span>
-            </div>
-          </div>
-          <div className="mockup-flow" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
-        </div>
-      </div>
+    <div className={className} aria-label={image.alt}>
+      <picture>
+        <source media="(max-width: 767px)" srcSet={mobileSrcSet} />
+        <img
+          {...desktopProps}
+          srcSet={desktopSrcSet}
+          className={`hero-photo hero-photo-${variant}`}
+        />
+      </picture>
     </div>
   );
 }
+
+const heroImages = {
+  dashboard: {
+    desktopSrc: "/images/public/heroes/dashboard-desktop.webp",
+    mobileSrc: "/images/public/heroes/dashboard-mobile.webp",
+    alt: "Главный экран системы управления Mercurio",
+    sizes: "(max-width: 767px) calc(100vw - 32px), (max-width: 900px) min(720px, calc(100vw - 32px)), (max-width: 1320px) calc((100vw - 120px) * 0.5), 660px"
+  },
+  builder: {
+    desktopSrc: "/images/public/heroes/builder-desktop.webp",
+    mobileSrc: "/images/public/heroes/builder-mobile.webp",
+    alt: "Редактор сайтов Mercurio на компьютере и смартфоне",
+    sizes: "(max-width: 767px) calc(100vw - 32px), (max-width: 1320px) calc(100vw - 120px), 610px"
+  },
+  store: {
+    desktopSrc: "/images/public/heroes/store-desktop.webp",
+    mobileSrc: "/images/public/heroes/store-mobile.webp",
+    alt: "Управление интернет-магазином Mercurio",
+    sizes: "(max-width: 767px) calc(100vw - 32px), (max-width: 900px) min(720px, calc(100vw - 32px)), (max-width: 1320px) calc((100vw - 120px) * 0.5), 660px"
+  }
+} as const;

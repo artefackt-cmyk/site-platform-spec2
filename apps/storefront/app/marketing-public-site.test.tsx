@@ -49,6 +49,8 @@ describe("isolated Mercurio marketing public site", () => {
     expect(html).toContain("public-site");
     expect(html).toContain("Сайт, магазин и продажи в одной системе");
     expect(html).toContain("Публичная система, которая растёт вместе с продажами");
+    expect(html).toContain("Главный экран системы управления Mercurio");
+    expect(html).toContain("dashboard-mobile.webp");
     expect(html).toContain("href=\"http://localhost:3000/register\"");
     expect(html).toContain("href=\"/products/website-builder\"");
   });
@@ -58,6 +60,8 @@ describe("isolated Mercurio marketing public site", () => {
 
     expect(html).toContain("product-hero-website-builder");
     expect(html).toContain("Создавайте сайт и сразу видьте его на Desktop и Mobile");
+    expect(html).toContain("Редактор сайтов Mercurio на компьютере и смартфоне");
+    expect(html).toContain("builder-mobile.webp");
     expect(html).toContain("Desktop и Mobile одновременно");
     expect(html).toContain("editor-both-mockup");
     expect(html).toContain("Desktop");
@@ -84,6 +88,8 @@ describe("isolated Mercurio marketing public site", () => {
     expect(html).toContain("Интернет-магазин");
     expect(html).toContain("Посмотреть возможности");
     expect(html).toContain("Управление витриной");
+    expect(html).toContain("Управление интернет-магазином Mercurio");
+    expect(html).toContain("store-mobile.webp");
     expect(html).toContain("Каталог и остатки");
     expect(html).toContain("Заказы и оплаты");
     expect(html).toContain("Командная работа");
@@ -326,5 +332,11 @@ describe("isolated Mercurio marketing public site", () => {
     expect(existsSync(new URL("../public/brand-dark.svg", import.meta.url))).toBe(true);
     expect(existsSync(new URL("../public/favicon.svg", import.meta.url))).toBe(true);
     expect(existsSync(new URL("../public/icons/mega-cart.svg", import.meta.url))).toBe(true);
+    expect(existsSync(new URL("../public/images/public/heroes/dashboard-desktop.webp", import.meta.url))).toBe(true);
+    expect(existsSync(new URL("../public/images/public/heroes/dashboard-mobile.webp", import.meta.url))).toBe(true);
+    expect(existsSync(new URL("../public/images/public/heroes/builder-desktop.webp", import.meta.url))).toBe(true);
+    expect(existsSync(new URL("../public/images/public/heroes/builder-mobile.webp", import.meta.url))).toBe(true);
+    expect(existsSync(new URL("../public/images/public/heroes/store-desktop.webp", import.meta.url))).toBe(true);
+    expect(existsSync(new URL("../public/images/public/heroes/store-mobile.webp", import.meta.url))).toBe(true);
   });
 });
