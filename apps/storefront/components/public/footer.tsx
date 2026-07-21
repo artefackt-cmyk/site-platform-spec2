@@ -48,7 +48,16 @@ function toFirstStageHref(
     return urls.registerUrl;
   }
 
-  const publicRoutes = new Set(["/", "/products", "/pricing", "/migration", "/privacy", "/terms"]);
+  const publicRoutes = new Set([
+    "/",
+    "/products",
+    "/website-builder",
+    "/online-store",
+    "/pricing",
+    "/migration",
+    "/privacy",
+    "/terms"
+  ]);
 
   if (publicRoutes.has(href) || href.startsWith("/products/")) {
     return href;

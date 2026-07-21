@@ -48,7 +48,7 @@ export default function HomePage() {
   const heroContent = {
     ...homePage.hero,
     primaryHref: registerUrl,
-    secondaryHref: "/products/website-builder"
+    secondaryHref: "/website-builder"
   };
 
   return (
@@ -72,7 +72,7 @@ export default function HomePage() {
         primaryLabel="Начать работу"
         primaryHref={registerUrl}
         secondaryLabel="Посмотреть конструктор"
-        secondaryHref="/products/website-builder"
+        secondaryHref="/website-builder"
       />
     </PublicShell>
   );

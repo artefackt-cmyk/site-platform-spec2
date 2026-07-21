@@ -1,12 +1,12 @@
 import type { MetadataRoute } from "next";
 import { getStorefrontBaseUrl } from "../components/public/metadata";
-import { products } from "../content/public/products";
+import { getProductPublicPath, products } from "../content/public/products";
 
 const staticMarketingRoutes = [
   "/",
   "/products",
-  "/products/website-builder",
-  "/products/online-store",
+  "/website-builder",
+  "/online-store",
   "/pricing",
   "/migration",
   "/privacy",
@@ -15,7 +15,7 @@ const staticMarketingRoutes = [
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = getStorefrontBaseUrl();
-  const productRoutes = products.map((product) => `/products/${product.slug}`);
+  const productRoutes = products.map((product) => getProductPublicPath(product.slug));
   const routes = Array.from(new Set([...staticMarketingRoutes, ...productRoutes]));
 
   return routes.map((route) => ({

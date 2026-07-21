@@ -12,7 +12,7 @@ const megaGroups = [
     title: "Создание",
     icon: "structure",
     links: [
-      { label: "Конструктор сайтов", href: "/products/website-builder" },
+      { label: "Конструктор сайтов", href: "/website-builder" },
       { label: "Шаблоны", href: "/templates" },
       { label: "Контент и SEO", href: "/resources" }
     ]
@@ -21,7 +21,7 @@ const megaGroups = [
     title: "Продажи",
     icon: "cart",
     links: [
-      { label: "Интернет-магазин", href: "/products/online-store" },
+      { label: "Интернет-магазин", href: "/online-store" },
       { label: "Заказы и оплата", href: "/products/orders-payments" },
       { label: "Клиенты и лояльность", href: "/products/customers-loyalty" },
       { label: "Продажи и коммуникации", href: "/products/sales-communications" },
@@ -243,7 +243,7 @@ export function Header({ dashboardUrl }: { readonly dashboardUrl: string }) {
           ))}
         </div>
         <div className="mega-footer">
-          <Link className="mega-footer-card mega-all-products" href="/products/website-builder" onClick={() => setMegaOpen(false)}>
+          <Link className="mega-footer-card mega-all-products" href="/website-builder" onClick={() => setMegaOpen(false)}>
             <strong>Конструктор сайтов Mercurio →</strong>
             <span>Контрольная страница первого этапа интеграции.</span>
           </Link>
@@ -312,7 +312,16 @@ function toFirstStageHref(
   href: string,
   urls: { readonly registerUrl: string }
 ): string {
-  const publicRoutes = new Set(["/", "/products", "/pricing", "/migration", "/privacy", "/terms"]);
+  const publicRoutes = new Set([
+    "/",
+    "/products",
+    "/website-builder",
+    "/online-store",
+    "/pricing",
+    "/migration",
+    "/privacy",
+    "/terms"
+  ]);
 
   if (publicRoutes.has(href) || href.startsWith("/products/")) {
     return href;

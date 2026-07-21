@@ -13,10 +13,12 @@ import MarketingNotFound from "./(marketing)/not-found";
 import MarketingCatchAllPage from "./(marketing)/[...notFound]/page";
 import OnlineStorePage, {
   generateMetadata as generateOnlineStoreMetadata
-} from "./(marketing)/products/online-store/page";
+} from "./(marketing)/online-store/page";
 import WebsiteBuilderPage, {
   generateMetadata as generateWebsiteBuilderMetadata
-} from "./(marketing)/products/website-builder/page";
+} from "./(marketing)/website-builder/page";
+import LegacyOnlineStorePage from "./(marketing)/products/online-store/page";
+import LegacyWebsiteBuilderPage from "./(marketing)/products/website-builder/page";
 import MigrationPage, {
   generateMetadata as generateMigrationMetadata
 } from "./(marketing)/migration/page";
@@ -52,7 +54,7 @@ describe("isolated Mercurio marketing public site", () => {
     expect(html).toContain("Главный экран системы управления Mercurio");
     expect(html).toContain("dashboard-mobile.webp");
     expect(html).toContain("href=\"http://localhost:3000/register\"");
-    expect(html).toContain("href=\"/products/website-builder\"");
+    expect(html).toContain("href=\"/website-builder\"");
   });
 
   it("renders the website-builder control page baseline sections", () => {
@@ -75,7 +77,7 @@ describe("isolated Mercurio marketing public site", () => {
     expect(html).toContain("Все продукты Mercurio");
     expect(html).toContain("Выберите продукт под текущий этап роста");
     expect(html).toContain("product-card-v2");
-    expect(html).toContain("href=\"/products/online-store\"");
+    expect(html).toContain("href=\"/online-store\"");
     expect(html).toContain("href=\"/products/orders-payments\"");
     expect(html).toContain("Посмотреть тарифы");
     expect(metadata.alternates?.canonical).toBe("/products");
@@ -99,7 +101,7 @@ describe("isolated Mercurio marketing public site", () => {
     expect(html).not.toContain("Начните с конструктора");
     expect(html).not.toContain("Посмотреть шаблоны");
     expect(html).not.toContain("Не просто страницы");
-    expect(metadata.alternates?.canonical).toBe("/products/online-store");
+    expect(metadata.alternates?.canonical).toBe("/online-store");
   });
 
   it("renders pricing, migration, legal and marketing not-found pages through SSR", () => {
@@ -148,8 +150,8 @@ describe("isolated Mercurio marketing public site", () => {
 
     expect(sitemapUrls).toContain("http://localhost:3001/");
     expect(sitemapUrls).toContain("http://localhost:3001/products");
-    expect(sitemapUrls).toContain("http://localhost:3001/products/website-builder");
-    expect(sitemapUrls).toContain("http://localhost:3001/products/online-store");
+    expect(sitemapUrls).toContain("http://localhost:3001/website-builder");
+    expect(sitemapUrls).toContain("http://localhost:3001/online-store");
     expect(sitemapUrls).toContain("http://localhost:3001/pricing");
     expect(sitemapUrls).toContain("http://localhost:3001/migration");
     expect(sitemapUrls).toContain("http://localhost:3001/privacy");
@@ -159,6 +161,8 @@ describe("isolated Mercurio marketing public site", () => {
     expect(sitemapPaths.some((path) => path === "/order" || path.startsWith("/order/"))).toBe(false);
     expect(sitemapPaths).not.toContain("/login");
     expect(sitemapPaths).not.toContain("/register");
+    expect(sitemapPaths).not.toContain("/products/website-builder");
+    expect(sitemapPaths).not.toContain("/products/online-store");
     expect(new Set(sitemapUrls).size).toBe(sitemapUrls.length);
     expect(robotsConfig.rules).toMatchObject({
       userAgent: "*",
@@ -217,8 +221,8 @@ describe("isolated Mercurio marketing public site", () => {
     expect(html).toContain("Рост");
     expect(html).toContain("Управление");
     expect(html).toContain("Конструктор сайтов");
-    expect(html).toContain("href=\"/products/website-builder\"");
-    expect(html).toContain("href=\"/products/online-store\"");
+    expect(html).toContain("href=\"/website-builder\"");
+    expect(html).toContain("href=\"/online-store\"");
     expect(html).toContain("href=\"/products/orders-payments\"");
     expect(html).toContain("href=\"/products/marketing\"");
     expect(html).toContain("href=\"/pricing\"");
@@ -229,7 +233,8 @@ describe("isolated Mercurio marketing public site", () => {
     expect(html).not.toContain("href=\"/solutions\"");
     expect(html).not.toContain("href=\"/resources\"");
     expect(html).not.toContain("href=\"/templates\"");
-    expect(html).not.toContain("href=\"/products/website-builder\" href=\"/products/online-store\"");
+    expect(html).not.toContain("href=\"/products/website-builder\"");
+    expect(html).not.toContain("href=\"/products/online-store\"");
   });
 
   it("keeps footer product links on real product routes", () => {
@@ -238,8 +243,8 @@ describe("isolated Mercurio marketing public site", () => {
     );
 
     expect(html).toContain("href=\"/products\"");
-    expect(html).toContain("href=\"/products/website-builder\"");
-    expect(html).toContain("href=\"/products/online-store\"");
+    expect(html).toContain("href=\"/website-builder\"");
+    expect(html).toContain("href=\"/online-store\"");
     expect(html).toContain("href=\"/products/integrations\"");
     expect(html).toContain("href=\"/pricing\"");
     expect(html).toContain("href=\"/migration\"");
@@ -327,7 +332,7 @@ describe("isolated Mercurio marketing public site", () => {
 
     expect(homeMetadata.metadataBase?.toString()).toBe("http://localhost:3001/");
     expect(productMetadata.metadataBase?.toString()).toBe("http://localhost:3001/");
-    expect(productMetadata.alternates?.canonical).toBe("/products/website-builder");
+    expect(productMetadata.alternates?.canonical).toBe("/website-builder");
     expect(existsSync(new URL("../public/brand-light.svg", import.meta.url))).toBe(true);
     expect(existsSync(new URL("../public/brand-dark.svg", import.meta.url))).toBe(true);
     expect(existsSync(new URL("../public/favicon.svg", import.meta.url))).toBe(true);
@@ -338,5 +343,45 @@ describe("isolated Mercurio marketing public site", () => {
     expect(existsSync(new URL("../public/images/public/heroes/builder-mobile.webp", import.meta.url))).toBe(true);
     expect(existsSync(new URL("../public/images/public/heroes/store-desktop.webp", import.meta.url))).toBe(true);
     expect(existsSync(new URL("../public/images/public/heroes/store-mobile.webp", import.meta.url))).toBe(true);
+  });
+
+  it("keeps ready product legacy routes as permanent server redirects", async () => {
+    await expect(() => LegacyWebsiteBuilderPage()).toThrow("NEXT_REDIRECT");
+    await expect(() => LegacyOnlineStorePage()).toThrow("NEXT_REDIRECT");
+
+    // @ts-expect-error next.config.mjs does not ship local TypeScript declarations.
+    const config = await import("../next.config.mjs");
+    const redirects = await config.default.redirects();
+
+    expect(redirects).toEqual(
+      expect.arrayContaining([
+        {
+          source: "/products/website-builder",
+          destination: "/website-builder",
+          permanent: true
+        },
+        {
+          source: "/products/online-store",
+          destination: "/online-store",
+          permanent: true
+        }
+      ])
+    );
+  });
+
+  it("does not keep internal public links to legacy ready product routes", () => {
+    const checkedSources = [
+      "../components/public/header.tsx",
+      "../components/public/footer.tsx",
+      "../components/public/product-catalog.tsx",
+      "./(marketing)/page.tsx",
+      "./(marketing)/products/page.tsx",
+      "./sitemap.ts"
+    ].map((path) => readFileSync(new URL(path, import.meta.url), "utf8"));
+
+    for (const source of checkedSources) {
+      expect(source).not.toContain("/products/website-builder");
+      expect(source).not.toContain("/products/online-store");
+    }
   });
 });

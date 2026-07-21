@@ -37,8 +37,8 @@ export const footerGroups = [
     title: "Продукты",
     links: [
       { label: "Все продукты", href: "/products" },
-      { label: "Конструктор сайтов", href: "/products/website-builder" },
-      { label: "Интернет-магазин", href: "/products/online-store" },
+      { label: "Конструктор сайтов", href: "/website-builder" },
+      { label: "Интернет-магазин", href: "/online-store" },
       { label: "Интеграции", href: "/products/integrations" }
     ]
   },
