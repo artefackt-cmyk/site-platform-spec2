@@ -303,4 +303,12 @@ export function getProductBySlug(slug: string) {
   return products.find((product) => product.slug === slug);
 }
 
+export function getProductPublicPath(slug: string) {
+  if (slug === "website-builder" || slug === "online-store") {
+    return `/${slug}`;
+  }
+
+  return `/products/${slug}`;
+}
+
 export const featuredProducts = products.filter((product) => product.status === "ready");

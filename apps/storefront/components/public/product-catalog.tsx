@@ -1,6 +1,10 @@
 import * as React from "react";
 import Link from "next/link";
-import type { Product, ProductStatus } from "../../content/public/products";
+import {
+  getProductPublicPath,
+  type Product,
+  type ProductStatus
+} from "../../content/public/products";
 
 const catalogGroups: {
   readonly title: string;
@@ -69,7 +73,7 @@ export function ProductCatalog({ products }: { readonly products: readonly Produ
 
 function ProductCard({ product }: { readonly product: Product }) {
   return (
-    <Link className="product-card product-card-v2" href={`/products/${product.slug}`}>
+    <Link className="product-card product-card-v2" href={getProductPublicPath(product.slug)}>
       <span className="product-card-topline">
         <span className="eyebrow">{product.eyebrow}</span>
         <StatusBadge status={product.status} label={product.badge} />
